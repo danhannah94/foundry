@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import ThemeToggle from '../components/ThemeToggle.tsx';
 
 interface Props {
   title?: string;
@@ -39,7 +40,7 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
     <a href="/" class="header-title" style="text-decoration: none;">🏭 Foundry</a>
     <div class="header-right">
       {/* Sidebar slot — nav goes here (S2) */}
-      {/* Theme toggle goes here (S3) */}
+      <ThemeToggle client:load />
       <slot name="header-actions" />
     </div>
   </header>
