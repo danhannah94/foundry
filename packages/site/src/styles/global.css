@@ -579,7 +579,7 @@ h4:hover .tts-play-btn,
   }
 }
 
-/* Active section highlight */
+/* Active section highlight (section play buttons) */
 .tts-active {
   background: var(--color-accent-light);
   border-radius: 4px;
@@ -588,6 +588,48 @@ h4:hover .tts-play-btn,
 }
 
 [data-theme="dark"] .tts-active {
+  background: rgba(234, 88, 12, 0.1);
+}
+
+/* --- TTS Play All --- */
+.tts-play-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 16px;
+  flex-wrap: wrap;
+}
+
+.tts-play-all button {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  transition: background-color 0.15s;
+}
+
+.tts-play-all button:hover {
+  background: var(--color-sidebar-hover);
+}
+
+.tts-play-all .tts-status {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+}
+
+/* Currently-reading section highlight (Play All) */
+.tts-playing {
+  background: var(--color-accent-light);
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin: -2px -8px;
+  transition: background-color 0.3s;
+}
+
+[data-theme="dark"] .tts-playing {
   background: rgba(234, 88, 12, 0.1);
 }
 

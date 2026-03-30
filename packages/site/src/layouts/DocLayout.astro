@@ -4,6 +4,7 @@ import ThemeToggle from '../components/ThemeToggle.tsx';
 import TtsSectionManager from '../components/TtsSectionManager.tsx';
 import Sidebar from '../components/Sidebar.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
+import PlayAllManager from '../components/PlayAllManager.tsx';
 
 interface Props {
   title?: string;
@@ -63,6 +64,7 @@ const base = import.meta.env.BASE_URL;
       <article class="content">
         <slot />
         <TtsSectionManager client:load />
+        <PlayAllManager client:load />
       </article>
     </main>
   </div>
