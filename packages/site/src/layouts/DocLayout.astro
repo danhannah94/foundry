@@ -1,13 +1,16 @@
 ---
 import '../styles/global.css';
 import ThemeToggle from '../components/ThemeToggle.tsx';
+import Sidebar from '../components/Sidebar.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
 
 interface Props {
   title?: string;
   description?: string;
+  currentPath?: string;
 }
 
-const { title = 'Foundry', description = 'Documentation platform for human-AI collaborative workflows' } = Astro.props;
+const { title = 'Foundry', description = 'Documentation platform for human-AI collaborative workflows', currentPath = '/' } = Astro.props;
 const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
 ---
 
@@ -46,13 +49,11 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
   </header>
 
   <div class="layout">
-    {/* Sidebar slot — populated by S2 */}
-    <slot name="sidebar" />
+    <Sidebar currentPath={currentPath} />
 
     <main class="content-area">
-      {/* Breadcrumbs slot — populated by S2 */}
-      <slot name="breadcrumbs" />
-      
+      <Breadcrumbs currentPath={currentPath} />
+
       <article class="content">
         <slot />
       </article>

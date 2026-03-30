@@ -1,0 +1,93 @@
+---
+import { getNavItems, isActiveOrAncestor } from '../utils/nav';
+import type { NavItem } from '../utils/nav';
+
+interface Props {
+  currentPath: string;
+}
+
+const { currentPath } = Astro.props;
+const navItems = getNavItems();
+
+function normalizePath(p: string): string {
+  return p.endsWith('/') ? p : p + '/';
+}
+
+function isActive(href: string | undefined): boolean {
+  if (!href) return false;
+  return normalizePath(href) === normalizePath(currentPath);
+}
+---
+
+<nav class="sidebar" aria-label="Documentation navigation">
+  <ul class="nav-list">
+    {navItems.map((item) => (
+      <li>
+        {item.children ? (
+          <details class="nav-section" open={isActiveOrAncestor(item, currentPath)}>
+            <summary class="nav-section-title">
+              {item.href ? (
+                <a href={item.href} class:list={['nav-link', { active: isActive(item.href) }]}>{item.title}</a>
+              ) : (
+                item.title
+              )}
+            </summary>
+            <ul class="nav-children">
+              {item.children.map((child) => (
+                <li>
+                  {child.children ? (
+                    <details class="nav-section" open={isActiveOrAncestor(child, currentPath)}>
+                      <summary class="nav-section-title">
+                        {child.href ? (
+                          <a href={child.href} class:list={['nav-link', { active: isActive(child.href) }]}>{child.title}</a>
+                        ) : (
+                          child.title
+                        )}
+                      </summary>
+                      <ul class="nav-children">
+                        {child.children.map((grandchild) => (
+                          <li>
+                            {grandchild.children ? (
+                              <details class="nav-section" open={isActiveOrAncestor(grandchild, currentPath)}>
+                                <summary class="nav-section-title">
+                                  {grandchild.href ? (
+                                    <a href={grandchild.href} class:list={['nav-link', { active: isActive(grandchild.href) }]}>{grandchild.title}</a>
+                                  ) : (
+                                    grandchild.title
+                                  )}
+                                </summary>
+                                <ul class="nav-children">
+                                  {grandchild.children!.map((leaf) => (
+                                    <li class:list={['nav-item', { active: isActive(leaf.href) }]}>
+                                      <a href={leaf.href} class="nav-link">{leaf.title}</a>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </details>
+                            ) : (
+                              <div class:list={['nav-item', { active: isActive(grandchild.href) }]}>
+                                <a href={grandchild.href} class="nav-link">{grandchild.title}</a>
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  ) : (
+                    <div class:list={['nav-item', { active: isActive(child.href) }]}>
+                      <a href={child.href} class="nav-link">{child.title}</a>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : (
+          <div class:list={['nav-item', { active: isActive(item.href) }]}>
+            <a href={item.href} class="nav-link">{item.title}</a>
+          </div>
+        )}
+      </li>
+    ))}
+  </ul>
+</nav>

@@ -15,6 +15,6 @@ const { Content } = await render(entry);
 const title = entry.data.title || entry.id;
 ---
 
-<DocLayout title={title}>
+<DocLayout title={title} currentPath={Astro.url.pathname}>
   <Content />
 </DocLayout>

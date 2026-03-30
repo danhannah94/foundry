@@ -1,0 +1,25 @@
+---
+import { getBreadcrumbs } from '../utils/nav';
+
+interface Props {
+  currentPath: string;
+}
+
+const { currentPath } = Astro.props;
+const crumbs = getBreadcrumbs(currentPath);
+---
+
+{crumbs.length > 0 && (
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    {crumbs.map((crumb, i) => (
+      <>
+        {i > 0 && <span class="separator">/</span>}
+        {i === crumbs.length - 1 ? (
+          <span class="current">{crumb.title}</span>
+        ) : (
+          <a href={crumb.href || '#'}>{crumb.title}</a>
+        )}
+      </>
+    ))}
+  </nav>
+)}
