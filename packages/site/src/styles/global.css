@@ -278,6 +278,18 @@ h6:hover .heading-anchor {
 
 .content {
   max-width: var(--content-max-width);
+  overflow-x: hidden;
+}
+
+.content table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.content pre {
+  overflow-x: auto;
+  max-width: 100%;
 }
 
 /* --- Header --- */
@@ -309,18 +321,8 @@ h6:hover .heading-anchor {
   gap: var(--spacing-md);
 }
 
-/* --- Menu Buttons --- */
-.menu-toggle {
-  display: none;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: var(--spacing-sm);
-  color: var(--color-text);
-  font-size: 1.25rem;
-}
-
-.sidebar-collapse {
+/* --- Sidebar Toggle (header) --- */
+.sidebar-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -329,13 +331,12 @@ h6:hover .heading-anchor {
   border-radius: 4px;
   cursor: pointer;
   padding: 6px;
-  color: var(--color-text-muted);
-  margin-bottom: var(--spacing-xs);
-  margin-left: auto;
+  color: var(--color-text-secondary);
+  margin-right: var(--spacing-sm);
   transition: color var(--transition-fast), background-color var(--transition-fast);
 }
-.sidebar-collapse:hover {
-  background: var(--color-sidebar-hover);
+.sidebar-toggle:hover {
+  background: var(--color-bg-secondary);
   color: var(--color-text);
 }
 
@@ -345,32 +346,12 @@ h6:hover .heading-anchor {
 }
 .layout.sidebar-hidden .content-area {
   margin-left: 0;
+  max-width: calc(var(--content-max-width) + var(--spacing-xl) * 2);
+  margin-left: auto;
+  margin-right: auto;
 }
 
-/* Show-sidebar tab when collapsed */
-.sidebar-show {
-  display: none;
-  position: fixed;
-  top: calc(var(--header-height) + var(--spacing-sm));
-  left: 0;
-  z-index: 15;
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-left: none;
-  border-radius: 0 4px 4px 0;
-  padding: 8px 6px;
-  cursor: pointer;
-  color: var(--color-text-secondary);
-  font-size: 0.875rem;
-  transition: color var(--transition-fast), background-color var(--transition-fast);
-}
-.sidebar-show:hover {
-  background: var(--color-sidebar-hover);
-  color: var(--color-text);
-}
-.layout.sidebar-hidden .sidebar-show {
-  display: block;
-}
+
 
 /* --- Responsive --- */
 @media (max-width: 768px) {
@@ -385,9 +366,7 @@ h6:hover .heading-anchor {
     padding: var(--spacing-md);
     padding-top: calc(var(--header-height) + var(--spacing-md));
   }
-  .menu-toggle {
-    display: block;
-  }
+
 }
 
 /* --- Sidebar Navigation --- */
