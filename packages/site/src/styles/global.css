@@ -633,6 +633,133 @@ h4:hover .tts-play-btn,
   background: rgba(234, 88, 12, 0.1);
 }
 
+/* --- TTS Controls Bar --- */
+.tts-controls-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--color-bg);
+  border-top: 1px solid var(--color-border);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 1000;
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.tts-controls-bar.visible {
+  transform: translateY(0);
+}
+
+body.tts-bar-active {
+  padding-bottom: 56px;
+}
+
+.tts-bar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--color-text);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.tts-bar-btn:hover {
+  background: var(--color-bg-secondary);
+}
+
+.tts-bar-btn-play {
+  width: 36px;
+  height: 36px;
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+  border-radius: 50%;
+}
+
+.tts-bar-btn-play:hover {
+  background: var(--color-accent-hover);
+}
+
+.tts-bar-btn-close {
+  margin-left: auto;
+  border: none;
+  color: var(--color-text-muted);
+}
+
+.tts-bar-btn-close:hover {
+  color: var(--color-text);
+}
+
+.tts-bar-info {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.tts-bar-speed {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.tts-bar-speed-btn {
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
+}
+
+.tts-bar-speed-btn:hover {
+  background: var(--color-sidebar-hover);
+  color: var(--color-text);
+}
+
+.tts-bar-speed-btn.active {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+}
+
+[data-theme="dark"] .tts-controls-bar {
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
+}
+
+@media (max-width: 768px) {
+  .tts-controls-bar {
+    padding: 6px 12px;
+    gap: 6px;
+  }
+
+  .tts-bar-speed {
+    display: none;
+  }
+
+  .tts-bar-info {
+    font-size: 0.75rem;
+  }
+}
+
 /* --- Mermaid diagrams --- */
 pre.mermaid {
   background: none;
