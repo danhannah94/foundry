@@ -1,6 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import { createAnvil } from './types/anvil.js';
+import { createAnvil } from '@claymore-dev/anvil';
 import { getDocsPath } from './config.js';
 import { createHealthRouter } from './routes/health.js';
 
@@ -63,7 +63,7 @@ async function startServer(): Promise<void> {
 
     // Initialize Anvil with the configured docs path
     console.log('🔧 Initializing Anvil...');
-    const anvil = createAnvil({ docsPath });
+    const anvil = await createAnvil({ docsPath });
     console.log('✅ Anvil initialized successfully');
 
     // Mount health router

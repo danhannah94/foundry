@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import type { AnvilInstance } from '../types/anvil.js';
+import type { Anvil } from '@claymore-dev/anvil';
 
 interface HealthResponse {
   status: 'ok';
@@ -14,21 +14,20 @@ interface HealthResponse {
 /**
  * Creates the health router
  */
-export function createHealthRouter(anvil: AnvilInstance): Router {
+export function createHealthRouter(anvil: Anvil): Router {
   const router = Router();
 
   router.get('/health', async (req: Request, res: Response<HealthResponse>) => {
     try {
-      // Get status from Anvil, with defaults if no index exists yet
-      const anvilStatus = await anvil.getStatus();
+      const status = await anvil.getStatus();
 
       const response: HealthResponse = {
         status: 'ok',
         version: '0.2.0',
         anvil: {
-          totalPages: anvilStatus?.totalPages || 0,
-          totalChunks: anvilStatus?.totalChunks || 0,
-          lastIndexed: anvilStatus?.lastIndexed || null,
+          totalPages: status.total_pages,
+          totalChunks: status.total_chunks,
+          lastIndexed: status.last_indexed,
         },
       };
 

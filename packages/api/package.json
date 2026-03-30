@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@claymore-dev/anvil": "file:../../anvil",
+    "@claymore-dev/anvil": "file:../../../anvil",
     "cors": "^2.8.5",
     "express": "^4.18.2",
     "js-yaml": "^4.1.0"
