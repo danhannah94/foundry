@@ -1,16 +1,9 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { extractSections } from '../utils/tts-extractor';
-import { createTtsEngine } from '../utils/tts-engine';
+import { getSharedEngine, getTtsState, setTtsState } from '../utils/tts-state';
 import type { TtsSection } from '../utils/tts-extractor';
-import type { TtsEngine } from '../utils/tts-engine';
 import SectionPlayButton from './SectionPlayButton';
-
-let sharedEngine: TtsEngine | null = null;
-function getEngine(): TtsEngine {
-  if (!sharedEngine) sharedEngine = createTtsEngine();
-  return sharedEngine;
-}
 
 interface SectionEntry {
   section: TtsSection;
@@ -23,7 +16,7 @@ export default function TtsSectionManager() {
   const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
-    const engine = getEngine();
+    const engine = getSharedEngine();
     if (!engine.isSupported()) return;
 
     const contentEl = document.querySelector('.content') as HTMLElement;
@@ -51,16 +44,26 @@ export default function TtsSectionManager() {
   }, []);
 
   function handleToggle(sectionId: string, sectionText: string) {
-    const engine = getEngine();
+    const engine = getSharedEngine();
+    const state = getTtsState();
+
+    // If PlayAll is active, stop it first
+    if (state.mode === 'playall' && state.isPlaying) {
+      engine.cancel();
+      document.querySelectorAll('.tts-playing').forEach((el) => el.classList.remove('tts-playing'));
+      setTtsState({ isPlaying: false, isPaused: false, mode: null, currentTitle: '' });
+    }
 
     // Clicking the currently active section: toggle pause/resume
     if (activeSectionId === sectionId) {
       if (engine.isPaused()) {
         engine.resume();
         setIsPaused(false);
+        setTtsState({ isPaused: false });
       } else if (engine.isSpeaking()) {
         engine.pause();
         setIsPaused(true);
+        setTtsState({ isPaused: true });
       }
       return;
     }
@@ -70,22 +73,37 @@ export default function TtsSectionManager() {
       document.getElementById(activeSectionId)?.classList.remove('tts-active');
     }
 
+    // Find section title
+    const entry = entries.find((e) => e.section.id === sectionId);
+    const title = entry?.section.title ?? '';
+
     // Start new section
     const heading = document.getElementById(sectionId);
     heading?.classList.add('tts-active');
     setActiveSectionId(sectionId);
     setIsPaused(false);
 
+    setTtsState({
+      isPlaying: true,
+      isPaused: false,
+      mode: 'section',
+      currentTitle: title,
+      currentIndex: 0,
+      totalSections: 0,
+    });
+
     engine.speak(sectionText, {
       onEnd() {
         heading?.classList.remove('tts-active');
         setActiveSectionId(null);
         setIsPaused(false);
+        setTtsState({ isPlaying: false, isPaused: false, mode: null, currentTitle: '' });
       },
       onError() {
         heading?.classList.remove('tts-active');
         setActiveSectionId(null);
         setIsPaused(false);
+        setTtsState({ isPlaying: false, isPaused: false, mode: null, currentTitle: '' });
       },
     });
   }

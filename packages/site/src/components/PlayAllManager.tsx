@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { createTtsEngine } from "../utils/tts-engine";
 import { extractSections } from "../utils/tts-extractor";
+import { getSharedEngine, getTtsState, setTtsState } from "../utils/tts-state";
 import type { TtsEngine } from "../utils/tts-engine";
 import type { TtsSection } from "../utils/tts-extractor";
 import PlayAllButton from "./PlayAllButton";
@@ -24,7 +24,7 @@ export default function PlayAllManager() {
 
   // Initialize engine and find h1
   useEffect(() => {
-    const engine = createTtsEngine();
+    const engine = getSharedEngine();
     if (!engine.isSupported()) return;
 
     engineRef.current = engine;
@@ -86,6 +86,7 @@ export default function PlayAllManager() {
         setIsPlaying(false);
         setIsPaused(false);
         highlightSection(null);
+        setTtsState({ isPlaying: false, isPaused: false, mode: null, currentTitle: "" });
         return;
       }
 
@@ -93,6 +94,16 @@ export default function PlayAllManager() {
       setIsPlaying(true);
       setIsPaused(false);
       highlightSection(index);
+
+      const section = sects[index];
+      setTtsState({
+        isPlaying: true,
+        isPaused: false,
+        mode: "playall",
+        currentTitle: section.title,
+        currentIndex: index,
+        totalSections: sects.length,
+      });
 
       // Auto-scroll: read directly from localStorage for freshness
       try {
@@ -103,7 +114,6 @@ export default function PlayAllManager() {
         // localStorage unavailable
       }
 
-      const section = sects[index];
       const textToSpeak = section.text ? section.title + ". " + section.text : section.title;
 
       engine.speak(textToSpeak, {
@@ -116,6 +126,7 @@ export default function PlayAllManager() {
           setIsPlaying(false);
           setIsPaused(false);
           highlightSection(null);
+          setTtsState({ isPlaying: false, isPaused: false, mode: null, currentTitle: "" });
         },
       });
     },
@@ -126,14 +137,24 @@ export default function PlayAllManager() {
     const engine = engineRef.current;
     if (!engine) return;
 
+    // If section play is active, stop it first
+    const state = getTtsState();
+    if (state.mode === "section" && state.isPlaying) {
+      engine.cancel();
+      document.querySelectorAll(".tts-active").forEach((el) => el.classList.remove("tts-active"));
+      setTtsState({ isPlaying: false, isPaused: false, mode: null, currentTitle: "" });
+    }
+
     if (isPlayingRef.current && !isPaused) {
       // Pause
       engine.pause();
       setIsPaused(true);
+      setTtsState({ isPaused: true });
     } else if (isPaused) {
       // Resume
       engine.resume();
       setIsPaused(false);
+      setTtsState({ isPaused: false });
     } else {
       // Start fresh playback
       const content = document.querySelector("article.content");
@@ -160,6 +181,7 @@ export default function PlayAllManager() {
       setIsPlaying(false);
       setIsPaused(false);
       highlightSection(null);
+      setTtsState({ isPlaying: false, isPaused: false, mode: null, currentTitle: "" });
     }
   }, [playSection, highlightSection]);
 
@@ -181,6 +203,22 @@ export default function PlayAllManager() {
       playSection(currentIndexRef.current);
     }
   }, [playSection]);
+
+  // Listen for skip events from TtsControlsBar
+  useEffect(() => {
+    function onSkipForward() {
+      handleSkipForward();
+    }
+    function onSkipBack() {
+      handleSkipBack();
+    }
+    window.addEventListener("tts-controls-skip-forward", onSkipForward);
+    window.addEventListener("tts-controls-skip-back", onSkipBack);
+    return () => {
+      window.removeEventListener("tts-controls-skip-forward", onSkipForward);
+      window.removeEventListener("tts-controls-skip-back", onSkipBack);
+    };
+  }, [handleSkipForward, handleSkipBack]);
 
   const handleToggleAutoScroll = useCallback(() => {
     setAutoScroll((prev) => {

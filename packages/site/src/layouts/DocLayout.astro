@@ -5,6 +5,7 @@ import TtsSectionManager from '../components/TtsSectionManager.tsx';
 import Sidebar from '../components/Sidebar.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
 import PlayAllManager from '../components/PlayAllManager.tsx';
+import TtsControlsBar from '../components/TtsControlsBar.tsx';
 
 interface Props {
   title?: string;
@@ -68,6 +69,8 @@ const base = import.meta.env.BASE_URL;
       </article>
     </main>
   </div>
+
+  <TtsControlsBar client:load />
 
   <script is:inline>
     // Unified sidebar toggle (works on both desktop and mobile)
