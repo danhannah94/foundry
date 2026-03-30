@@ -1,0 +1,101 @@
+# Foundry — Navigation Tree
+# Parsed at build time to generate sidebar + breadcrumbs.
+# Derived from csdlc-docs mkdocs.yml nav.
+
+- title: Home
+  path: index.md
+
+- title: Methodology
+  children:
+    - title: The CSDLC Thesis
+      path: methodology/thesis.md
+    - title: CSDLC Process
+      path: methodology/process.md
+    - title: Core Values
+      path: methodology/core-values.md
+    - title: Applying CSDLC
+      path: methodology/applying-csdlc.md
+    - title: Lessons Learned
+      path: methodology/lessons-learned.md
+    - title: Open Questions
+      path: methodology/open-questions.md
+    - title: Templates
+      children:
+        - title: Project Design Doc
+          path: methodology/templates/project-design-template.md
+        - title: Sub-system Design Doc
+          path: methodology/templates/subsystem-design-template.md
+        - title: Epic Design Doc
+          path: methodology/templates/epic-design-template.md
+        - title: Workflow
+          path: methodology/templates/workflow-template.md
+        - title: Agent Base
+          path: methodology/templates/agent-base-template.md
+        - title: Doc-Writing Agent
+          path: methodology/templates/doc-agent-template.md
+
+- title: Projects
+  access: private
+  children:
+    - title: Routr
+      children:
+        - title: Design
+          path: projects/routr/design.md
+        - title: Sub-systems
+          children:
+            - title: Workshop Mode
+              path: projects/routr/sub-systems/workshop-mode.md
+            - title: Assembly Mode
+              path: projects/routr/sub-systems/assembly-mode.md
+            - title: G-code Pipeline
+              path: projects/routr/sub-systems/gcode-pipeline.md
+            - title: Coordinate Systems
+              path: projects/routr/sub-systems/coordinate-systems.md
+            - title: Simulator
+              path: projects/routr/sub-systems/simulator.md
+        - title: Epics
+          children:
+            - title: Edge Treatments
+              path: projects/routr/epics/edge-treatments.md
+            - title: SVG Import & Engrave
+              path: projects/routr/epics/svg-import.md
+            - title: Nesting
+              path: projects/routr/epics/nesting.md
+            - title: Assembly & Joints
+              path: projects/routr/epics/assembly-joints.md
+            - title: Validation Pipeline
+              path: projects/routr/epics/validation.md
+    - title: Anvil
+      children:
+        - title: Design
+          path: projects/anvil/design.md
+        - title: Epics
+          children:
+            - title: "E1: Core Server"
+              path: projects/anvil/epics/core-server.md
+            - title: "E2: MCP Tools"
+              path: projects/anvil/epics/mcp-tools.md
+            - title: "E3: Developer Experience"
+              path: projects/anvil/epics/developer-experience.md
+    - title: Foundry
+      children:
+        - title: Design
+          path: projects/foundry/design.md
+        - title: Epics
+          children:
+            - title: "E1: Scaffold + Deploy"
+              path: projects/foundry/epics/e1-scaffold-deploy.md
+            - title: "E2: Search"
+              path: projects/foundry/epics/e2-search.md
+            - title: "E3: TTS Playback"
+              path: projects/foundry/epics/e3-tts.md
+            - title: "E4: Annotations"
+              path: projects/foundry/epics/e4-annotations.md
+    - title: Forge
+      children:
+        - title: Design
+          path: projects/forge/design.md
+    - title: QuoteAI
+      children:
+        - title: Design
+          path: projects/quoteai/design.md

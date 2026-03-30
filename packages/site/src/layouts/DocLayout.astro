@@ -1,0 +1,72 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const { title = 'Foundry', description = 'Documentation platform for human-AI collaborative workflows' } = Astro.props;
+const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
+---
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content={description} />
+  <title>{pageTitle}</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+  {/* Prevent flash of wrong theme */}
+  <script is:inline>
+    (function() {
+      const stored = localStorage.getItem('foundry-theme');
+      if (stored) {
+        document.documentElement.setAttribute('data-theme', stored);
+      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+</head>
+<body>
+  <header class="header">
+    <button class="menu-toggle" id="menu-toggle" aria-label="Toggle navigation">
+      ☰
+    </button>
+    <a href="/" class="header-title" style="text-decoration: none;">🏭 Foundry</a>
+    <div class="header-right">
+      {/* Sidebar slot — nav goes here (S2) */}
+      {/* Theme toggle goes here (S3) */}
+      <slot name="header-actions" />
+    </div>
+  </header>
+
+  <div class="layout">
+    {/* Sidebar slot — populated by S2 */}
+    <slot name="sidebar" />
+
+    <main class="content-area">
+      {/* Breadcrumbs slot — populated by S2 */}
+      <slot name="breadcrumbs" />
+      
+      <article class="content">
+        <slot />
+      </article>
+    </main>
+  </div>
+
+  <script is:inline>
+    // Mobile menu toggle
+    const toggle = document.getElementById('menu-toggle');
+    const sidebar = document.querySelector('.sidebar');
+    if (toggle && sidebar) {
+      toggle.addEventListener('click', () => {
+        sidebar.classList.toggle('open');
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "foundry",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Documentation platform for human-AI collaborative workflows",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @foundry/site",
+    "build": "npm run build -w @foundry/site",
+    "preview": "npm run preview -w @foundry/site"
+  },
+  "author": "Dan Hannah & Clay",
+  "license": "MIT"
+}

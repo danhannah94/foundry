@@ -1,0 +1,6 @@
+{
+  "name": "@foundry/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Foundry API server (v0.2+)"
+}

@@ -1,0 +1,16 @@
+# Foundry — Content Source Configuration
+# Each source defines a git repo and which paths to pull at build time.
+
+sources:
+  - repo: danhannah94/csdlc-docs
+    branch: main
+    paths:
+      - "docs/methodology/"
+      - "docs/about/"
+    access: public
+
+  - repo: danhannah94/csdlc-docs
+    branch: main
+    paths:
+      - "docs/projects/"
+    access: private
