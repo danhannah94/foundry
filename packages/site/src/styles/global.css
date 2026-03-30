@@ -359,3 +359,56 @@ h6:hover .heading-anchor {
   overflow-x: auto;
   margin-bottom: 1em;
 }
+
+/* --- Admonitions --- */
+.admonition {
+  border-left: 4px solid var(--color-border);
+  border-radius: 4px;
+  padding: var(--spacing-md);
+  margin-bottom: 1em;
+}
+.admonition-title {
+  font-weight: 600;
+  margin-bottom: var(--spacing-sm);
+}
+.admonition-content p:last-child {
+  margin-bottom: 0;
+}
+.admonition-note {
+  background: var(--color-note-bg);
+  border-color: var(--color-note-border);
+}
+.admonition-warning {
+  background: var(--color-warning-bg);
+  border-color: var(--color-warning-border);
+}
+.admonition-tip {
+  background: var(--color-tip-bg);
+  border-color: var(--color-tip-border);
+}
+.admonition-danger {
+  background: var(--color-danger-bg);
+  border-color: var(--color-danger-border);
+}
+.admonition-info {
+  background: var(--color-info-bg);
+  border-color: var(--color-info-border);
+}
+
+/* --- Shiki dual-theme toggle --- */
+[data-theme="dark"] .shiki,
+[data-theme="dark"] .shiki span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+  font-style: var(--shiki-dark-font-style) !important;
+  font-weight: var(--shiki-dark-font-weight) !important;
+  text-decoration: var(--shiki-dark-text-decoration) !important;
+}
+
+/* --- Mermaid diagrams --- */
+pre.mermaid {
+  background: none;
+  border: none;
+  text-align: center;
+  padding: var(--spacing-md) 0;
+}
