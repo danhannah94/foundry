@@ -3,6 +3,7 @@ import '../styles/global.css';
 import ThemeToggle from '../components/ThemeToggle.tsx';
 import Sidebar from '../components/Sidebar.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
+import PlayAllManager from '../components/PlayAllManager.tsx';
 
 interface Props {
   title?: string;
@@ -61,6 +62,7 @@ const base = import.meta.env.BASE_URL;
 
       <article class="content">
         <slot />
+        <PlayAllManager client:load />
       </article>
     </main>
   </div>
@@ -89,6 +91,13 @@ const base = import.meta.env.BASE_URL;
         }
       });
     }
+  </script>
+
+  {/* Cancel TTS on navigation */}
+  <script is:inline>
+    window.addEventListener("beforeunload", function() {
+      if ("speechSynthesis" in window) speechSynthesis.cancel();
+    });
   </script>
 
   {/* Mermaid — only loads when diagrams are present */}
