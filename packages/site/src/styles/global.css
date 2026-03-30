@@ -529,6 +529,68 @@ h6:hover .heading-anchor {
   text-decoration: var(--shiki-dark-text-decoration) !important;
 }
 
+/* --- TTS Play Buttons --- */
+.tts-btn-container {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 0.3em;
+}
+
+.tts-play-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 4px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: opacity 0.2s, color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.tts-play-btn:hover {
+  color: var(--color-accent);
+  background: var(--color-bg-secondary);
+}
+
+/* Desktop: show on heading hover */
+h2:hover .tts-play-btn,
+h3:hover .tts-play-btn,
+h4:hover .tts-play-btn,
+.tts-play-btn:focus {
+  opacity: 1;
+}
+
+/* Always visible when actively playing */
+.tts-play-btn.tts-playing {
+  opacity: 1;
+  color: var(--color-accent);
+}
+
+/* Mobile: always visible */
+@media (max-width: 768px) {
+  .tts-play-btn {
+    opacity: 0.7;
+  }
+}
+
+/* Active section highlight */
+.tts-active {
+  background: var(--color-accent-light);
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin: -2px -8px;
+}
+
+[data-theme="dark"] .tts-active {
+  background: rgba(234, 88, 12, 0.1);
+}
+
 /* --- Mermaid diagrams --- */
 pre.mermaid {
   background: none;
