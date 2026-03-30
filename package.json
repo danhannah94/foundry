@@ -13,5 +13,8 @@
     "content:fetch": "bash scripts/build.sh"
   },
   "author": "Dan Hannah & Clay",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "js-yaml": "^4.1.1"
+  }
 }
