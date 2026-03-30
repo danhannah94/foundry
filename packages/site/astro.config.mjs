@@ -5,10 +5,6 @@ import rehypeAutolinkHeadings from 'rehype-autolink-headings';
 import remarkAdmonitions from './src/plugins/remark-admonitions.ts';
 import remarkMermaid from './src/plugins/remark-mermaid.ts';
 
-console.error('>>> remarkAdmonitions type:', typeof remarkAdmonitions, remarkAdmonitions?.name);
-console.error('>>> remarkMermaid type:', typeof remarkMermaid, remarkMermaid?.name);
-console.error('>>> remarkAdmonitions keys:', remarkAdmonitions ? Object.keys(remarkAdmonitions) : 'null');
-
 export default defineConfig({
   integrations: [react()],
 
