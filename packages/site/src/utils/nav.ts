@@ -18,8 +18,9 @@ interface RawNavItem {
 }
 
 function pathToHref(filePath: string): string {
-  if (filePath === 'index.md') return '/';
-  return '/docs/' + filePath.replace(/\.md$/, '') + '/';
+  const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
+  if (filePath === 'index.md') return base + '/';
+  return base + '/docs/' + filePath.replace(/\.md$/, '') + '/';
 }
 
 function processItems(items: RawNavItem[]): NavItem[] {

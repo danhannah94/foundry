@@ -10,6 +10,8 @@ console.error('>>> remarkMermaid type:', typeof remarkMermaid, remarkMermaid?.na
 console.error('>>> remarkAdmonitions keys:', remarkAdmonitions ? Object.keys(remarkAdmonitions) : 'null');
 
 export default defineConfig({
+  site: 'https://danhannah94.github.io',
+  base: '/foundry',
   integrations: [react()],
 
   markdown: {
@@ -41,6 +43,4 @@ export default defineConfig({
   },
 
   // Content lives in content/ directory, populated by build script
-  // GitHub Pages base path — update if deploying to subpath
-  // base: '/foundry',
 });

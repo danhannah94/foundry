@@ -41,6 +41,16 @@ foundry/
 └── package.json            # Monorepo root
 ```
 
+## Deployment
+
+**Live site:** https://danhannah94.github.io/foundry/
+
+The site auto-deploys to GitHub Pages on every push to `main` via GitHub Actions.
+
+- **Automatic:** Push to `main` triggers a build and deploy
+- **Manual:** Go to Actions tab → "Deploy to GitHub Pages" → "Run workflow"
+- **Config:** `.github/workflows/deploy.yml`
+
 ## Architecture
 
 - **v0.1** — Static site on GitHub Pages
