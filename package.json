@@ -8,8 +8,9 @@
   ],
   "scripts": {
     "dev": "npm run dev -w @foundry/site",
-    "build": "npm run build -w @foundry/site",
-    "preview": "npm run preview -w @foundry/site"
+    "build": "npm run content:fetch && npm run build -w @foundry/site",
+    "preview": "npm run preview -w @foundry/site",
+    "content:fetch": "bash scripts/build.sh"
   },
   "author": "Dan Hannah & Clay",
   "license": "MIT"
