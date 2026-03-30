@@ -309,7 +309,7 @@ h6:hover .heading-anchor {
   gap: var(--spacing-md);
 }
 
-/* --- Mobile Menu Button --- */
+/* --- Menu Buttons --- */
 .menu-toggle {
   display: none;
   background: none;
@@ -318,6 +318,59 @@ h6:hover .heading-anchor {
   padding: var(--spacing-sm);
   color: var(--color-text);
   font-size: 1.25rem;
+}
+
+.sidebar-collapse {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 4px 8px;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  margin-bottom: var(--spacing-sm);
+  margin-left: auto;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+.sidebar-collapse:hover {
+  background: var(--color-sidebar-hover);
+  color: var(--color-text);
+}
+
+/* Collapsed sidebar state */
+.layout.sidebar-hidden .sidebar {
+  transform: translateX(-100%);
+}
+.layout.sidebar-hidden .content-area {
+  margin-left: 0;
+}
+
+/* Show-sidebar tab when collapsed */
+.sidebar-show {
+  display: none;
+  position: fixed;
+  top: calc(var(--header-height) + var(--spacing-sm));
+  left: 0;
+  z-index: 15;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-left: none;
+  border-radius: 0 4px 4px 0;
+  padding: 8px 6px;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+.sidebar-show:hover {
+  background: var(--color-sidebar-hover);
+  color: var(--color-text);
+}
+.layout.sidebar-hidden .sidebar-show {
+  display: block;
 }
 
 /* --- Responsive --- */
@@ -409,7 +462,7 @@ h6:hover .heading-anchor {
 
 .nav-section > summary::before {
   content: '▸';
-  font-size: 0.7em;
+  font-size: 0.75rem;
   transition: transform var(--transition-fast);
 }
 
@@ -484,10 +537,15 @@ h6:hover .heading-anchor {
 }
 
 /* --- Shiki dual-theme toggle --- */
-[data-theme="dark"] .shiki,
+[data-theme="dark"] .astro-code,
+[data-theme="dark"] .shiki {
+  background-color: var(--shiki-dark-bg) !important;
+}
+
+[data-theme="dark"] .astro-code span,
 [data-theme="dark"] .shiki span {
   color: var(--shiki-dark) !important;
-  background-color: var(--shiki-dark-bg) !important;
+  background-color: transparent !important;
   font-style: var(--shiki-dark-font-style) !important;
   font-weight: var(--shiki-dark-font-weight) !important;
   text-decoration: var(--shiki-dark-text-decoration) !important;

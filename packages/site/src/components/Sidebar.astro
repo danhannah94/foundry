@@ -20,6 +20,9 @@ function isActive(href: string | undefined): boolean {
 ---
 
 <nav class="sidebar" aria-label="Documentation navigation">
+  <button class="sidebar-collapse" id="sidebar-collapse" aria-label="Hide sidebar" title="Hide sidebar">
+    ◀ Hide
+  </button>
   <ul class="nav-list">
     {navItems.map((item) => (
       <li>

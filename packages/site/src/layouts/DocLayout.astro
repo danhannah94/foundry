@@ -49,7 +49,8 @@ const base = import.meta.env.BASE_URL;
     </div>
   </header>
 
-  <div class="layout">
+  <div class="layout" id="layout">
+    <button class="sidebar-show" id="sidebar-show" aria-label="Show sidebar" title="Show sidebar">▶</button>
     <Sidebar currentPath={currentPath} />
 
     <main class="content-area">
@@ -68,6 +69,28 @@ const base = import.meta.env.BASE_URL;
     if (toggle && sidebar) {
       toggle.addEventListener('click', () => {
         sidebar.classList.toggle('open');
+      });
+    }
+
+    // Desktop sidebar collapse
+    const layout = document.getElementById('layout');
+    const collapseBtn = document.getElementById('sidebar-collapse');
+    if (layout && collapseBtn) {
+      // Restore state from localStorage
+      if (localStorage.getItem('foundry-sidebar') === 'hidden') {
+        layout.classList.add('sidebar-hidden');
+      }
+      collapseBtn.addEventListener('click', () => {
+        layout.classList.add('sidebar-hidden');
+        localStorage.setItem('foundry-sidebar', 'hidden');
+      });
+    }
+
+    const showBtn = document.getElementById('sidebar-show');
+    if (layout && showBtn) {
+      showBtn.addEventListener('click', () => {
+        layout.classList.remove('sidebar-hidden');
+        localStorage.setItem('foundry-sidebar', 'visible');
       });
     }
   </script>
