@@ -325,13 +325,12 @@ h6:hover .heading-anchor {
   align-items: center;
   justify-content: center;
   background: none;
-  border: 1px solid var(--color-border);
+  border: none;
   border-radius: 4px;
   cursor: pointer;
-  padding: 4px 8px;
-  color: var(--color-text-secondary);
-  font-size: 0.875rem;
-  margin-bottom: var(--spacing-sm);
+  padding: 6px;
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-xs);
   margin-left: auto;
   transition: color var(--transition-fast), background-color var(--transition-fast);
 }

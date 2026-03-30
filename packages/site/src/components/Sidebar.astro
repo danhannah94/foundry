@@ -21,7 +21,11 @@ function isActive(href: string | undefined): boolean {
 
 <nav class="sidebar" aria-label="Documentation navigation">
   <button class="sidebar-collapse" id="sidebar-collapse" aria-label="Hide sidebar" title="Hide sidebar">
-    ◀ Hide
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+      <line x1="2" y1="4" x2="14" y2="4" />
+      <line x1="2" y1="8" x2="14" y2="8" />
+      <line x1="2" y1="12" x2="14" y2="12" />
+    </svg>
   </button>
   <ul class="nav-list">
     {navItems.map((item) => (
@@ -61,8 +65,10 @@ function isActive(href: string | undefined): boolean {
                                 </summary>
                                 <ul class="nav-children">
                                   {grandchild.children!.map((leaf) => (
-                                    <li class:list={['nav-item', { active: isActive(leaf.href) }]}>
-                                      <a href={leaf.href} class="nav-link">{leaf.title}</a>
+                                    <li>
+                                      <div class:list={['nav-item', { active: isActive(leaf.href) }]}>
+                                        <a href={leaf.href} class="nav-link">{leaf.title}</a>
+                                      </div>
                                     </li>
                                   ))}
                                 </ul>
