@@ -1,10 +1,20 @@
 # 🏭 Foundry
 
-Documentation platform for human-AI collaborative workflows.
+Documentation platform for human-AI collaborative workflows. Built with Astro + Express + Anvil.
 
-MkDocs Material meets Google Docs meets podcast player — purpose-built for teams working with AI agents.
+## Features
+- Multi-repo content sourcing
+- Dark/light theme
+- TTS playback (Web Speech API)
+- Annotations + unified review thread
+- Bearer token authentication
+- Public/private doc access control
+- MCP server for AI agent integration
+- Semantic search via Anvil
 
 ## Quick Start
+
+See [DEPLOY.md](DEPLOY.md) for setup instructions.
 
 ```bash
 # Install dependencies

@@ -22,13 +22,13 @@ Foundry uses bearer token authentication to protect write operations (annotation
 
 | Endpoint | Auth Required | Rationale |
 |----------|--------------|-----------|
-| Static site (HTML/CSS/JS) | ❌ | Docs are public content |
-| GET /api/docs/* | ❌ | Same as static site |
-| GET /api/search | ❌ | Search over public content |
+| Static site (HTML/CSS/JS) | 🟨 | Access-controlled — public docs for all, private docs require auth |
+| GET /api/docs/* | 🟨 | Access-controlled — filtered by access level |
+| GET /api/search | 🟨 | Access-controlled — private results excluded without token |
 | GET /api/health | ❌ | Monitoring |
 | GET/POST/PATCH/DELETE /api/annotations* | ✅ | Review content is sensitive |
 | GET/POST/PATCH /api/reviews* | ✅ | Review metadata is sensitive |
-| MCP doc tools (search_docs, etc.) | ❌ | Public content |
+| MCP doc tools (search_docs, etc.) | 🟨 | Access-controlled — accepts optional auth_token |
 | MCP annotation tools | ✅ | Same as API annotations |
 
 ### Token Setup
@@ -71,6 +71,55 @@ Foundry uses bearer token authentication to protect write operations (annotation
 MCP annotation tools accept an `auth_token` parameter. Configure in your MCP client:
 - In-process (same container): uses `FOUNDRY_WRITE_TOKEN` env var directly
 - Remote clients: pass token as tool parameter
+
+## Public/Private Doc Access Control
+
+Foundry supports source-level access control: some docs are public (anyone can read), others are private (requires authentication).
+
+### Configuration
+
+Access levels are set in `foundry.config.yaml` per source path:
+
+```yaml
+sources:
+  - repo: danhannah94/csdlc-docs
+    branch: main
+    paths:
+      - "docs/methodology/"
+    access: public
+
+  - repo: danhannah94/csdlc-docs
+    branch: main
+    paths:
+      - "docs/projects/"
+    access: private
+```
+
+The build script generates `.access.json` mapping path prefixes to access levels. The server uses this at runtime.
+
+### What Users See
+
+| User State | Docs | Nav | Search | API |
+|-----------|------|-----|--------|-----|
+| Unauthenticated | Public docs only | Public sections only | Public results only | Public endpoints only |
+| Authenticated | All docs | Full nav | All results | All endpoints |
+
+### How It Works
+
+1. **Build time:** All docs (public + private) are built into the container
+2. **Runtime:** Server checks each request against `.access.json`
+3. **Static files:** Private doc HTML returns 401 without valid token
+4. **API endpoints:** `/api/docs/*` checks access level before serving
+5. **Search:** Results filtered server-side — private content never reaches unauthenticated clients
+6. **Nav sidebar:** Client-side filtering hides private sections when no token present
+7. **MCP tools:** `search_docs` accepts optional `auth_token` for private results
+
+### Adding New Content
+
+To add a new source with access control:
+1. Add entry to `foundry.config.yaml` with `access: public` or `access: private`
+2. Rebuild the container — `.access.json` is regenerated automatically
+3. No code changes needed
 
 ## Fly.io (Production)
 
