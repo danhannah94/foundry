@@ -93,6 +93,8 @@
               path: projects/foundry/epics/e3-tts.md
             - title: "E4: Annotations"
               path: projects/foundry/epics/e4-annotations.md
+            - title: "E4.5: Containerize + Deploy"
+              path: projects/foundry/epics/e4.5-containerize-deploy.md
     - title: Forge
       children:
         - title: Design
