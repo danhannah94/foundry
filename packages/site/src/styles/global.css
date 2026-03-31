@@ -790,6 +790,33 @@ pre.mermaid {
 
 .thread-panel--hidden {
   transform: translateX(100%);
+  overflow: visible;
+}
+
+/* Floating toggle tab when panel is hidden */
+.thread-panel--hidden .thread-header {
+  position: absolute;
+  left: -40px;
+  top: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  background: var(--color-bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: -2px 0 4px rgba(0, 0, 0, 0.05);
+}
+
+.thread-panel--hidden .thread-header h3 {
+  display: none;
+}
+
+.thread-panel--hidden .thread-content {
+  display: none;
 }
 
 .thread-header {
@@ -1104,11 +1131,11 @@ pre.mermaid {
 /* --- Thread Panel Grid Layout States --- */
 /* Hidden thread panel */
 .layout:has(.thread-panel--hidden) {
-  grid-template-columns: var(--sidebar-width) 1fr 0;
+  grid-template-columns: var(--sidebar-width) 1fr 40px;
 }
 
 .layout.sidebar-hidden:has(.thread-panel--hidden) {
-  grid-template-columns: 0 1fr 0;
+  grid-template-columns: 0 1fr 40px;
 }
 
 /* --- Dark Theme Thread Panel --- */
