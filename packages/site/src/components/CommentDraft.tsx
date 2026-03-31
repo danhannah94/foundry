@@ -6,6 +6,7 @@ import {
   updateDraft,
   deleteDraft
 } from '../utils/draft-storage.js';
+import { isAuthenticated } from '../utils/api.js';
 
 interface Props {
   docPath: string;
@@ -62,6 +63,12 @@ export default function CommentDraft({ docPath }: Props) {
 
       const selectedText = selection.toString().trim();
       if (selectedText.length === 0) {
+        setFloatingButton({ show: false, x: 0, y: 0, selectedText: '', headingPath: '', contentHash: '' });
+        return;
+      }
+
+      // Only show comment button if user is authenticated
+      if (!isAuthenticated()) {
         setFloatingButton({ show: false, x: 0, y: 0, selectedText: '', headingPath: '', contentHash: '' });
         return;
       }

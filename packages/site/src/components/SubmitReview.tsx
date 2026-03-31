@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getDrafts, clearDrafts, type DraftComment } from '../utils/draft-storage.js';
+import { authFetch } from '../utils/api.js';
 
 interface Props {
   docPath: string;
@@ -58,7 +59,7 @@ export default function SubmitReview({ docPath }: Props) {
 
     try {
       // Step 1: Create the review
-      const reviewResponse = await fetch(`/api/reviews`, {
+      const reviewResponse = await authFetch(`/api/reviews`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -78,7 +79,7 @@ export default function SubmitReview({ docPath }: Props) {
       // Step 2: Submit each draft as an annotation
       const annotationPromises = drafts.map(async (draft) => {
         // Create annotation
-        const annotationResponse = await fetch(`/api/annotations`, {
+        const annotationResponse = await authFetch(`/api/annotations`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -101,7 +102,7 @@ export default function SubmitReview({ docPath }: Props) {
         const annotation = await annotationResponse.json();
 
         // Update status to submitted
-        const patchResponse = await fetch(`/api/annotations/${annotation.id}`, {
+        const patchResponse = await authFetch(`/api/annotations/${annotation.id}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -121,7 +122,7 @@ export default function SubmitReview({ docPath }: Props) {
       await Promise.all(annotationPromises);
 
       // Step 3: Update review status to submitted
-      const reviewPatchResponse = await fetch(`/api/reviews/${reviewId}`, {
+      const reviewPatchResponse = await authFetch(`/api/reviews/${reviewId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

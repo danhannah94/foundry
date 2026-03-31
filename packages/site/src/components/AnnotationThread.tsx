@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { authFetch, isAuthenticated } from '../utils/api.js';
 
 // Types (copied from API package)
 type AnnotationStatus = "draft" | "submitted" | "replied" | "resolved" | "orphaned";
@@ -198,11 +199,12 @@ export default function AnnotationThread({ docPath }: Props) {
   const [expandedReviews, setExpandedReviews] = useState<Set<string>>(new Set());
   const [expandedResolved, setExpandedResolved] = useState<Set<string>>(new Set());
   const [showOrphaned, setShowOrphaned] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
 
   // Helper to update annotation status via API
   const patchAnnotation = useCallback(async (id: string, updates: Partial<Pick<Annotation, 'status'>>) => {
     try {
-      const response = await fetch(`/api/annotations/${id}`, {
+      const response = await authFetch(`/api/annotations/${id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -280,11 +282,18 @@ export default function AnnotationThread({ docPath }: Props) {
 
   // Fetch annotations
   const fetchAnnotations = useCallback(async () => {
+    if (!isAuthenticated()) {
+      setLoading(false);
+      setAnnotations([]);
+      setError(null);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`/api/annotations?doc_path=${encodeURIComponent(docPath)}`);
+      const response = await authFetch(`/api/annotations?doc_path=${encodeURIComponent(docPath)}`);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -320,6 +329,27 @@ export default function AnnotationThread({ docPath }: Props) {
 
     return () => {
       window.removeEventListener('foundry-review-submitted', handleReviewSubmitted);
+    };
+  }, [fetchAnnotations]);
+
+  // Check auth status and listen for auth events
+  useEffect(() => {
+    const checkAuth = () => {
+      setAuthenticated(isAuthenticated());
+    };
+
+    const handleAuthUnlocked = () => {
+      setAuthenticated(true);
+      fetchAnnotations();
+    };
+
+    // Initial check
+    checkAuth();
+
+    window.addEventListener('foundry-auth-unlocked', handleAuthUnlocked);
+
+    return () => {
+      window.removeEventListener('foundry-auth-unlocked', handleAuthUnlocked);
     };
   }, [fetchAnnotations]);
 
@@ -524,6 +554,27 @@ export default function AnnotationThread({ docPath }: Props) {
     </div>
   );
 
+  const handleRequestAuth = () => {
+    window.dispatchEvent(new CustomEvent('foundry-auth-required'));
+  };
+
+  const renderAuthPrompt = () => (
+    <div className="thread-auth-prompt">
+      <div className="thread-auth-prompt__content">
+        <div className="thread-auth-prompt__icon">🔒</div>
+        <div className="thread-auth-prompt__text">
+          <p>Enter your access token to view annotations</p>
+          <button
+            className="thread-auth-prompt__button"
+            onClick={handleRequestAuth}
+          >
+            Unlock
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   const { reviewGroups, ungrouped, orphaned } = groupedAnnotations();
 
   return (
@@ -540,7 +591,9 @@ export default function AnnotationThread({ docPath }: Props) {
       </div>
 
       <div className="thread-content">
-        {loading ? (
+        {!authenticated ? (
+          renderAuthPrompt()
+        ) : loading ? (
           <div className="thread-loading">Loading comments...</div>
         ) : error ? (
           <div className="thread-error">{error}</div>
