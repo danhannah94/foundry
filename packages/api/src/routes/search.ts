@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import type { Anvil } from '@claymore-dev/anvil';
+import { getAccessLevel } from '../access.js';
 
 interface SearchRequest {
   query: string;
@@ -19,6 +20,15 @@ interface SearchResponse {
   query: string;
   totalResults: number;
   warning?: string;
+}
+
+/**
+ * Check if the request is authenticated
+ */
+function isRequestAuthenticated(req: Request): boolean {
+  if (!process.env.FOUNDRY_WRITE_TOKEN) return true; // dev mode
+  const token = req.headers.authorization?.replace("Bearer ", "");
+  return token === process.env.FOUNDRY_WRITE_TOKEN;
 }
 
 /**
@@ -67,14 +77,19 @@ export function createSearchRouter(anvil: Anvil): Router {
         charCount: result.metadata.char_count,
       }));
 
+      // Filter results based on access level and authentication
+      const filteredResults = isRequestAuthenticated(req)
+        ? results
+        : results.filter(r => getAccessLevel(r.path) !== "private");
+
       const response: SearchResponse = {
-        results,
+        results: filteredResults,
         query,
-        totalResults: results.length,
+        totalResults: filteredResults.length,
       };
 
       // Add warning if index appears empty (no results and topK wasn't 0)
-      if (results.length === 0 && topK !== 0) {
+      if (filteredResults.length === 0 && topK !== 0) {
         response.warning = 'No results found. The Anvil index may be empty or the query did not match any content.';
       }
 
