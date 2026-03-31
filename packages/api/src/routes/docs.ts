@@ -1,0 +1,95 @@
+import { Router, Request, Response } from 'express';
+import type { Anvil } from '@claymore-dev/anvil';
+
+interface DocumentListItem {
+  path: string;
+  title: string;
+  lastModified: string;
+  chunkCount: number;
+}
+
+interface DocumentSection {
+  heading: string;
+  level: number;
+  charCount: number;
+}
+
+interface DocumentDetail {
+  path: string;
+  title: string;
+  lastModified: string;
+  sections: DocumentSection[];
+}
+
+/**
+ * Creates the docs router
+ */
+export function createDocsRouter(anvil: Anvil): Router {
+  const router = Router();
+
+  // GET /docs - List all indexed documents
+  router.get('/docs', async (req: Request, res: Response<DocumentListItem[]>) => {
+    try {
+      const { pages } = await anvil.listPages();
+
+      const documents: DocumentListItem[] = pages.map(page => ({
+        path: page.file_path,
+        title: page.title,
+        lastModified: page.last_modified,
+        chunkCount: page.chunk_count,
+      }));
+
+      res.json(documents);
+    } catch (error) {
+      console.error('Error listing documents:', error);
+      res.status(500).json({
+        error: 'Failed to list documents',
+      } as any);
+    }
+  });
+
+  // GET /docs/:path(*) - Get single document with section structure
+  router.get('/docs/:path(*)', async (req: Request, res: Response<DocumentDetail>) => {
+    try {
+      const path = req.params.path;
+      const page = await anvil.getPage(path);
+
+      if (!page) {
+        return res.status(404).json({
+          error: 'Document not found',
+        } as any);
+      }
+
+      // Extract sections from chunks, deduplicating headings
+      const seenHeadings = new Set<string>();
+      const sections: DocumentSection[] = [];
+
+      for (const chunk of page.chunks) {
+        if (chunk.heading_path && !seenHeadings.has(chunk.heading_path)) {
+          seenHeadings.add(chunk.heading_path);
+          sections.push({
+            heading: chunk.heading_path,
+            level: chunk.heading_level,
+            charCount: chunk.char_count,
+          });
+        }
+      }
+
+      const document: DocumentDetail = {
+        path: page.file_path,
+        title: page.title,
+        lastModified: page.last_modified,
+        sections,
+      };
+
+      res.json(document);
+    } catch (error) {
+      console.error('Error fetching document:', error);
+      res.status(500).json({
+        error: 'Failed to fetch document',
+      } as any);
+    }
+  });
+
+  return router;
+}
