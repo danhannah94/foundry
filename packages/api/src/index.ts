@@ -3,6 +3,7 @@ import cors from 'cors';
 import { createAnvil } from '@claymore-dev/anvil';
 import { getDocsPath } from './config.js';
 import { createHealthRouter } from './routes/health.js';
+import { createSearchRouter } from './routes/search.js';
 
 // Environment configuration
 const PORT = process.env.FOUNDRY_PORT ? parseInt(process.env.FOUNDRY_PORT, 10) : 3001;
@@ -68,6 +69,9 @@ async function startServer(): Promise<void> {
 
     // Mount health router
     app.use('/', createHealthRouter(anvil));
+
+    // Mount search router
+    app.use('/', createSearchRouter(anvil));
 
     // Global error handler (must be last)
     app.use(errorHandler);
