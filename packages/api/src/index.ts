@@ -9,7 +9,9 @@ import { createDocsRouter } from './routes/docs.js';
 import { createSearchRouter } from './routes/search.js';
 import { createAnnotationsRouter } from './routes/annotations.js';
 import { createReviewsRouter } from './routes/reviews.js';
+import { createAccessRouter } from './routes/access.js';
 import { requireAuth, logAuthStatus } from './middleware/auth.js';
+import { loadAccessMap, getAccessLevel } from './access.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { createMcpServer } from './mcp/server.js';
 
@@ -76,6 +78,11 @@ async function startServer(): Promise<void> {
     // Initialize Anvil (dynamic import — handles missing package gracefully)
     const anvil = await loadAnvil(docsPath);
 
+    // Load access map from the static build directory
+    console.log('📋 Loading access map...');
+    loadAccessMap(STATIC_PATH);
+    console.log('✅ Access map loaded successfully');
+
     // Create MCP server (only if anvil is available)
     let mcpServer = null;
     if (anvil) {
@@ -135,6 +142,9 @@ async function startServer(): Promise<void> {
       });
     }
 
+    // Mount access router (always available, no anvil dependency)
+    app.use('/api', createAccessRouter());
+
     // Mount routers only when anvil is available
     if (anvil) {
       app.use('/api', createHealthRouter(anvil));
@@ -163,6 +173,21 @@ async function startServer(): Promise<void> {
     protectedReviewsRouter.use('/reviews', requireAuth);
     protectedReviewsRouter.use(createReviewsRouter());
     app.use('/api', protectedReviewsRouter);
+
+    // Access-gated static serving for /docs paths
+    app.use('/docs', (req, res, next) => {
+      // Strip leading slash, trailing /index.html, trailing slash
+      let docPath = req.path.replace(/^\//, '').replace(/\/index\.html$/, '').replace(/\/$/, '');
+      // Also remove .html extension
+      docPath = docPath.replace(/\.html$/, '');
+
+      const level = getAccessLevel(docPath);
+      if (level === 'private') {
+        // Use the same requireAuth middleware from E5
+        return requireAuth(req, res, next);
+      }
+      next();
+    });
 
     // Static file serving — serve the Astro build output
     app.use(express.static(STATIC_PATH));

@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
+    "postbuild": "cp content/.access.json dist/.access.json 2>/dev/null || true",
     "preview": "astro preview",
     "astro": "astro",
     "test": "vitest run"

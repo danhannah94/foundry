@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
 import type { Anvil } from '@claymore-dev/anvil';
+import { getAccessLevel } from '../access.js';
+import { requireAuth } from '../middleware/auth.js';
 
 interface DocumentListItem {
   path: string;
@@ -52,6 +54,25 @@ export function createDocsRouter(anvil: Anvil): Router {
   router.get('/docs/:path(*)', async (req: Request, res: Response<DocumentDetail>) => {
     try {
       const path = req.params.path;
+
+      // Check access level for this document path
+      const level = getAccessLevel(path);
+      if (level === 'private') {
+        // Check auth using the same middleware logic
+        try {
+          await new Promise<void>((resolve, reject) => {
+            requireAuth(req, res, (err?: any) => {
+              if (err) reject(err);
+              else resolve();
+            });
+          });
+        } catch (authError) {
+          return res.status(401).json({
+            error: 'Authentication required for private content',
+          } as any);
+        }
+      }
+
       const page = await anvil.getPage(path);
 
       if (!page) {

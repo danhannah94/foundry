@@ -1,0 +1,130 @@
+You are implementing access-level content gating for the Foundry API server — public docs served freely, private docs require authentication.
+
+**Working directory:** /Users/danhannah/.openclaw/workspace/foundry-e6-s1
+
+**Context:**
+- `foundry.config.yaml` has `access: public` and `access: private` per source path
+- Build script already generates `packages/site/content/.access.json` mapping content prefixes to access levels:
+  ```json
+  { "methodology/": "public", "projects/": "private" }
+  ```
+- Static site builds to `packages/site/dist/` with structure like `docs/methodology/...` and `docs/projects/...`
+- `packages/api/src/middleware/auth.ts` exports `requireAuth` middleware (from E5)
+- The Express server serves static files via `app.use(express.static(STATIC_PATH))` at line 168 of `packages/api/src/index.ts`
+- STATIC_PATH = `packages/site/dist`
+
+**What to build:**
+
+1. **Create `packages/api/src/access.ts`** — Access control utilities:
+   ```typescript
+   import { readFileSync } from 'fs';
+   import { join } from 'path';
+   
+   interface AccessMap {
+     [prefix: string]: 'public' | 'private';
+   }
+   
+   let accessMap: AccessMap | null = null;
+   
+   // Load .access.json from the content directory
+   export function loadAccessMap(contentPath: string): AccessMap {
+     try {
+       const raw = readFileSync(join(contentPath, '.access.json'), 'utf-8');
+       accessMap = JSON.parse(raw);
+       return accessMap;
+     } catch {
+       console.warn('⚠️ No .access.json found — all content treated as public');
+       accessMap = {};
+       return accessMap;
+     }
+   }
+   
+   export function getAccessMap(): AccessMap {
+     return accessMap || {};
+   }
+   
+   // Resolve a doc path to its access level
+   // docPath like "projects/routr/design" matches prefix "projects/"
+   export function getAccessLevel(docPath: string): 'public' | 'private' {
+     const map = getAccessMap();
+     // Try longest prefix match first
+     const prefixes = Object.keys(map).sort((a, b) => b.length - a.length);
+     for (const prefix of prefixes) {
+       if (docPath.startsWith(prefix) || docPath === prefix.replace(/\/$/, '')) {
+         return map[prefix];
+       }
+     }
+     return 'public'; // default to public if no match
+   }
+   ```
+
+2. **Create `GET /api/access` endpoint:**
+   - Add to `packages/api/src/routes/access.ts` (new file)
+   - Returns the `.access.json` content as JSON
+   - NO auth required (frontend needs this to filter nav)
+   - Simple: `router.get('/access', (req, res) => res.json(getAccessMap()))`
+
+3. **Update `packages/api/src/index.ts`** — Add access-gated static serving:
+   - Import `loadAccessMap`, `getAccessLevel` from `./access.js`
+   - Load the access map at startup
+   - **Best approach:** Copy `.access.json` into `dist/` during the Astro build or as a post-build step. Add to `packages/site/package.json` scripts: `"postbuild": "cp content/.access.json dist/.access.json 2>/dev/null || true"`. Then load from `join(STATIC_PATH, '.access.json')`
+   - Mount the access router: `app.use('/api', createAccessRouter())`
+   - Add access-gated static middleware BEFORE the generic static middleware:
+     ```typescript
+     // Access-gated static serving for /docs paths
+     app.use('/docs', (req, res, next) => {
+       // Strip leading slash, trailing /index.html, trailing slash
+       let docPath = req.path.replace(/^\//, '').replace(/\/index\.html$/, '').replace(/\/$/, '');
+       // Also remove .html extension
+       docPath = docPath.replace(/\.html$/, '');
+       
+       const level = getAccessLevel(docPath);
+       if (level === 'private') {
+         // Use the same requireAuth middleware from E5
+         return requireAuth(req, res, next);
+       }
+       next();
+     });
+     
+     // Then the regular static serving
+     app.use(express.static(STATIC_PATH));
+     ```
+
+4. **Update `packages/api/src/routes/docs.ts`:**
+   - Import `getAccessLevel` from `../access.js`
+   - Import `requireAuth` from `../middleware/auth.js`
+   - Before returning doc content, check if the requested doc path is private
+   - If private and no valid auth → 401
+
+5. **Add postbuild script to `packages/site/package.json`:**
+   - Add `"postbuild": "cp content/.access.json dist/.access.json 2>/dev/null || true"` to scripts
+
+6. **Tests — Create `packages/api/src/__tests__/access.test.ts`:**
+   - Test `getAccessLevel()`:
+     - "methodology/process" → "public"
+     - "projects/routr/design" → "private"
+     - "unknown/path" → "public" (default)
+     - Empty path → "public"
+   - Test `loadAccessMap()` with valid JSON file
+   - Test `loadAccessMap()` with missing file → empty map, no crash
+   
+7. **Tests — Create `packages/api/src/routes/__tests__/access.test.ts`:**
+   - Test GET /api/access returns the access map
+
+8. **Return 401 (not 404) for private content**
+
+**What NOT to touch:**
+- No nav changes (that's S2)
+- No search changes (that's S3)
+- No MCP changes (that's S3)
+- Don't modify the auth middleware itself
+- Don't change annotation/review routes
+
+**Verification:**
+```bash
+cd /Users/danhannah/.openclaw/workspace/foundry-e6-s1
+# Build site to generate .access.json in dist
+cd packages/site && npx astro build 2>&1
+# Run API tests
+cd ../api && npx vitest run 2>&1
+```
