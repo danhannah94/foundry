@@ -10,7 +10,8 @@ COPY package*.json ./
 COPY foundry.config.yaml nav.yaml ./
 COPY scripts/ scripts/
 COPY packages/site/package*.json packages/site/
-RUN npm ci --prefix packages/site
+COPY packages/api/package*.json packages/api/
+RUN npm ci
 ARG GITHUB_TOKEN=""
 ENV GITHUB_TOKEN=${GITHUB_TOKEN}
 RUN bash scripts/build.sh
@@ -25,9 +26,14 @@ RUN cd packages/site && npm ci && npm run build
 
 # Stage 3: Build API
 FROM node:22-alpine AS api-builder
-WORKDIR /app
-COPY packages/api/ packages/api/
-RUN cd packages/api && npm ci && npm run build
+WORKDIR /app/packages/api
+COPY packages/api/package.json ./
+# Remove Anvil dependency — published npm package missing entry files.
+# Anvil is optional: fallback type declarations + dynamic import handle this.
+# Search disabled in Docker; annotations work fine.
+RUN sed -i '/"@claymore-dev\/anvil"/d' package.json && npm install
+COPY packages/api/ ./
+RUN npm run build
 
 # Stage 4: Production runtime
 FROM node:22-alpine

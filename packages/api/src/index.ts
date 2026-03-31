@@ -2,7 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { createAnvil } from '@claymore-dev/anvil';
+import { loadAnvil } from './anvil-loader.js';
 import { getDocsPath } from './config.js';
 import { createHealthRouter } from './routes/health.js';
 import { createDocsRouter } from './routes/docs.js';
@@ -72,15 +72,8 @@ async function startServer(): Promise<void> {
     const docsPath = getDocsPath();
     console.log(`📁 Using docs path: ${docsPath}`);
 
-    // Initialize Anvil with graceful error handling
-    let anvil = null;
-    try {
-      console.log('🔧 Initializing Anvil...');
-      anvil = await createAnvil({ docsPath });
-      console.log('✅ Anvil initialized successfully');
-    } catch (error) {
-      console.warn('⚠️ Anvil initialization failed — search disabled:', error);
-    }
+    // Initialize Anvil (dynamic import — handles missing package gracefully)
+    const anvil = await loadAnvil(docsPath);
 
     // Create MCP server (only if anvil is available)
     let mcpServer = null;
