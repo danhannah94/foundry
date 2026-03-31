@@ -44,6 +44,17 @@ export function createSearchRouter(anvil: Anvil): Router {
         } as any);
       }
 
+      // Check if index has content before searching (empty vss index crashes FAISS)
+      const status = await anvil.getStatus();
+      if (status.total_chunks === 0) {
+        return res.json({
+          results: [],
+          query,
+          totalResults: 0,
+          warning: 'Anvil index is empty. Run anvil index to populate.',
+        } as SearchResponse);
+      }
+
       // Call anvil search
       const searchResults = await anvil.search(query, topK);
 
