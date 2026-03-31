@@ -77,6 +77,8 @@
               path: projects/anvil/epics/mcp-tools.md
             - title: "E3: Developer Experience"
               path: projects/anvil/epics/developer-experience.md
+            - title: "E4: Library API"
+              path: projects/anvil/epics/e4-library-api.md
     - title: Foundry
       children:
         - title: Design
