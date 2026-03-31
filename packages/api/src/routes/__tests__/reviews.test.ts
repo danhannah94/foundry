@@ -5,6 +5,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { unlinkSync } from 'fs';
 import { createReviewsRouter } from '../reviews.js';
+import { requireAuth } from '../../middleware/auth.js';
 import { getDb, closeDb } from '../../db.js';
 
 const ISO_8601_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
@@ -15,10 +16,16 @@ const testDbPath = join(tmpdir(), `foundry-test-reviews-${Date.now()}.db`);
 
 beforeAll(() => {
   process.env.FOUNDRY_DB_PATH = testDbPath;
+  process.env.FOUNDRY_WRITE_TOKEN = 'test-token';
 
   app = express();
   app.use(express.json());
-  app.use('/api', createReviewsRouter());
+  
+  // Create protected reviews router
+  const protectedReviewsRouter = express.Router();
+  protectedReviewsRouter.use('/reviews', requireAuth);
+  protectedReviewsRouter.use(createReviewsRouter());
+  app.use('/api', protectedReviewsRouter);
 });
 
 afterAll(() => {
@@ -32,12 +39,46 @@ afterAll(() => {
 });
 
 describe('Reviews Router', () => {
+  // ─── Authentication Tests ─────────────────────────────────────────
+  
+  describe('Authentication', () => {
+    it('should return 401 when POST /reviews without token', async () => {
+      const res = await request(app)
+        .post('/api/reviews')
+        .send({ doc_path: 'test/doc.md' })
+        .expect(401);
+
+      expect(res.body.error).toBe('Unauthorized');
+    });
+
+    it('should return 401 when POST /reviews with wrong token', async () => {
+      const res = await request(app)
+        .post('/api/reviews')
+        .set('Authorization', 'Bearer wrong-token')
+        .send({ doc_path: 'test/doc.md' })
+        .expect(401);
+
+      expect(res.body.error).toBe('Unauthorized');
+    });
+
+    it('should succeed when POST /reviews with valid token', async () => {
+      const res = await request(app)
+        .post('/api/reviews')
+        .set('Authorization', 'Bearer test-token')
+        .send({ doc_path: 'test/doc.md' })
+        .expect(201);
+
+      expect(res.body.id).toMatch(CUID2_REGEX);
+    });
+  });
+
   // ─── POST /reviews ─────────────────────────────────────────────────
 
   describe('POST /reviews', () => {
     it('should create a review with defaults', async () => {
       const res = await request(app)
         .post('/api/reviews')
+        .set("Authorization", "Bearer test-token")
         .send({ doc_path: 'docs/process.md' })
         .expect(201);
 
@@ -54,6 +95,7 @@ describe('Reviews Router', () => {
     it('should return 400 when doc_path is missing', async () => {
       const res = await request(app)
         .post('/api/reviews')
+        .set("Authorization", "Bearer test-token")
         .send({})
         .expect(400);
 
@@ -63,6 +105,7 @@ describe('Reviews Router', () => {
     it('should return 400 when doc_path is empty string', async () => {
       const res = await request(app)
         .post('/api/reviews')
+        .set("Authorization", "Bearer test-token")
         .send({ doc_path: '' })
         .expect(400);
 
@@ -72,11 +115,13 @@ describe('Reviews Router', () => {
     it('should generate unique IDs for each review', async () => {
       const res1 = await request(app)
         .post('/api/reviews')
+        .set("Authorization", "Bearer test-token")
         .send({ doc_path: 'docs/a.md' })
         .expect(201);
 
       const res2 = await request(app)
         .post('/api/reviews')
+        .set("Authorization", "Bearer test-token")
         .send({ doc_path: 'docs/b.md' })
         .expect(201);
 
@@ -86,11 +131,13 @@ describe('Reviews Router', () => {
     it('should allow multiple reviews for the same doc_path', async () => {
       const res1 = await request(app)
         .post('/api/reviews')
+        .set("Authorization", "Bearer test-token")
         .send({ doc_path: 'docs/same.md' })
         .expect(201);
 
       const res2 = await request(app)
         .post('/api/reviews')
+        .set("Authorization", "Bearer test-token")
         .send({ doc_path: 'docs/same.md' })
         .expect(201);
 
@@ -101,6 +148,7 @@ describe('Reviews Router', () => {
     it('should set created_at and updated_at to the same value', async () => {
       const res = await request(app)
         .post('/api/reviews')
+        .set("Authorization", "Bearer test-token")
         .send({ doc_path: 'docs/timestamps.md' })
         .expect(201);
 
@@ -113,14 +161,15 @@ describe('Reviews Router', () => {
   describe('GET /reviews', () => {
     beforeAll(async () => {
       // Seed reviews for GET tests
-      await request(app).post('/api/reviews').send({ doc_path: 'get-test/doc.md' }).expect(201);
-      await request(app).post('/api/reviews').send({ doc_path: 'get-test/doc.md' }).expect(201);
-      await request(app).post('/api/reviews').send({ doc_path: 'get-test/other.md' }).expect(201);
+      await request(app).post('/api/reviews').set("Authorization", "Bearer test-token").send({ doc_path: 'get-test/doc.md' }).expect(201);
+      await request(app).post('/api/reviews').set("Authorization", "Bearer test-token").send({ doc_path: 'get-test/doc.md' }).expect(201);
+      await request(app).post('/api/reviews').set("Authorization", "Bearer test-token").send({ doc_path: 'get-test/other.md' }).expect(201);
     });
 
     it('should return 400 when doc_path is missing', async () => {
       const res = await request(app)
         .get('/api/reviews')
+        .set("Authorization", "Bearer test-token")
         .expect(400);
 
       expect(res.body.error).toContain('doc_path');
@@ -129,6 +178,7 @@ describe('Reviews Router', () => {
     it('should return reviews filtered by doc_path', async () => {
       const res = await request(app)
         .get('/api/reviews')
+        .set("Authorization", "Bearer test-token")
         .query({ doc_path: 'get-test/doc.md' })
         .expect(200);
 
@@ -141,6 +191,7 @@ describe('Reviews Router', () => {
     it('should return empty array for unknown doc_path', async () => {
       const res = await request(app)
         .get('/api/reviews')
+        .set("Authorization", "Bearer test-token")
         .query({ doc_path: 'non-existent/path.md' })
         .expect(200);
 
@@ -150,6 +201,7 @@ describe('Reviews Router', () => {
     it('should return results ordered by created_at DESC', async () => {
       const res = await request(app)
         .get('/api/reviews')
+        .set("Authorization", "Bearer test-token")
         .query({ doc_path: 'get-test/doc.md' })
         .expect(200);
 
@@ -161,6 +213,7 @@ describe('Reviews Router', () => {
     it('should return all review fields', async () => {
       const res = await request(app)
         .get('/api/reviews')
+        .set("Authorization", "Bearer test-token")
         .query({ doc_path: 'get-test/doc.md' })
         .expect(200);
 
@@ -178,6 +231,7 @@ describe('Reviews Router', () => {
     it('should only return reviews for the requested doc_path', async () => {
       const res = await request(app)
         .get('/api/reviews')
+        .set("Authorization", "Bearer test-token")
         .query({ doc_path: 'get-test/other.md' })
         .expect(200);
 

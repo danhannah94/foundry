@@ -5,6 +5,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { unlinkSync } from 'fs';
 import { createAnnotationsRouter } from '../annotations.js';
+import { requireAuth } from '../../middleware/auth.js';
 import { getDb, closeDb } from '../../db.js';
 
 const ISO_8601_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
@@ -15,10 +16,16 @@ const testDbPath = join(tmpdir(), `foundry-test-annotations-${Date.now()}.db`);
 
 beforeAll(() => {
   process.env.FOUNDRY_DB_PATH = testDbPath;
+  process.env.FOUNDRY_WRITE_TOKEN = 'test-token';
 
   app = express();
   app.use(express.json());
-  app.use('/api', createAnnotationsRouter());
+  
+  // Create protected annotations router
+  const protectedAnnotationsRouter = express.Router();
+  protectedAnnotationsRouter.use('/annotations', requireAuth);
+  protectedAnnotationsRouter.use(createAnnotationsRouter());
+  app.use('/api', protectedAnnotationsRouter);
 });
 
 afterAll(() => {
@@ -43,6 +50,58 @@ function validBody(overrides: Record<string, unknown> = {}) {
 }
 
 describe('Annotations Router', () => {
+  // ─── Authentication Tests ─────────────────────────────────────────
+  
+  describe('Authentication', () => {
+    it('should return 401 when POST /annotations without token', async () => {
+      const res = await request(app)
+        .post('/api/annotations')
+        .send(validBody())
+        .expect(401);
+
+      expect(res.body.error).toBe('Unauthorized');
+    });
+
+    it('should return 401 when GET /annotations without token', async () => {
+      const res = await request(app)
+        .get('/api/annotations')
+        .query({ doc_path: 'test/doc.md' })
+        .expect(401);
+
+      expect(res.body.error).toBe('Unauthorized');
+    });
+
+    it('should return 401 when POST /annotations with wrong token', async () => {
+      const res = await request(app)
+        .post('/api/annotations')
+        .set('Authorization', 'Bearer wrong-token')
+        .send(validBody())
+        .expect(401);
+
+      expect(res.body.error).toBe('Unauthorized');
+    });
+
+    it('should succeed when POST /annotations with valid token', async () => {
+      const res = await request(app)
+        .post('/api/annotations')
+        .set('Authorization', 'Bearer test-token')
+        .send(validBody())
+        .expect(201);
+
+      expect(res.body.id).toMatch(CUID2_REGEX);
+    });
+
+    it('should succeed when GET /annotations with valid token', async () => {
+      const res = await request(app)
+        .get('/api/annotations')
+        .set('Authorization', 'Bearer test-token')
+        .query({ doc_path: 'test/doc.md' })
+        .expect(200);
+
+      expect(Array.isArray(res.body)).toBe(true);
+    });
+  });
+
   // ─── POST /annotations ─────────────────────────────────────────────
 
   describe('POST /annotations', () => {
@@ -50,6 +109,7 @@ describe('Annotations Router', () => {
       const body = validBody();
       const res = await request(app)
         .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .send(body)
         .expect(201);
 
@@ -71,6 +131,7 @@ describe('Annotations Router', () => {
     it('should accept optional quoted_text', async () => {
       const res = await request(app)
         .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .send(validBody({ quoted_text: 'some quoted text' }))
         .expect(201);
 
@@ -80,6 +141,7 @@ describe('Annotations Router', () => {
     it('should accept optional author_type of ai', async () => {
       const res = await request(app)
         .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .send(validBody({ author_type: 'ai' }))
         .expect(201);
 
@@ -89,6 +151,7 @@ describe('Annotations Router', () => {
     it('should return 400 when doc_path is missing', async () => {
       const res = await request(app)
         .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .send(validBody({ doc_path: '' }))
         .expect(400);
 
@@ -98,6 +161,7 @@ describe('Annotations Router', () => {
     it('should return 400 when heading_path is missing', async () => {
       const res = await request(app)
         .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .send(validBody({ heading_path: '' }))
         .expect(400);
 
@@ -107,6 +171,7 @@ describe('Annotations Router', () => {
     it('should return 400 when content_hash is missing', async () => {
       const res = await request(app)
         .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .send(validBody({ content_hash: '' }))
         .expect(400);
 
@@ -116,6 +181,7 @@ describe('Annotations Router', () => {
     it('should return 400 when content is missing', async () => {
       const res = await request(app)
         .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .send(validBody({ content: '' }))
         .expect(400);
 
@@ -125,6 +191,7 @@ describe('Annotations Router', () => {
     it('should return 400 with descriptive error message', async () => {
       const res = await request(app)
         .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .send({})
         .expect(400);
 
@@ -135,11 +202,13 @@ describe('Annotations Router', () => {
     it('should generate unique IDs for each annotation', async () => {
       const res1 = await request(app)
         .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .send(validBody())
         .expect(201);
 
       const res2 = await request(app)
         .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .send(validBody())
         .expect(201);
 
@@ -163,19 +232,21 @@ describe('Annotations Router', () => {
 
       seededIds = [];
       for (const body of bodies) {
-        const res = await request(app).post('/api/annotations').send(body).expect(201);
+        const res = await request(app).post('/api/annotations').set("Authorization", "Bearer test-token").send(body).expect(201);
         seededIds.push(res.body.id);
       }
 
       // Update one annotation status to 'submitted' for status filter testing
       await request(app)
         .patch(`/api/annotations/${seededIds[0]}`)
+        .set("Authorization", "Bearer test-token")
         .send({ status: 'submitted' });
     });
 
     it('should return 400 when doc_path is missing', async () => {
       const res = await request(app)
         .get('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .expect(400);
 
       expect(res.body.error).toContain('doc_path');
@@ -184,6 +255,7 @@ describe('Annotations Router', () => {
     it('should return annotations filtered by doc_path', async () => {
       const res = await request(app)
         .get('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .query({ doc_path: 'get-test/doc.md' })
         .expect(200);
 
@@ -196,6 +268,7 @@ describe('Annotations Router', () => {
     it('should return empty array for unknown doc_path', async () => {
       const res = await request(app)
         .get('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .query({ doc_path: 'non-existent/path.md' })
         .expect(200);
 
@@ -205,6 +278,7 @@ describe('Annotations Router', () => {
     it('should filter by section (heading_path LIKE match)', async () => {
       const res = await request(app)
         .get('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .query({ doc_path: 'get-test/doc.md', section: 'Section A' })
         .expect(200);
 
@@ -217,6 +291,7 @@ describe('Annotations Router', () => {
     it('should filter by status', async () => {
       const res = await request(app)
         .get('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .query({ doc_path: 'get-test/doc.md', status: 'submitted' })
         .expect(200);
 
@@ -227,6 +302,7 @@ describe('Annotations Router', () => {
     it('should combine section and status filters', async () => {
       const res = await request(app)
         .get('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .query({ doc_path: 'get-test/doc.md', section: 'Section A', status: 'submitted' })
         .expect(200);
 
@@ -238,6 +314,7 @@ describe('Annotations Router', () => {
     it('should return results ordered by created_at DESC', async () => {
       const res = await request(app)
         .get('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .query({ doc_path: 'get-test/doc.md' })
         .expect(200);
 
@@ -255,6 +332,7 @@ describe('Annotations Router', () => {
     beforeAll(async () => {
       const res = await request(app)
         .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .send(validBody({ doc_path: 'patch-test/doc.md', content: 'original content' }))
         .expect(201);
       annotationId = res.body.id;
@@ -263,6 +341,7 @@ describe('Annotations Router', () => {
     it('should update status', async () => {
       const res = await request(app)
         .patch(`/api/annotations/${annotationId}`)
+        .set("Authorization", "Bearer test-token")
         .send({ status: 'submitted' })
         .expect(200);
 
@@ -273,6 +352,7 @@ describe('Annotations Router', () => {
     it('should update content', async () => {
       const res = await request(app)
         .patch(`/api/annotations/${annotationId}`)
+        .set("Authorization", "Bearer test-token")
         .send({ content: 'updated content' })
         .expect(200);
 
@@ -282,6 +362,7 @@ describe('Annotations Router', () => {
     it('should update both status and content', async () => {
       const res = await request(app)
         .patch(`/api/annotations/${annotationId}`)
+        .set("Authorization", "Bearer test-token")
         .send({ status: 'resolved', content: 'final content' })
         .expect(200);
 
@@ -292,6 +373,7 @@ describe('Annotations Router', () => {
     it('should update updated_at timestamp', async () => {
       const before = await request(app)
         .get('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .query({ doc_path: 'patch-test/doc.md' })
         .expect(200);
 
@@ -302,11 +384,13 @@ describe('Annotations Router', () => {
 
       await request(app)
         .patch(`/api/annotations/${annotationId}`)
+        .set("Authorization", "Bearer test-token")
         .send({ content: 'timestamp check' })
         .expect(200);
 
       const after = await request(app)
         .get('/api/annotations')
+        .set("Authorization", "Bearer test-token")
         .query({ doc_path: 'patch-test/doc.md' })
         .expect(200);
 
@@ -317,6 +401,7 @@ describe('Annotations Router', () => {
     it('should return 400 when neither status nor content is provided', async () => {
       const res = await request(app)
         .patch(`/api/annotations/${annotationId}`)
+        .set("Authorization", "Bearer test-token")
         .send({})
         .expect(400);
 
@@ -326,6 +411,7 @@ describe('Annotations Router', () => {
     it('should return 404 for non-existent annotation ID', async () => {
       const res = await request(app)
         .patch('/api/annotations/nonexistent-id-12345')
+        .set("Authorization", "Bearer test-token")
         .send({ status: 'submitted' })
         .expect(404);
 

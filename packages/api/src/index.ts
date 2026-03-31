@@ -9,6 +9,7 @@ import { createDocsRouter } from './routes/docs.js';
 import { createSearchRouter } from './routes/search.js';
 import { createAnnotationsRouter } from './routes/annotations.js';
 import { createReviewsRouter } from './routes/reviews.js';
+import { requireAuth, logAuthStatus } from './middleware/auth.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { createMcpServer } from './mcp/server.js';
 
@@ -152,11 +153,16 @@ async function startServer(): Promise<void> {
       app.get('/api/search', (req, res) => res.status(503).json({ error: 'Search service unavailable (Anvil disabled)' }));
     }
 
-    // Mount annotations router
-    app.use('/api', createAnnotationsRouter());
+    // Create protected routers by wrapping with auth middleware
+    const protectedAnnotationsRouter = express.Router();
+    protectedAnnotationsRouter.use('/annotations', requireAuth);
+    protectedAnnotationsRouter.use(createAnnotationsRouter());
+    app.use('/api', protectedAnnotationsRouter);
 
-    // Mount reviews router
-    app.use('/api', createReviewsRouter());
+    const protectedReviewsRouter = express.Router();
+    protectedReviewsRouter.use('/reviews', requireAuth);
+    protectedReviewsRouter.use(createReviewsRouter());
+    app.use('/api', protectedReviewsRouter);
 
     // Static file serving — serve the Astro build output
     app.use(express.static(STATIC_PATH));
@@ -185,6 +191,7 @@ async function startServer(): Promise<void> {
         console.log(`🔌 MCP endpoints disabled (Anvil unavailable)`);
       }
       console.log(`🌐 CORS enabled for GitHub Pages and localhost`);
+      logAuthStatus();
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
