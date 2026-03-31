@@ -1,5 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { createAnvil } from '@claymore-dev/anvil';
 import { getDocsPath } from './config.js';
 import { createHealthRouter } from './routes/health.js';
@@ -11,7 +13,10 @@ import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { createMcpServer } from './mcp/server.js';
 
 // Environment configuration
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 const PORT = process.env.FOUNDRY_PORT ? parseInt(process.env.FOUNDRY_PORT, 10) : 3001;
+const STATIC_PATH = process.env.FOUNDRY_STATIC_PATH || join(__dirname, '../../site/dist');
 
 interface ErrorWithStatus extends Error {
   status?: number;
@@ -67,68 +72,110 @@ async function startServer(): Promise<void> {
     const docsPath = getDocsPath();
     console.log(`📁 Using docs path: ${docsPath}`);
 
-    // Initialize Anvil with the configured docs path
-    console.log('🔧 Initializing Anvil...');
-    const anvil = await createAnvil({ docsPath });
-    console.log('✅ Anvil initialized successfully');
+    // Initialize Anvil with graceful error handling
+    let anvil = null;
+    try {
+      console.log('🔧 Initializing Anvil...');
+      anvil = await createAnvil({ docsPath });
+      console.log('✅ Anvil initialized successfully');
+    } catch (error) {
+      console.warn('⚠️ Anvil initialization failed — search disabled:', error);
+    }
 
-    // Create MCP server
-    console.log('🔧 Initializing MCP server...');
-    const mcpServer = createMcpServer(anvil);
-    console.log('✅ MCP server initialized successfully');
+    // Create MCP server (only if anvil is available)
+    let mcpServer = null;
+    if (anvil) {
+      console.log('🔧 Initializing MCP server...');
+      mcpServer = createMcpServer(anvil);
+      console.log('✅ MCP server initialized successfully');
+    } else {
+      console.log('⚠️ MCP server disabled (Anvil unavailable)');
+    }
 
     // Store active SSE transports
     const transports = new Map<string, SSEServerTransport>();
 
-    // MCP SSE endpoints
-    app.get('/mcp/sse', async (req, res) => {
-      try {
-        const transport = new SSEServerTransport('/mcp/message', res);
-        transports.set(transport.sessionId, transport);
+    // MCP SSE endpoints (only if mcpServer is available)
+    if (mcpServer) {
+      app.get('/mcp/sse', async (req, res) => {
+        try {
+          const transport = new SSEServerTransport('/mcp/message', res);
+          transports.set(transport.sessionId, transport);
 
-        // Clean up transport when connection closes
-        res.on('close', () => {
-          transports.delete(transport.sessionId);
-        });
+          // Clean up transport when connection closes
+          res.on('close', () => {
+            transports.delete(transport.sessionId);
+          });
 
-        await mcpServer.connect(transport);
-      } catch (error) {
-        console.error('MCP SSE connection error:', error);
-        res.status(500).json({ error: 'Failed to establish MCP connection' });
-      }
-    });
-
-    app.post('/mcp/message', async (req, res) => {
-      try {
-        const sessionId = req.query.sessionId as string;
-        const transport = transports.get(sessionId);
-
-        if (!transport) {
-          return res.status(404).json({ error: 'Session not found' });
+          await mcpServer.connect(transport);
+        } catch (error) {
+          console.error('MCP SSE connection error:', error);
+          res.status(500).json({ error: 'Failed to establish MCP connection' });
         }
+      });
 
-        await transport.handleMessage(req.body);
-        res.status(200).end();
-      } catch (error) {
-        console.error('MCP message handling error:', error);
-        res.status(500).json({ error: 'Failed to handle MCP message' });
-      }
-    });
+      app.post('/mcp/message', async (req, res) => {
+        try {
+          const sessionId = req.query.sessionId as string;
+          const transport = transports.get(sessionId);
 
-    // Mount health router
-    app.use('/api', createHealthRouter(anvil));
+          if (!transport) {
+            return res.status(404).json({ error: 'Session not found' });
+          }
 
-    // Mount docs router
-    app.use('/api', createDocsRouter(anvil));
+          await transport.handleMessage(req.body);
+          res.status(200).end();
+        } catch (error) {
+          console.error('MCP message handling error:', error);
+          res.status(500).json({ error: 'Failed to handle MCP message' });
+        }
+      });
+    } else {
+      // Disable MCP endpoints when Anvil is not available
+      app.get('/mcp/sse', (req, res) => {
+        res.status(503).json({ error: 'MCP service unavailable (Anvil disabled)' });
+      });
 
-    // Mount search router
-    app.use('/api', createSearchRouter(anvil));
+      app.post('/mcp/message', (req, res) => {
+        res.status(503).json({ error: 'MCP service unavailable (Anvil disabled)' });
+      });
+    }
+
+    // Mount routers only when anvil is available
+    if (anvil) {
+      app.use('/api', createHealthRouter(anvil));
+      app.use('/api', createDocsRouter(anvil));
+      app.use('/api', createSearchRouter(anvil));
+    } else {
+      // Basic health endpoint when Anvil unavailable
+      app.get('/api/health', (req, res) => res.json({
+        status: 'ok',
+        version: '0.2.0',
+        anvil: null
+      }));
+      
+      // Disabled endpoints when Anvil unavailable
+      app.get('/api/docs', (req, res) => res.status(503).json({ error: 'Documentation service unavailable (Anvil disabled)' }));
+      app.get('/api/search', (req, res) => res.status(503).json({ error: 'Search service unavailable (Anvil disabled)' }));
+    }
 
     // Mount annotations router
     app.use('/api', createAnnotationsRouter());
 
     // Mount reviews router
     app.use('/api', createReviewsRouter());
+
+    // Static file serving — serve the Astro build output
+    app.use(express.static(STATIC_PATH));
+
+    // Catch-all fallback for client-side routing — serve index.html for non-API, non-MCP routes
+    app.get('*', (req, res) => {
+      // Don't catch API or MCP routes
+      if (req.path.startsWith('/api/') || req.path.startsWith('/mcp/')) {
+        return res.status(404).json({ error: 'Not found' });
+      }
+      res.sendFile(join(STATIC_PATH, 'index.html'));
+    });
 
     // Global error handler (must be last)
     app.use(errorHandler);
@@ -137,8 +184,13 @@ async function startServer(): Promise<void> {
     app.listen(PORT, () => {
       console.log(`🚀 Foundry API server running on port ${PORT}`);
       console.log(`📊 Health endpoint: http://localhost:${PORT}/api/health`);
-      console.log(`🔌 MCP SSE endpoint: http://localhost:${PORT}/mcp/sse`);
-      console.log(`📨 MCP message endpoint: http://localhost:${PORT}/mcp/message`);
+      console.log(`📂 Static files: ${STATIC_PATH}`);
+      if (mcpServer) {
+        console.log(`🔌 MCP SSE endpoint: http://localhost:${PORT}/mcp/sse`);
+        console.log(`📨 MCP message endpoint: http://localhost:${PORT}/mcp/message`);
+      } else {
+        console.log(`🔌 MCP endpoints disabled (Anvil unavailable)`);
+      }
       console.log(`🌐 CORS enabled for GitHub Pages and localhost`);
     });
   } catch (error) {

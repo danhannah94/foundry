@@ -1,0 +1,7 @@
+node_modules
+.git
+*.db
+packages/site/dist
+packages/api/dist
+.cache
+.github
