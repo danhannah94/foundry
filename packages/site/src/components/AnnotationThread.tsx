@@ -1,0 +1,429 @@
+import { useState, useEffect, useCallback } from 'react';
+
+// Types (copied from API package)
+type AnnotationStatus = "draft" | "submitted" | "replied" | "resolved" | "orphaned";
+type AuthorType = "human" | "ai";
+
+interface Annotation {
+  id: string;
+  doc_path: string;
+  heading_path: string;
+  content_hash: string;
+  quoted_text: string | null;
+  content: string;
+  parent_id: string | null;
+  review_id: string | null;
+  user_id: string;
+  author_type: AuthorType;
+  status: AnnotationStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ReviewGroup {
+  review_id: string;
+  annotations: Annotation[];
+}
+
+interface Props {
+  docPath: string;
+  apiBaseUrl?: string;
+}
+
+const STORAGE_KEY = 'foundry-thread-panel';
+
+// Utility function for relative timestamps
+function relativeTime(isoString: string): string {
+  const now = new Date();
+  const date = new Date(isoString);
+  const diff = now.getTime() - date.getTime();
+  const minutes = Math.floor(diff / (1000 * 60));
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days} days ago`;
+
+  // For older dates, show month/day
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// Status icon helper
+function getStatusIcon(status: AnnotationStatus, hasReplies: boolean = false): string {
+  switch (status) {
+    case 'draft': return '💬';
+    case 'submitted': return '💬';
+    case 'replied': return hasReplies ? '💬' : '💬';
+    case 'resolved': return '✅';
+    case 'orphaned': return '⚠️';
+    default: return '💬';
+  }
+}
+
+// Author badge helper
+function getAuthorBadge(authorType: AuthorType, userId: string): string {
+  if (authorType === 'ai') {
+    return 'Clay 🏗️';
+  }
+  // For human, use the user_id but capitalize first letter
+  return userId.charAt(0).toUpperCase() + userId.slice(1);
+}
+
+// Jump to section helper
+function jumpToSection(headingPath: string) {
+  // Parse the last segment of the heading path (e.g., "Tech Stack" from "## Architecture > ### Tech Stack")
+  const segments = headingPath.split(' > ');
+  const lastSegment = segments[segments.length - 1];
+  const headingText = lastSegment.replace(/^#+\s*/, '').trim();
+
+  // Find the heading element whose text content matches
+  const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
+  for (const heading of headings) {
+    if (heading.textContent?.trim() === headingText) {
+      heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Add highlight animation
+      heading.classList.add('thread-highlight');
+      setTimeout(() => heading.classList.remove('thread-highlight'), 2000);
+      return;
+    }
+  }
+}
+
+export default function AnnotationThread({ docPath, apiBaseUrl = 'http://localhost:3001' }: Props) {
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isVisible, setIsVisible] = useState(true);
+  const [expandedReviews, setExpandedReviews] = useState<Set<string>>(new Set());
+  const [expandedResolved, setExpandedResolved] = useState<Set<string>>(new Set());
+  const [showOrphaned, setShowOrphaned] = useState(false);
+
+  // Load panel visibility from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored !== null) {
+      setIsVisible(stored === 'true');
+    } else {
+      // Default: hidden on mobile, visible on desktop
+      setIsVisible(window.innerWidth >= 1024);
+    }
+  }, []);
+
+  // Save panel visibility to localStorage
+  const toggleVisibility = useCallback(() => {
+    const newVisibility = !isVisible;
+    setIsVisible(newVisibility);
+    localStorage.setItem(STORAGE_KEY, String(newVisibility));
+  }, [isVisible]);
+
+  // Fetch annotations
+  useEffect(() => {
+    async function fetchAnnotations() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch(`${apiBaseUrl}/annotations?doc_path=${encodeURIComponent(docPath)}`);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        setAnnotations(data);
+      } catch (err) {
+        console.warn('Failed to fetch annotations:', err);
+        setError('Unable to load comments');
+        setAnnotations([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (docPath) {
+      fetchAnnotations();
+    }
+  }, [docPath, apiBaseUrl]);
+
+  // Add section margin indicators
+  useEffect(() => {
+    if (annotations.length === 0) return;
+
+    // Clean up any existing indicators
+    document.querySelectorAll('.section-indicator').forEach(el => el.remove());
+
+    // Group annotations by heading_path
+    const annotationsByHeading = new Map<string, Annotation[]>();
+    annotations.forEach(annotation => {
+      if (!annotationsByHeading.has(annotation.heading_path)) {
+        annotationsByHeading.set(annotation.heading_path, []);
+      }
+      annotationsByHeading.get(annotation.heading_path)!.push(annotation);
+    });
+
+    // Add indicators for headings with annotations
+    annotationsByHeading.forEach((headingAnnotations, headingPath) => {
+      // Parse the last segment of the heading path
+      const segments = headingPath.split(' > ');
+      const lastSegment = segments[segments.length - 1];
+      const headingText = lastSegment.replace(/^#+\s*/, '').trim();
+
+      // Find the heading element
+      const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
+      for (const heading of headings) {
+        if (heading.textContent?.trim() === headingText) {
+          // Create indicator
+          const indicator = document.createElement('div');
+          indicator.className = 'section-indicator';
+          indicator.textContent = String(headingAnnotations.length);
+          indicator.title = `${headingAnnotations.length} comment${headingAnnotations.length > 1 ? 's' : ''}`;
+
+          // Position relative to heading
+          const headingRect = heading.getBoundingClientRect();
+          const contentArea = document.querySelector('.content') as HTMLElement;
+          if (contentArea) {
+            contentArea.style.position = 'relative';
+            const contentRect = contentArea.getBoundingClientRect();
+
+            indicator.style.position = 'absolute';
+            indicator.style.top = `${headingRect.top - contentRect.top + (headingRect.height / 2) - 10}px`;
+            indicator.style.left = '-35px';
+
+            // Add click handler to scroll to comment in thread
+            indicator.addEventListener('click', (e) => {
+              e.preventDefault();
+              // Find the first comment for this heading and scroll to it
+              const firstComment = document.querySelector(`[data-annotation-heading="${CSS.escape(headingPath)}"]`);
+              if (firstComment) {
+                firstComment.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Briefly highlight the comment
+                firstComment.classList.add('thread-comment-highlight');
+                setTimeout(() => firstComment.classList.remove('thread-comment-highlight'), 2000);
+              }
+            });
+
+            contentArea.appendChild(indicator);
+          }
+          break;
+        }
+      }
+    });
+
+    // Cleanup function
+    return () => {
+      document.querySelectorAll('.section-indicator').forEach(el => el.remove());
+    };
+  }, [annotations]);
+
+  // Group annotations
+  const groupedAnnotations = (): {
+    reviewGroups: ReviewGroup[];
+    ungrouped: Annotation[];
+    orphaned: Annotation[];
+  } => {
+    const reviewGroups: Map<string, Annotation[]> = new Map();
+    const ungrouped: Annotation[] = [];
+    const orphaned: Annotation[] = [];
+
+    annotations.forEach(annotation => {
+      if (annotation.status === 'orphaned') {
+        orphaned.push(annotation);
+      } else if (annotation.review_id) {
+        if (!reviewGroups.has(annotation.review_id)) {
+          reviewGroups.set(annotation.review_id, []);
+        }
+        reviewGroups.get(annotation.review_id)!.push(annotation);
+      } else {
+        ungrouped.push(annotation);
+      }
+    });
+
+    return {
+      reviewGroups: Array.from(reviewGroups.entries()).map(([review_id, annotations]) => ({
+        review_id,
+        annotations: annotations.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      })),
+      ungrouped: ungrouped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+      orphaned: orphaned.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    };
+  };
+
+  // Build threaded structure
+  const buildThreads = (annotations: Annotation[]): Annotation[] => {
+    const topLevel = annotations.filter(a => !a.parent_id);
+    const children = annotations.filter(a => a.parent_id);
+
+    const addReplies = (annotation: Annotation): Annotation & { replies?: Annotation[] } => {
+      const replies = children.filter(child => child.parent_id === annotation.id);
+      return {
+        ...annotation,
+        replies: replies.length > 0 ? replies.map(addReplies) : undefined
+      };
+    };
+
+    return topLevel.map(addReplies);
+  };
+
+  const renderAnnotation = (annotation: Annotation & { replies?: Annotation[] }, isReply = false) => {
+    const isResolved = annotation.status === 'resolved';
+    const isDraft = annotation.status === 'draft';
+    const expanded = expandedResolved.has(annotation.id);
+
+    return (
+      <div
+        key={annotation.id}
+        className={`thread-comment ${isDraft ? 'thread-comment--draft' : ''} ${isResolved ? 'thread-comment--resolved' : ''} ${isReply ? 'thread-reply' : ''}`}
+        data-annotation-heading={annotation.heading_path}
+      >
+        {isResolved && !expanded ? (
+          <div className="thread-comment-collapsed" onClick={() => setExpandedResolved(prev => new Set(prev).add(annotation.id))}>
+            <span className="thread-comment-status">{getStatusIcon(annotation.status)}</span>
+            <span className="thread-comment-author">{getAuthorBadge(annotation.author_type, annotation.user_id)}</span>
+            <span className="thread-comment-preview">{annotation.content.slice(0, 50)}...</span>
+            <span className="thread-comment-time">{relativeTime(annotation.created_at)}</span>
+          </div>
+        ) : (
+          <>
+            <div className="thread-comment-header">
+              <span className={`thread-comment-status ${isDraft ? 'thread-comment-status--dimmed' : ''}`}>
+                {getStatusIcon(annotation.status, !!annotation.replies?.length)}
+              </span>
+              <span className="thread-comment-author">
+                {getAuthorBadge(annotation.author_type, annotation.user_id)}
+              </span>
+              <button
+                className="thread-comment-jump"
+                onClick={() => jumpToSection(annotation.heading_path)}
+                title="Jump to section"
+              >
+                📍
+              </button>
+              <span className="thread-comment-time">{relativeTime(annotation.created_at)}</span>
+              {isResolved && (
+                <button
+                  className="thread-comment-collapse"
+                  onClick={() => setExpandedResolved(prev => { const next = new Set(prev); next.delete(annotation.id); return next; })}
+                  title="Collapse"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+
+            {annotation.quoted_text && (
+              <blockquote className="thread-comment-quote">
+                {annotation.quoted_text}
+              </blockquote>
+            )}
+
+            <div className="thread-comment-content">
+              {annotation.content}
+            </div>
+
+            {annotation.replies && annotation.replies.length > 0 && (
+              <div className="thread-replies">
+                {annotation.replies.map(reply => renderAnnotation(reply, true))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const renderEmpty = () => (
+    <div className="thread-empty">
+      <p>No comments yet</p>
+    </div>
+  );
+
+  const { reviewGroups, ungrouped, orphaned } = groupedAnnotations();
+
+  return (
+    <div className={`thread-panel ${!isVisible ? 'thread-panel--hidden' : ''}`}>
+      <div className="thread-header">
+        <h3>💬 Review Thread</h3>
+        <button
+          className="thread-toggle"
+          onClick={toggleVisibility}
+          aria-label={isVisible ? "Hide thread panel" : "Show thread panel"}
+        >
+          {isVisible ? '→' : '←'}
+        </button>
+      </div>
+
+      <div className="thread-content">
+        {loading ? (
+          <div className="thread-loading">Loading comments...</div>
+        ) : error ? (
+          <div className="thread-error">{error}</div>
+        ) : annotations.length === 0 ? (
+          renderEmpty()
+        ) : (
+          <>
+            {/* Current/ungrouped comments */}
+            {ungrouped.length > 0 && (
+              <div className="thread-section">
+                {buildThreads(ungrouped).map(annotation => renderAnnotation(annotation))}
+              </div>
+            )}
+
+            {/* Review groups */}
+            {reviewGroups.map(group => {
+              const isExpanded = expandedReviews.has(group.review_id);
+              const threadedAnnotations = buildThreads(group.annotations);
+
+              return (
+                <div key={group.review_id} className="thread-review-group">
+                  <button
+                    className="thread-review-header"
+                    onClick={() => setExpandedReviews(prev => {
+                      const next = new Set(prev);
+                      if (next.has(group.review_id)) {
+                        next.delete(group.review_id);
+                      } else {
+                        next.add(group.review_id);
+                      }
+                      return next;
+                    })}
+                  >
+                    <span className="thread-review-arrow">{isExpanded ? '▼' : '▶'}</span>
+                    Review #{group.review_id.slice(-6)} — {group.annotations.length} comment{group.annotations.length > 1 ? 's' : ''}
+                  </button>
+
+                  {isExpanded && (
+                    <div className="thread-review-comments">
+                      {threadedAnnotations.map(annotation => renderAnnotation(annotation))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Orphaned comments */}
+            {orphaned.length > 0 && (
+              <div className="thread-orphaned">
+                <button
+                  className="thread-orphaned-header"
+                  onClick={() => setShowOrphaned(!showOrphaned)}
+                >
+                  <span className="thread-review-arrow">{showOrphaned ? '▼' : '▶'}</span>
+                  ⚠️ Orphaned Comments ({orphaned.length})
+                </button>
+
+                {showOrphaned && (
+                  <div className="thread-orphaned-comments">
+                    {buildThreads(orphaned).map(annotation => renderAnnotation(annotation))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

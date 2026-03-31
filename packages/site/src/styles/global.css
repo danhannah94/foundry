@@ -42,6 +42,7 @@
 
   /* Layout */
   --sidebar-width: 280px;
+  --thread-panel-width: 320px;
   --content-max-width: 800px;
   --header-height: 56px;
   --spacing-xs: 0.25rem;
@@ -250,16 +251,16 @@ h6:hover .heading-anchor {
 
 /* --- Layout --- */
 .layout {
-  display: flex;
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr var(--thread-panel-width);
   min-height: 100vh;
 }
 
 .sidebar {
-  position: fixed;
+  grid-column: 1;
+  position: sticky;
   top: var(--header-height);
-  left: 0;
-  bottom: 0;
-  width: var(--sidebar-width);
+  height: calc(100vh - var(--header-height));
   background: var(--color-sidebar-bg);
   border-right: 1px solid var(--color-border);
   overflow-y: auto;
@@ -269,11 +270,10 @@ h6:hover .heading-anchor {
 }
 
 .content-area {
-  margin-left: var(--sidebar-width);
-  flex: 1;
+  grid-column: 2;
   padding: var(--spacing-xl);
   padding-top: calc(var(--header-height) + var(--spacing-xl));
-  max-width: calc(var(--content-max-width) + var(--sidebar-width) + var(--spacing-xl) * 2);
+  max-width: var(--content-max-width);
 }
 
 .content {
@@ -341,32 +341,37 @@ h6:hover .heading-anchor {
 }
 
 /* Collapsed sidebar state */
+.layout.sidebar-hidden {
+  grid-template-columns: 0 1fr var(--thread-panel-width);
+}
 .layout.sidebar-hidden .sidebar {
   transform: translateX(-100%);
-}
-.layout.sidebar-hidden .content-area {
-  margin-left: 0;
-  max-width: calc(var(--content-max-width) + var(--spacing-xl) * 2);
-  margin-left: auto;
-  margin-right: auto;
 }
 
 
 
 /* --- Responsive --- */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
   .sidebar {
+    position: fixed;
+    top: var(--header-height);
+    left: 0;
+    bottom: 0;
+    width: var(--sidebar-width);
     transform: translateX(-100%);
+    z-index: 20;
   }
   .sidebar.open {
     transform: translateX(0);
   }
   .content-area {
-    margin-left: 0;
+    grid-column: 1;
     padding: var(--spacing-md);
     padding-top: calc(var(--header-height) + var(--spacing-md));
   }
-
 }
 
 /* --- Sidebar Navigation --- */
@@ -766,4 +771,379 @@ pre.mermaid {
   border: none;
   text-align: center;
   padding: var(--spacing-md) 0;
+}
+
+/* --- Thread Panel --- */
+.thread-panel {
+  grid-column: 3;
+  position: sticky;
+  top: var(--header-height);
+  height: calc(100vh - var(--header-height));
+  background: var(--color-bg);
+  border-left: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  z-index: 5;
+  transition: transform var(--transition-normal);
+}
+
+.thread-panel--hidden {
+  transform: translateX(100%);
+}
+
+.thread-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+}
+
+.thread-header h3 {
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--color-heading);
+}
+
+.thread-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  font-size: 1.2em;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.thread-toggle:hover {
+  color: var(--color-text);
+  background: var(--color-sidebar-hover);
+}
+
+.thread-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-md);
+}
+
+.thread-loading,
+.thread-error {
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-lg);
+}
+
+.thread-error {
+  color: var(--color-danger-border);
+}
+
+.thread-empty {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-lg);
+}
+
+.thread-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+/* --- Thread Comments --- */
+.thread-comment {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-light);
+  border-radius: 8px;
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  font-size: var(--font-size-sm);
+  transition: background-color var(--transition-fast);
+}
+
+.thread-comment:hover {
+  background: var(--color-sidebar-hover);
+}
+
+.thread-comment-highlight {
+  background: var(--color-accent-light) !important;
+  animation: thread-comment-highlight-fade 2s ease-out forwards;
+}
+
+@keyframes thread-comment-highlight-fade {
+  0% {
+    background: var(--color-accent-light) !important;
+  }
+  100% {
+    background: var(--color-bg-secondary) !important;
+  }
+}
+
+.thread-comment--draft {
+  opacity: 0.7;
+}
+
+.thread-comment--resolved .thread-comment-header {
+  opacity: 0.7;
+}
+
+.thread-comment--orphaned {
+  border-color: var(--color-warning-border);
+  background: var(--color-warning-bg);
+}
+
+.thread-comment-collapsed {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.thread-comment-collapsed:hover {
+  opacity: 1;
+}
+
+.thread-comment-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-sm);
+  font-size: 0.8rem;
+}
+
+.thread-comment-status {
+  font-size: 1em;
+}
+
+.thread-comment-status--dimmed {
+  opacity: 0.5;
+}
+
+.thread-comment-author {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.thread-comment-jump {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  opacity: 0.6;
+  transition: opacity var(--transition-fast), background-color var(--transition-fast);
+}
+
+.thread-comment-jump:hover {
+  opacity: 1;
+  background: var(--color-bg);
+}
+
+.thread-comment-time {
+  color: var(--color-text-muted);
+  margin-left: auto;
+}
+
+.thread-comment-collapse {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 1.2em;
+  padding: 0;
+  margin-left: var(--spacing-xs);
+  transition: color var(--transition-fast);
+}
+
+.thread-comment-collapse:hover {
+  color: var(--color-text);
+}
+
+.thread-comment-quote {
+  font-style: italic;
+  color: var(--color-text-secondary);
+  border-left: 3px solid var(--color-accent);
+  padding-left: var(--spacing-sm);
+  margin: var(--spacing-sm) 0;
+  font-size: 0.85em;
+}
+
+.thread-comment-content {
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.thread-comment-preview {
+  color: var(--color-text-secondary);
+  font-style: italic;
+  flex: 1;
+  margin: 0 var(--spacing-sm);
+}
+
+/* --- Threaded Replies --- */
+.thread-reply {
+  margin-left: var(--spacing-lg);
+  border-left: 2px solid var(--color-border);
+  padding-left: var(--spacing-sm);
+}
+
+.thread-replies {
+  margin-top: var(--spacing-sm);
+}
+
+/* --- Review Groups --- */
+.thread-review-group {
+  margin-bottom: var(--spacing-lg);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.thread-review-header {
+  background: var(--color-bg-secondary);
+  border: none;
+  padding: var(--spacing-sm) var(--spacing-md);
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  transition: background-color var(--transition-fast);
+}
+
+.thread-review-header:hover {
+  background: var(--color-sidebar-hover);
+}
+
+.thread-review-arrow {
+  font-size: 0.8em;
+  color: var(--color-text-secondary);
+}
+
+.thread-review-comments {
+  padding: var(--spacing-md);
+}
+
+/* --- Orphaned Comments --- */
+.thread-orphaned {
+  margin-top: var(--spacing-lg);
+  border: 1px solid var(--color-warning-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.thread-orphaned-header {
+  background: var(--color-warning-bg);
+  border: none;
+  padding: var(--spacing-sm) var(--spacing-md);
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  transition: background-color var(--transition-fast);
+}
+
+.thread-orphaned-header:hover {
+  background: var(--color-sidebar-hover);
+}
+
+.thread-orphaned-comments {
+  padding: var(--spacing-md);
+}
+
+/* --- Section Indicators --- */
+.section-indicator {
+  position: absolute;
+  left: -30px;
+  width: 20px;
+  height: 20px;
+  background: var(--color-accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.7rem;
+  color: white;
+  opacity: 0.7;
+  transition: opacity var(--transition-fast);
+}
+
+.section-indicator:hover {
+  opacity: 1;
+}
+
+/* --- Jump to Section Highlight --- */
+.thread-highlight {
+  background: var(--color-accent-light) !important;
+  animation: thread-highlight-fade 2s ease-out forwards;
+}
+
+@keyframes thread-highlight-fade {
+  0% {
+    background: var(--color-accent-light) !important;
+  }
+  100% {
+    background: transparent !important;
+  }
+}
+
+/* --- Thread Panel Grid Layout States --- */
+/* Hidden thread panel */
+.layout:has(.thread-panel--hidden) {
+  grid-template-columns: var(--sidebar-width) 1fr 0;
+}
+
+.layout.sidebar-hidden:has(.thread-panel--hidden) {
+  grid-template-columns: 0 1fr 0;
+}
+
+/* --- Dark Theme Thread Panel --- */
+[data-theme="dark"] .thread-comment--orphaned {
+  background: rgba(251, 146, 60, 0.1);
+  border-color: var(--color-warning-border);
+}
+
+[data-theme="dark"] .thread-orphaned-header {
+  background: rgba(251, 146, 60, 0.1);
+}
+
+/* --- Mobile Thread Panel --- */
+@media (max-width: 1024px) {
+  .thread-panel {
+    position: fixed;
+    top: var(--header-height);
+    right: 0;
+    bottom: 0;
+    width: var(--thread-panel-width);
+    max-width: 90vw;
+    z-index: 15;
+    transform: translateX(100%);
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .thread-panel:not(.thread-panel--hidden) {
+    transform: translateX(0);
+  }
+
+  /* Ensure layout doesn't account for thread panel on mobile */
+  .layout {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+[data-theme="dark"] .thread-panel {
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.3);
 }
