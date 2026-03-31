@@ -6,6 +6,7 @@ import Sidebar from '../components/Sidebar.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
 import PlayAllManager from '../components/PlayAllManager.tsx';
 import TtsControlsBar from '../components/TtsControlsBar.tsx';
+import CommentDraft from '../components/CommentDraft.tsx';
 
 interface Props {
   title?: string;
@@ -66,6 +67,7 @@ const base = import.meta.env.BASE_URL;
         <slot />
         <TtsSectionManager client:load />
         <PlayAllManager client:load />
+        <CommentDraft docPath={currentPath} client:load />
       </article>
     </main>
   </div>
