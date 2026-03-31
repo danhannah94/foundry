@@ -14,6 +14,64 @@ Foundry runs as a single Docker container serving the static site + API + MCP se
 └─────────────────────────────┘
 ```
 
+## Authentication
+
+Foundry uses bearer token authentication to protect write operations (annotations, reviews) and annotation read access. Static docs and search remain public.
+
+### Security Model
+
+| Endpoint | Auth Required | Rationale |
+|----------|--------------|-----------|
+| Static site (HTML/CSS/JS) | ❌ | Docs are public content |
+| GET /api/docs/* | ❌ | Same as static site |
+| GET /api/search | ❌ | Search over public content |
+| GET /api/health | ❌ | Monitoring |
+| GET/POST/PATCH/DELETE /api/annotations* | ✅ | Review content is sensitive |
+| GET/POST/PATCH /api/reviews* | ✅ | Review metadata is sensitive |
+| MCP doc tools (search_docs, etc.) | ❌ | Public content |
+| MCP annotation tools | ✅ | Same as API annotations |
+
+### Token Setup
+
+1. **Generate a token:**
+   ```bash
+   openssl rand -hex 32
+   ```
+
+2. **Local development** — Create `.env` from `.env.example`:
+   ```bash
+   cp .env.example .env
+   # Edit .env and set FOUNDRY_WRITE_TOKEN=<your-token>
+   ```
+   Without the token, auth is disabled (dev mode — all requests allowed).
+
+3. **Fly.io production:**
+   ```bash
+   fly secrets set FOUNDRY_WRITE_TOKEN=<your-token>
+   ```
+
+4. **Docker:**
+   Set in `.env` file or pass directly:
+   ```bash
+   docker compose up  # reads from .env
+   # or
+   FOUNDRY_WRITE_TOKEN=abc123 docker compose up
+   ```
+
+### Frontend Auth Flow
+
+1. Visit site → docs render freely
+2. Open annotations panel → prompted for token
+3. Enter token → stored in browser localStorage
+4. All annotation API calls include Bearer token header
+5. On 401 → token cleared, re-prompted
+
+### MCP Client Auth
+
+MCP annotation tools accept an `auth_token` parameter. Configure in your MCP client:
+- In-process (same container): uses `FOUNDRY_WRITE_TOKEN` env var directly
+- Remote clients: pass token as tool parameter
+
 ## Fly.io (Production)
 
 ### One-Time Setup
@@ -101,6 +159,7 @@ docker run -p 3001:3001 -v foundry-data:/data foundry
 | `PORT` | `3001` | Server port |
 | `FOUNDRY_DB_PATH` | `/data/foundry.db` | SQLite database path |
 | `FOUNDRY_STATIC_PATH` | `../../site/dist` | Path to Astro build output |
+| `FOUNDRY_WRITE_TOKEN` | (none) | Bearer token for API write protection; if unset, auth disabled (dev mode) |
 | `GITHUB_TOKEN` | (none) | GitHub token for private source repos |
 | `NODE_ENV` | `production` | Node environment |
 

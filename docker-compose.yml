@@ -12,6 +12,9 @@ services:
       - PORT=3001
       - FOUNDRY_DB_PATH=/data/foundry.db
       - NODE_ENV=production
+      # Bearer token for API write protection (annotations/reviews)
+      # If unset, auth is disabled (dev mode)
+      - FOUNDRY_WRITE_TOKEN=${FOUNDRY_WRITE_TOKEN:-}
     restart: unless-stopped
 
 volumes:
