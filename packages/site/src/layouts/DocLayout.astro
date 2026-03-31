@@ -7,6 +7,7 @@ import Breadcrumbs from '../components/Breadcrumbs.astro';
 import PlayAllManager from '../components/PlayAllManager.tsx';
 import TtsControlsBar from '../components/TtsControlsBar.tsx';
 import AnnotationThread from '../components/AnnotationThread.tsx';
+import CommentDraft from '../components/CommentDraft.tsx';
 
 interface Props {
   title?: string;
@@ -68,6 +69,7 @@ const apiBaseUrl = import.meta.env.API_BASE_URL || 'http://localhost:3001';
         <slot />
         <TtsSectionManager client:load />
         <PlayAllManager client:load />
+        <CommentDraft docPath={currentPath} client:load />
       </article>
     </main>
 
