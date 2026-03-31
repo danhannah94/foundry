@@ -4,10 +4,12 @@ import {
   CallToolRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { Anvil } from '@claymore-dev/anvil';
+import { getAccessLevel } from '../../access.js';
 
 interface SearchToolArgs {
   query: string;
   top_k?: number;
+  auth_token?: string;
 }
 
 interface SearchResultItem {
@@ -15,6 +17,19 @@ interface SearchResultItem {
   heading: string;
   snippet: string;
   score: number;
+}
+
+/**
+ * Check if the provided auth token is valid
+ */
+function isTokenValid(authToken?: string): boolean {
+  const expectedToken = process.env.FOUNDRY_WRITE_TOKEN;
+
+  // If auth token is not configured, allow all requests (dev mode)
+  if (!expectedToken) return true;
+
+  // Check if auth token is provided and matches
+  return authToken === expectedToken;
 }
 
 /**
@@ -40,6 +55,10 @@ export function registerSearchTool(server: Server, anvil: Anvil): void {
                 description: 'Number of results to return (default: 10)',
                 default: 10,
               },
+              auth_token: {
+                type: 'string',
+                description: 'Optional auth token to include private doc results',
+              },
             },
             required: ['query'],
           },
@@ -57,7 +76,7 @@ export function registerSearchTool(server: Server, anvil: Anvil): void {
     }
 
     const searchArgs = args as unknown as SearchToolArgs;
-    const { query, top_k = 10 } = searchArgs;
+    const { query, top_k = 10, auth_token } = searchArgs;
 
     if (!query || typeof query !== 'string' || query.trim() === '') {
       throw new Error('Query is required and must be a non-empty string');
@@ -75,14 +94,20 @@ export function registerSearchTool(server: Server, anvil: Anvil): void {
         score: result.score,
       }));
 
+      // Filter results based on access level and authentication
+      const isAuthed = isTokenValid(auth_token);
+      const filteredResults = isAuthed
+        ? results
+        : results.filter(r => getAccessLevel(r.path) !== "private");
+
       const response = {
-        results,
+        results: filteredResults,
         query,
-        totalResults: results.length,
+        totalResults: filteredResults.length,
       };
 
       // Add warning if no results found
-      if (results.length === 0 && top_k !== 0) {
+      if (filteredResults.length === 0 && top_k !== 0) {
         (response as any).warning = 'No results found. The Anvil index may be empty or the query did not match any content.';
       }
 
