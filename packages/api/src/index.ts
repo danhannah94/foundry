@@ -5,6 +5,8 @@ import { getDocsPath } from './config.js';
 import { createHealthRouter } from './routes/health.js';
 import { createDocsRouter } from './routes/docs.js';
 import { createSearchRouter } from './routes/search.js';
+import { createAnnotationsRouter } from './routes/annotations.js';
+import { createReviewsRouter } from './routes/reviews.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { createMcpServer } from './mcp/server.js';
 
@@ -121,6 +123,12 @@ async function startServer(): Promise<void> {
 
     // Mount search router
     app.use('/', createSearchRouter(anvil));
+
+    // Mount annotations router
+    app.use('/', createAnnotationsRouter());
+
+    // Mount reviews router
+    app.use('/', createReviewsRouter());
 
     // Global error handler (must be last)
     app.use(errorHandler);
