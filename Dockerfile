@@ -28,10 +28,7 @@ RUN cd packages/site && npm ci && npm run build
 FROM node:22-alpine AS api-builder
 WORKDIR /app/packages/api
 COPY packages/api/package.json ./
-# Remove Anvil dependency — published npm package missing entry files.
-# Anvil is optional: fallback type declarations + dynamic import handle this.
-# Search disabled in Docker; annotations work fine.
-RUN sed -i '/"@claymore-dev\/anvil"/d' package.json && npm install
+RUN npm install
 COPY packages/api/ ./
 RUN npm run build
 
