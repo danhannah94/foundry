@@ -27,7 +27,6 @@ interface ReviewGroup {
 
 interface Props {
   docPath: string;
-  apiBaseUrl?: string;
 }
 
 const STORAGE_KEY = 'foundry-thread-panel';
@@ -191,7 +190,7 @@ async function getSectionContentHash(headingPath: string): Promise<string> {
   }
 }
 
-export default function AnnotationThread({ docPath, apiBaseUrl = 'http://localhost:3001' }: Props) {
+export default function AnnotationThread({ docPath }: Props) {
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -203,7 +202,7 @@ export default function AnnotationThread({ docPath, apiBaseUrl = 'http://localho
   // Helper to update annotation status via API
   const patchAnnotation = useCallback(async (id: string, updates: Partial<Pick<Annotation, 'status'>>) => {
     try {
-      const response = await fetch(`${apiBaseUrl}/annotations/${id}`, {
+      const response = await fetch(`/api/annotations/${id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -221,7 +220,7 @@ export default function AnnotationThread({ docPath, apiBaseUrl = 'http://localho
       console.warn(`Error updating annotation ${id}:`, err);
       return false;
     }
-  }, [apiBaseUrl]);
+  }, []);
 
   // Detect orphaned annotations and content drift
   const detectOrphansAndDrift = useCallback(async (annotations: Annotation[]): Promise<Annotation[]> => {
@@ -285,7 +284,7 @@ export default function AnnotationThread({ docPath, apiBaseUrl = 'http://localho
     setError(null);
 
     try {
-      const response = await fetch(`${apiBaseUrl}/annotations?doc_path=${encodeURIComponent(docPath)}`);
+      const response = await fetch(`/api/annotations?doc_path=${encodeURIComponent(docPath)}`);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -303,7 +302,7 @@ export default function AnnotationThread({ docPath, apiBaseUrl = 'http://localho
     } finally {
       setLoading(false);
     }
-  }, [docPath, apiBaseUrl, detectOrphansAndDrift]);
+  }, [docPath, detectOrphansAndDrift]);
 
   useEffect(() => {
     if (docPath) {

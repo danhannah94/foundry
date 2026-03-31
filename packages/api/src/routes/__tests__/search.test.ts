@@ -12,7 +12,7 @@ const mockAnvil = {
 // Create test app
 const app = express();
 app.use(express.json());
-app.use('/', createSearchRouter(mockAnvil));
+app.use('/api', createSearchRouter(mockAnvil));
 
 describe('POST /search', () => {
   beforeEach(() => {
@@ -48,7 +48,7 @@ describe('POST /search', () => {
     mockAnvil.search.mockResolvedValue(mockResults);
 
     const response = await request(app)
-      .post('/search')
+      .post('/api/search')
       .send({ query: 'test query' })
       .expect(200);
 
@@ -77,7 +77,7 @@ describe('POST /search', () => {
 
   it('should return 400 when query is missing', async () => {
     const response = await request(app)
-      .post('/search')
+      .post('/api/search')
       .send({})
       .expect(400);
 
@@ -90,7 +90,7 @@ describe('POST /search', () => {
 
   it('should return 400 when query is empty string', async () => {
     const response = await request(app)
-      .post('/search')
+      .post('/api/search')
       .send({ query: '' })
       .expect(400);
 
@@ -103,7 +103,7 @@ describe('POST /search', () => {
 
   it('should return 400 when query is whitespace only', async () => {
     const response = await request(app)
-      .post('/search')
+      .post('/api/search')
       .send({ query: '   ' })
       .expect(400);
 
@@ -119,7 +119,7 @@ describe('POST /search', () => {
     mockAnvil.search.mockResolvedValue(mockResults);
 
     await request(app)
-      .post('/search')
+      .post('/api/search')
       .send({ query: 'test query', topK: 5 })
       .expect(200);
 
@@ -130,7 +130,7 @@ describe('POST /search', () => {
     mockAnvil.search.mockResolvedValue([]);
 
     const response = await request(app)
-      .post('/search')
+      .post('/api/search')
       .send({ query: 'no matches query' })
       .expect(200);
 
@@ -146,7 +146,7 @@ describe('POST /search', () => {
     mockAnvil.search.mockResolvedValue([]);
 
     const response = await request(app)
-      .post('/search')
+      .post('/api/search')
       .send({ query: 'test query', topK: 0 })
       .expect(200);
 
@@ -178,7 +178,7 @@ describe('POST /search', () => {
     mockAnvil.search.mockResolvedValue(mockResults);
 
     const response = await request(app)
-      .post('/search')
+      .post('/api/search')
       .send({ query: 'test' })
       .expect(200);
 

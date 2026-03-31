@@ -116,19 +116,19 @@ async function startServer(): Promise<void> {
     });
 
     // Mount health router
-    app.use('/', createHealthRouter(anvil));
+    app.use('/api', createHealthRouter(anvil));
 
     // Mount docs router
-    app.use('/', createDocsRouter(anvil));
+    app.use('/api', createDocsRouter(anvil));
 
     // Mount search router
-    app.use('/', createSearchRouter(anvil));
+    app.use('/api', createSearchRouter(anvil));
 
     // Mount annotations router
-    app.use('/', createAnnotationsRouter());
+    app.use('/api', createAnnotationsRouter());
 
     // Mount reviews router
-    app.use('/', createReviewsRouter());
+    app.use('/api', createReviewsRouter());
 
     // Global error handler (must be last)
     app.use(errorHandler);
@@ -136,7 +136,7 @@ async function startServer(): Promise<void> {
     // Start the server
     app.listen(PORT, () => {
       console.log(`🚀 Foundry API server running on port ${PORT}`);
-      console.log(`📊 Health endpoint: http://localhost:${PORT}/health`);
+      console.log(`📊 Health endpoint: http://localhost:${PORT}/api/health`);
       console.log(`🔌 MCP SSE endpoint: http://localhost:${PORT}/mcp/sse`);
       console.log(`📨 MCP message endpoint: http://localhost:${PORT}/mcp/message`);
       console.log(`🌐 CORS enabled for GitHub Pages and localhost`);

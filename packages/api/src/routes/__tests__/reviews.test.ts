@@ -18,7 +18,7 @@ beforeAll(() => {
 
   app = express();
   app.use(express.json());
-  app.use('/', createReviewsRouter());
+  app.use('/api', createReviewsRouter());
 });
 
 afterAll(() => {
@@ -37,7 +37,7 @@ describe('Reviews Router', () => {
   describe('POST /reviews', () => {
     it('should create a review with defaults', async () => {
       const res = await request(app)
-        .post('/reviews')
+        .post('/api/reviews')
         .send({ doc_path: 'docs/process.md' })
         .expect(201);
 
@@ -53,7 +53,7 @@ describe('Reviews Router', () => {
 
     it('should return 400 when doc_path is missing', async () => {
       const res = await request(app)
-        .post('/reviews')
+        .post('/api/reviews')
         .send({})
         .expect(400);
 
@@ -62,7 +62,7 @@ describe('Reviews Router', () => {
 
     it('should return 400 when doc_path is empty string', async () => {
       const res = await request(app)
-        .post('/reviews')
+        .post('/api/reviews')
         .send({ doc_path: '' })
         .expect(400);
 
@@ -71,12 +71,12 @@ describe('Reviews Router', () => {
 
     it('should generate unique IDs for each review', async () => {
       const res1 = await request(app)
-        .post('/reviews')
+        .post('/api/reviews')
         .send({ doc_path: 'docs/a.md' })
         .expect(201);
 
       const res2 = await request(app)
-        .post('/reviews')
+        .post('/api/reviews')
         .send({ doc_path: 'docs/b.md' })
         .expect(201);
 
@@ -85,12 +85,12 @@ describe('Reviews Router', () => {
 
     it('should allow multiple reviews for the same doc_path', async () => {
       const res1 = await request(app)
-        .post('/reviews')
+        .post('/api/reviews')
         .send({ doc_path: 'docs/same.md' })
         .expect(201);
 
       const res2 = await request(app)
-        .post('/reviews')
+        .post('/api/reviews')
         .send({ doc_path: 'docs/same.md' })
         .expect(201);
 
@@ -100,7 +100,7 @@ describe('Reviews Router', () => {
 
     it('should set created_at and updated_at to the same value', async () => {
       const res = await request(app)
-        .post('/reviews')
+        .post('/api/reviews')
         .send({ doc_path: 'docs/timestamps.md' })
         .expect(201);
 
@@ -113,14 +113,14 @@ describe('Reviews Router', () => {
   describe('GET /reviews', () => {
     beforeAll(async () => {
       // Seed reviews for GET tests
-      await request(app).post('/reviews').send({ doc_path: 'get-test/doc.md' }).expect(201);
-      await request(app).post('/reviews').send({ doc_path: 'get-test/doc.md' }).expect(201);
-      await request(app).post('/reviews').send({ doc_path: 'get-test/other.md' }).expect(201);
+      await request(app).post('/api/reviews').send({ doc_path: 'get-test/doc.md' }).expect(201);
+      await request(app).post('/api/reviews').send({ doc_path: 'get-test/doc.md' }).expect(201);
+      await request(app).post('/api/reviews').send({ doc_path: 'get-test/other.md' }).expect(201);
     });
 
     it('should return 400 when doc_path is missing', async () => {
       const res = await request(app)
-        .get('/reviews')
+        .get('/api/reviews')
         .expect(400);
 
       expect(res.body.error).toContain('doc_path');
@@ -128,7 +128,7 @@ describe('Reviews Router', () => {
 
     it('should return reviews filtered by doc_path', async () => {
       const res = await request(app)
-        .get('/reviews')
+        .get('/api/reviews')
         .query({ doc_path: 'get-test/doc.md' })
         .expect(200);
 
@@ -140,7 +140,7 @@ describe('Reviews Router', () => {
 
     it('should return empty array for unknown doc_path', async () => {
       const res = await request(app)
-        .get('/reviews')
+        .get('/api/reviews')
         .query({ doc_path: 'non-existent/path.md' })
         .expect(200);
 
@@ -149,7 +149,7 @@ describe('Reviews Router', () => {
 
     it('should return results ordered by created_at DESC', async () => {
       const res = await request(app)
-        .get('/reviews')
+        .get('/api/reviews')
         .query({ doc_path: 'get-test/doc.md' })
         .expect(200);
 
@@ -160,7 +160,7 @@ describe('Reviews Router', () => {
 
     it('should return all review fields', async () => {
       const res = await request(app)
-        .get('/reviews')
+        .get('/api/reviews')
         .query({ doc_path: 'get-test/doc.md' })
         .expect(200);
 
@@ -177,7 +177,7 @@ describe('Reviews Router', () => {
 
     it('should only return reviews for the requested doc_path', async () => {
       const res = await request(app)
-        .get('/reviews')
+        .get('/api/reviews')
         .query({ doc_path: 'get-test/other.md' })
         .expect(200);
 

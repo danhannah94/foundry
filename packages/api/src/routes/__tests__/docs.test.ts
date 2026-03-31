@@ -41,10 +41,10 @@ describe('Docs Router', () => {
 
     const app = express();
     app.use(express.json());
-    app.use('/', createDocsRouter(mockAnvil));
+    app.use('/api', createDocsRouter(mockAnvil));
 
     const response = await request(app)
-      .get('/docs')
+      .get('/api/docs')
       .expect(200);
 
     expect(response.body).toEqual([
@@ -101,10 +101,10 @@ describe('Docs Router', () => {
 
     const app = express();
     app.use(express.json());
-    app.use('/', createDocsRouter(mockAnvil));
+    app.use('/api', createDocsRouter(mockAnvil));
 
     const response = await request(app)
-      .get('/docs/methodology/process.md')
+      .get('/api/docs/methodology/process.md')
       .expect(200);
 
     expect(response.body).toEqual({
@@ -136,10 +136,10 @@ describe('Docs Router', () => {
 
     const app = express();
     app.use(express.json());
-    app.use('/', createDocsRouter(mockAnvil));
+    app.use('/api', createDocsRouter(mockAnvil));
 
     const response = await request(app)
-      .get('/docs/non-existent.md')
+      .get('/api/docs/non-existent.md')
       .expect(404);
 
     expect(response.body).toEqual({
@@ -157,10 +157,10 @@ describe('Docs Router', () => {
 
     const app = express();
     app.use(express.json());
-    app.use('/', createDocsRouter(mockAnvil));
+    app.use('/api', createDocsRouter(mockAnvil));
 
     const response = await request(app)
-      .get('/docs')
+      .get('/api/docs')
       .expect(500);
 
     expect(response.body).toEqual({
@@ -176,10 +176,10 @@ describe('Docs Router', () => {
 
     const app = express();
     app.use(express.json());
-    app.use('/', createDocsRouter(mockAnvil));
+    app.use('/api', createDocsRouter(mockAnvil));
 
     const response = await request(app)
-      .get('/docs/some-file.md')
+      .get('/api/docs/some-file.md')
       .expect(500);
 
     expect(response.body).toEqual({

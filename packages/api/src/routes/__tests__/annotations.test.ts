@@ -18,7 +18,7 @@ beforeAll(() => {
 
   app = express();
   app.use(express.json());
-  app.use('/', createAnnotationsRouter());
+  app.use('/api', createAnnotationsRouter());
 });
 
 afterAll(() => {
@@ -49,7 +49,7 @@ describe('Annotations Router', () => {
     it('should create an annotation with defaults', async () => {
       const body = validBody();
       const res = await request(app)
-        .post('/annotations')
+        .post('/api/annotations')
         .send(body)
         .expect(201);
 
@@ -70,7 +70,7 @@ describe('Annotations Router', () => {
 
     it('should accept optional quoted_text', async () => {
       const res = await request(app)
-        .post('/annotations')
+        .post('/api/annotations')
         .send(validBody({ quoted_text: 'some quoted text' }))
         .expect(201);
 
@@ -79,7 +79,7 @@ describe('Annotations Router', () => {
 
     it('should accept optional author_type of ai', async () => {
       const res = await request(app)
-        .post('/annotations')
+        .post('/api/annotations')
         .send(validBody({ author_type: 'ai' }))
         .expect(201);
 
@@ -88,7 +88,7 @@ describe('Annotations Router', () => {
 
     it('should return 400 when doc_path is missing', async () => {
       const res = await request(app)
-        .post('/annotations')
+        .post('/api/annotations')
         .send(validBody({ doc_path: '' }))
         .expect(400);
 
@@ -97,7 +97,7 @@ describe('Annotations Router', () => {
 
     it('should return 400 when heading_path is missing', async () => {
       const res = await request(app)
-        .post('/annotations')
+        .post('/api/annotations')
         .send(validBody({ heading_path: '' }))
         .expect(400);
 
@@ -106,7 +106,7 @@ describe('Annotations Router', () => {
 
     it('should return 400 when content_hash is missing', async () => {
       const res = await request(app)
-        .post('/annotations')
+        .post('/api/annotations')
         .send(validBody({ content_hash: '' }))
         .expect(400);
 
@@ -115,7 +115,7 @@ describe('Annotations Router', () => {
 
     it('should return 400 when content is missing', async () => {
       const res = await request(app)
-        .post('/annotations')
+        .post('/api/annotations')
         .send(validBody({ content: '' }))
         .expect(400);
 
@@ -124,7 +124,7 @@ describe('Annotations Router', () => {
 
     it('should return 400 with descriptive error message', async () => {
       const res = await request(app)
-        .post('/annotations')
+        .post('/api/annotations')
         .send({})
         .expect(400);
 
@@ -134,12 +134,12 @@ describe('Annotations Router', () => {
 
     it('should generate unique IDs for each annotation', async () => {
       const res1 = await request(app)
-        .post('/annotations')
+        .post('/api/annotations')
         .send(validBody())
         .expect(201);
 
       const res2 = await request(app)
-        .post('/annotations')
+        .post('/api/annotations')
         .send(validBody())
         .expect(201);
 
@@ -163,19 +163,19 @@ describe('Annotations Router', () => {
 
       seededIds = [];
       for (const body of bodies) {
-        const res = await request(app).post('/annotations').send(body).expect(201);
+        const res = await request(app).post('/api/annotations').send(body).expect(201);
         seededIds.push(res.body.id);
       }
 
       // Update one annotation status to 'submitted' for status filter testing
       await request(app)
-        .patch(`/annotations/${seededIds[0]}`)
+        .patch(`/api/annotations/${seededIds[0]}`)
         .send({ status: 'submitted' });
     });
 
     it('should return 400 when doc_path is missing', async () => {
       const res = await request(app)
-        .get('/annotations')
+        .get('/api/annotations')
         .expect(400);
 
       expect(res.body.error).toContain('doc_path');
@@ -183,7 +183,7 @@ describe('Annotations Router', () => {
 
     it('should return annotations filtered by doc_path', async () => {
       const res = await request(app)
-        .get('/annotations')
+        .get('/api/annotations')
         .query({ doc_path: 'get-test/doc.md' })
         .expect(200);
 
@@ -195,7 +195,7 @@ describe('Annotations Router', () => {
 
     it('should return empty array for unknown doc_path', async () => {
       const res = await request(app)
-        .get('/annotations')
+        .get('/api/annotations')
         .query({ doc_path: 'non-existent/path.md' })
         .expect(200);
 
@@ -204,7 +204,7 @@ describe('Annotations Router', () => {
 
     it('should filter by section (heading_path LIKE match)', async () => {
       const res = await request(app)
-        .get('/annotations')
+        .get('/api/annotations')
         .query({ doc_path: 'get-test/doc.md', section: 'Section A' })
         .expect(200);
 
@@ -216,7 +216,7 @@ describe('Annotations Router', () => {
 
     it('should filter by status', async () => {
       const res = await request(app)
-        .get('/annotations')
+        .get('/api/annotations')
         .query({ doc_path: 'get-test/doc.md', status: 'submitted' })
         .expect(200);
 
@@ -226,7 +226,7 @@ describe('Annotations Router', () => {
 
     it('should combine section and status filters', async () => {
       const res = await request(app)
-        .get('/annotations')
+        .get('/api/annotations')
         .query({ doc_path: 'get-test/doc.md', section: 'Section A', status: 'submitted' })
         .expect(200);
 
@@ -237,7 +237,7 @@ describe('Annotations Router', () => {
 
     it('should return results ordered by created_at DESC', async () => {
       const res = await request(app)
-        .get('/annotations')
+        .get('/api/annotations')
         .query({ doc_path: 'get-test/doc.md' })
         .expect(200);
 
@@ -254,7 +254,7 @@ describe('Annotations Router', () => {
 
     beforeAll(async () => {
       const res = await request(app)
-        .post('/annotations')
+        .post('/api/annotations')
         .send(validBody({ doc_path: 'patch-test/doc.md', content: 'original content' }))
         .expect(201);
       annotationId = res.body.id;
@@ -262,7 +262,7 @@ describe('Annotations Router', () => {
 
     it('should update status', async () => {
       const res = await request(app)
-        .patch(`/annotations/${annotationId}`)
+        .patch(`/api/annotations/${annotationId}`)
         .send({ status: 'submitted' })
         .expect(200);
 
@@ -272,7 +272,7 @@ describe('Annotations Router', () => {
 
     it('should update content', async () => {
       const res = await request(app)
-        .patch(`/annotations/${annotationId}`)
+        .patch(`/api/annotations/${annotationId}`)
         .send({ content: 'updated content' })
         .expect(200);
 
@@ -281,7 +281,7 @@ describe('Annotations Router', () => {
 
     it('should update both status and content', async () => {
       const res = await request(app)
-        .patch(`/annotations/${annotationId}`)
+        .patch(`/api/annotations/${annotationId}`)
         .send({ status: 'resolved', content: 'final content' })
         .expect(200);
 
@@ -291,7 +291,7 @@ describe('Annotations Router', () => {
 
     it('should update updated_at timestamp', async () => {
       const before = await request(app)
-        .get('/annotations')
+        .get('/api/annotations')
         .query({ doc_path: 'patch-test/doc.md' })
         .expect(200);
 
@@ -301,12 +301,12 @@ describe('Annotations Router', () => {
       await new Promise((r) => setTimeout(r, 10));
 
       await request(app)
-        .patch(`/annotations/${annotationId}`)
+        .patch(`/api/annotations/${annotationId}`)
         .send({ content: 'timestamp check' })
         .expect(200);
 
       const after = await request(app)
-        .get('/annotations')
+        .get('/api/annotations')
         .query({ doc_path: 'patch-test/doc.md' })
         .expect(200);
 
@@ -316,7 +316,7 @@ describe('Annotations Router', () => {
 
     it('should return 400 when neither status nor content is provided', async () => {
       const res = await request(app)
-        .patch(`/annotations/${annotationId}`)
+        .patch(`/api/annotations/${annotationId}`)
         .send({})
         .expect(400);
 
@@ -325,7 +325,7 @@ describe('Annotations Router', () => {
 
     it('should return 404 for non-existent annotation ID', async () => {
       const res = await request(app)
-        .patch('/annotations/nonexistent-id-12345')
+        .patch('/api/annotations/nonexistent-id-12345')
         .send({ status: 'submitted' })
         .expect(404);
 

@@ -3,7 +3,6 @@ import { getDrafts, clearDrafts, type DraftComment } from '../utils/draft-storag
 
 interface Props {
   docPath: string;
-  apiBaseUrl?: string;
 }
 
 interface SubmissionState {
@@ -12,7 +11,7 @@ interface SubmissionState {
   success: boolean;
 }
 
-export default function SubmitReview({ docPath, apiBaseUrl = 'http://localhost:3001' }: Props) {
+export default function SubmitReview({ docPath }: Props) {
   const [drafts, setDrafts] = useState<DraftComment[]>([]);
   const [submissionState, setSubmissionState] = useState<SubmissionState>({
     isSubmitting: false,
@@ -59,7 +58,7 @@ export default function SubmitReview({ docPath, apiBaseUrl = 'http://localhost:3
 
     try {
       // Step 1: Create the review
-      const reviewResponse = await fetch(`${apiBaseUrl}/reviews`, {
+      const reviewResponse = await fetch(`/api/reviews`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -79,7 +78,7 @@ export default function SubmitReview({ docPath, apiBaseUrl = 'http://localhost:3
       // Step 2: Submit each draft as an annotation
       const annotationPromises = drafts.map(async (draft) => {
         // Create annotation
-        const annotationResponse = await fetch(`${apiBaseUrl}/annotations`, {
+        const annotationResponse = await fetch(`/api/annotations`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -102,7 +101,7 @@ export default function SubmitReview({ docPath, apiBaseUrl = 'http://localhost:3
         const annotation = await annotationResponse.json();
 
         // Update status to submitted
-        const patchResponse = await fetch(`${apiBaseUrl}/annotations/${annotation.id}`, {
+        const patchResponse = await fetch(`/api/annotations/${annotation.id}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -122,7 +121,7 @@ export default function SubmitReview({ docPath, apiBaseUrl = 'http://localhost:3
       await Promise.all(annotationPromises);
 
       // Step 3: Update review status to submitted
-      const reviewPatchResponse = await fetch(`${apiBaseUrl}/reviews/${reviewId}`, {
+      const reviewPatchResponse = await fetch(`/api/reviews/${reviewId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
