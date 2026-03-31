@@ -5,6 +5,18 @@ import { registerAnnotationTools } from './tools/annotations.js';
 
 /**
  * Creates and configures the MCP server for Foundry
+ *
+ * Available tools:
+ * - search_docs: Public tool for searching documentation (no auth required)
+ * - list_annotations: List annotations for a document (requires auth_token when FOUNDRY_WRITE_TOKEN is set)
+ * - create_annotation: Create new annotation (requires auth_token when FOUNDRY_WRITE_TOKEN is set)
+ * - resolve_annotation: Mark annotation as resolved (requires auth_token when FOUNDRY_WRITE_TOKEN is set)
+ * - submit_review: Submit annotations as review batch (requires auth_token when FOUNDRY_WRITE_TOKEN is set)
+ *
+ * Authentication:
+ * - If FOUNDRY_WRITE_TOKEN environment variable is not set, all tools are accessible (dev mode)
+ * - If FOUNDRY_WRITE_TOKEN is set, annotation tools require auth_token parameter matching the env var
+ * - Search tools are always public and do not require authentication
  */
 export function createMcpServer(anvil: Anvil): Server {
   const server = new Server({

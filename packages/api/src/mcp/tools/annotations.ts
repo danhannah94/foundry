@@ -5,6 +5,29 @@ import { createId } from '@paralleldrive/cuid2';
 import type { Annotation } from '../../types/annotations.js';
 
 /**
+ * Verify authentication token for MCP annotation tools
+ * Returns null if auth is valid, or an error response object if invalid
+ */
+function verifyAuthToken(authToken?: string): { content: Array<{ type: string; text: string }>; isError: true } | null {
+  const expectedToken = process.env.FOUNDRY_WRITE_TOKEN;
+
+  // If auth token is not configured, allow all requests (dev mode)
+  if (!expectedToken) {
+    return null;
+  }
+
+  // Check if auth token is provided and matches
+  if (!authToken || authToken !== expectedToken) {
+    return {
+      content: [{ type: "text", text: "Authentication required. Provide a valid auth_token parameter." }],
+      isError: true
+    };
+  }
+
+  return null;
+}
+
+/**
  * Core annotation functions that can be tested
  */
 export function listAnnotations(docPath: string, section?: string, status?: string): Annotation[] {
@@ -146,6 +169,10 @@ export function registerAnnotationTools(server: Server): void {
               status: {
                 type: 'string',
                 description: 'Optional status filter (draft, submitted, replied, resolved, orphaned)'
+              },
+              auth_token: {
+                type: 'string',
+                description: 'Authentication token (required when FOUNDRY_WRITE_TOKEN is set)'
               }
             },
             required: ['doc_path']
@@ -176,6 +203,10 @@ export function registerAnnotationTools(server: Server): void {
               author_type: {
                 type: 'string',
                 description: 'Optional author type (human or ai), defaults to ai for MCP callers'
+              },
+              auth_token: {
+                type: 'string',
+                description: 'Authentication token (required when FOUNDRY_WRITE_TOKEN is set)'
               }
             },
             required: ['doc_path', 'section', 'content']
@@ -190,6 +221,10 @@ export function registerAnnotationTools(server: Server): void {
               annotation_id: {
                 type: 'string',
                 description: 'ID of the annotation to resolve'
+              },
+              auth_token: {
+                type: 'string',
+                description: 'Authentication token (required when FOUNDRY_WRITE_TOKEN is set)'
               }
             },
             required: ['annotation_id']
@@ -211,6 +246,10 @@ export function registerAnnotationTools(server: Server): void {
                   type: 'string'
                 },
                 description: 'Optional array of annotation IDs to include in review'
+              },
+              auth_token: {
+                type: 'string',
+                description: 'Authentication token (required when FOUNDRY_WRITE_TOKEN is set)'
               }
             },
             required: ['doc_path']
@@ -230,15 +269,27 @@ export function registerAnnotationTools(server: Server): void {
 
     switch (name) {
       case 'list_annotations': {
+        // Verify authentication
+        const authError = verifyAuthToken(args.auth_token as string | undefined);
+        if (authError) {
+          return authError;
+        }
+
         const result = listAnnotations(
-          args.doc_path as string, 
-          args.section as string | undefined, 
+          args.doc_path as string,
+          args.section as string | undefined,
           args.status as string | undefined
         );
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
 
       case 'create_annotation': {
+        // Verify authentication
+        const authError = verifyAuthToken(args.auth_token as string | undefined);
+        if (authError) {
+          return authError;
+        }
+
         const result = createAnnotation({
           doc_path: args.doc_path as string,
           section: args.section as string,
@@ -250,13 +301,25 @@ export function registerAnnotationTools(server: Server): void {
       }
 
       case 'resolve_annotation': {
+        // Verify authentication
+        const authError = verifyAuthToken(args.auth_token as string | undefined);
+        if (authError) {
+          return authError;
+        }
+
         const result = resolveAnnotation(args.annotation_id as string);
         return { content: [{ type: "text", text: JSON.stringify(result) }] };
       }
 
       case 'submit_review': {
+        // Verify authentication
+        const authError = verifyAuthToken(args.auth_token as string | undefined);
+        if (authError) {
+          return authError;
+        }
+
         const result = submitReview(
-          args.doc_path as string, 
+          args.doc_path as string,
           args.annotation_ids as string[] | undefined
         );
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
