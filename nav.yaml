@@ -97,6 +97,8 @@
               path: projects/foundry/epics/e45-containerize-deploy.md
             - title: "E5: Auth + Write Protection"
               path: projects/foundry/epics/e5-auth.md
+            - title: "E6: Public/Private Docs"
+              path: projects/foundry/epics/e6-public-private.md
     - title: Forge
       children:
         - title: Design
