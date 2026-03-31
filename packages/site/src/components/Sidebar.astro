@@ -22,7 +22,7 @@ function isActive(href: string | undefined): boolean {
 <nav class="sidebar" aria-label="Documentation navigation">
   <ul class="nav-list">
     {navItems.map((item) => (
-      <li>
+      <li data-access={item.access === 'private' ? 'private' : undefined}>
         {item.children ? (
           <details class="nav-section" open={isActiveOrAncestor(item, currentPath)}>
             <summary class="nav-section-title">
@@ -34,7 +34,7 @@ function isActive(href: string | undefined): boolean {
             </summary>
             <ul class="nav-children">
               {item.children.map((child) => (
-                <li>
+                <li data-access={child.access === 'private' ? 'private' : undefined}>
                   {child.children ? (
                     <details class="nav-section" open={isActiveOrAncestor(child, currentPath)}>
                       <summary class="nav-section-title">
@@ -46,7 +46,7 @@ function isActive(href: string | undefined): boolean {
                       </summary>
                       <ul class="nav-children">
                         {child.children.map((grandchild) => (
-                          <li>
+                          <li data-access={grandchild.access === 'private' ? 'private' : undefined}>
                             {grandchild.children ? (
                               <details class="nav-section" open={isActiveOrAncestor(grandchild, currentPath)}>
                                 <summary class="nav-section-title">
@@ -58,7 +58,7 @@ function isActive(href: string | undefined): boolean {
                                 </summary>
                                 <ul class="nav-children">
                                   {grandchild.children!.map((leaf) => (
-                                    <li>
+                                    <li data-access={leaf.access === 'private' ? 'private' : undefined}>
                                       <div class:list={['nav-item', { active: isActive(leaf.href) }]}>
                                         <a href={leaf.href} class="nav-link">{leaf.title}</a>
                                       </div>
@@ -93,3 +93,28 @@ function isActive(href: string | undefined): boolean {
     ))}
   </ul>
 </nav>
+
+<script is:inline>
+(function() {
+  function updateNavAccess() {
+    const hasToken = !!localStorage.getItem('foundry_token');
+    document.querySelectorAll('[data-access="private"]').forEach(el => {
+      el.style.display = hasToken ? '' : 'none';
+    });
+  }
+
+  // Run immediately to prevent flash of private content
+  updateNavAccess();
+
+  // Listen for auth events
+  window.addEventListener('foundry-auth-unlocked', updateNavAccess);
+  window.addEventListener('foundry-auth-required', updateNavAccess);
+
+  // Listen for storage changes (token changes in another tab)
+  window.addEventListener('storage', function(e) {
+    if (e.key === 'foundry_token') {
+      updateNavAccess();
+    }
+  });
+})();
+</script>
