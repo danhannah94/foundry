@@ -8,6 +8,7 @@ import PlayAllManager from '../components/PlayAllManager.tsx';
 import TtsControlsBar from '../components/TtsControlsBar.tsx';
 import AnnotationThread from '../components/AnnotationThread.tsx';
 import CommentDraft from '../components/CommentDraft.tsx';
+import SubmitReview from '../components/SubmitReview.tsx';
 
 interface Props {
   title?: string;
@@ -72,6 +73,12 @@ const apiBaseUrl = import.meta.env.API_BASE_URL || 'http://localhost:3001';
         <CommentDraft docPath={currentPath} client:load />
       </article>
     </main>
+
+    <SubmitReview
+      docPath={currentPath}
+      apiBaseUrl={apiBaseUrl}
+      client:load
+    />
 
     <AnnotationThread
       docPath={currentPath}

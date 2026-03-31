@@ -1,14 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-
-interface DraftComment {
-  id: string;
-  doc_path: string;
-  heading_path: string;
-  content_hash: string;
-  quoted_text: string;
-  content: string;
-  created_at: string;
-}
+import {
+  type DraftComment,
+  getDrafts,
+  saveDraft,
+  updateDraft,
+  deleteDraft
+} from '../utils/draft-storage.js';
 
 interface Props {
   docPath: string;
@@ -382,57 +379,3 @@ export default function CommentDraft({ docPath }: Props) {
   );
 }
 
-// localStorage utility functions
-function getDrafts(docPath: string): DraftComment[] {
-  try {
-    const key = `foundry-drafts-${docPath}`;
-    const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveDraft(docPath: string, draft: DraftComment): void {
-  try {
-    const key = `foundry-drafts-${docPath}`;
-    const existing = getDrafts(docPath);
-    const updated = [...existing, draft];
-    localStorage.setItem(key, JSON.stringify(updated));
-  } catch {
-    // Silently fail if localStorage is unavailable
-  }
-}
-
-function updateDraft(docPath: string, draftId: string, content: string): void {
-  try {
-    const key = `foundry-drafts-${docPath}`;
-    const existing = getDrafts(docPath);
-    const updated = existing.map(draft => 
-      draft.id === draftId ? { ...draft, content } : draft
-    );
-    localStorage.setItem(key, JSON.stringify(updated));
-  } catch {
-    // Silently fail if localStorage is unavailable
-  }
-}
-
-function deleteDraft(docPath: string, draftId: string): void {
-  try {
-    const key = `foundry-drafts-${docPath}`;
-    const existing = getDrafts(docPath);
-    const updated = existing.filter(draft => draft.id !== draftId);
-    localStorage.setItem(key, JSON.stringify(updated));
-  } catch {
-    // Silently fail if localStorage is unavailable
-  }
-}
-
-function clearDrafts(docPath: string): void {
-  try {
-    const key = `foundry-drafts-${docPath}`;
-    localStorage.removeItem(key);
-  } catch {
-    // Silently fail if localStorage is unavailable
-  }
-}

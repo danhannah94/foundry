@@ -36,6 +36,7 @@ export interface CreateAnnotationBody {
   quoted_text?: string;
   content: string;
   parent_id?: string;
+  review_id?: string;
   author_type?: AuthorType;
 }
 

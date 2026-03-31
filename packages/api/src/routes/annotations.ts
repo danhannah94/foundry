@@ -70,6 +70,7 @@ export function createAnnotationsRouter(): Router {
         quoted_text,
         content,
         parent_id,
+        review_id,
         author_type = 'human'
       } = req.body;
 
@@ -92,7 +93,7 @@ export function createAnnotationsRouter(): Router {
         quoted_text: quoted_text || null,
         content,
         parent_id: parent_id || null,
-        review_id: null,
+        review_id: review_id || null,
         user_id: 'dan',
         author_type,
         status: 'draft',
@@ -133,14 +134,14 @@ export function createAnnotationsRouter(): Router {
   });
 
   // PATCH /annotations/:id - Update annotation
-  router.patch('/annotations/:id', async (req: Request<{ id: string }, Annotation, Partial<Pick<Annotation, 'status' | 'content'>>>, res: Response<Annotation>) => {
+  router.patch('/annotations/:id', async (req: Request<{ id: string }, Annotation, Partial<Pick<Annotation, 'status' | 'content' | 'review_id'>>>, res: Response<Annotation>) => {
     try {
       const { id } = req.params;
-      const { status, content } = req.body;
+      const { status, content, review_id } = req.body;
 
-      if (!status && !content) {
+      if (!status && !content && review_id === undefined) {
         return res.status(400).json({
-          error: 'status or content must be provided',
+          error: 'status, content, or review_id must be provided',
         } as any);
       }
 
@@ -168,6 +169,11 @@ export function createAnnotationsRouter(): Router {
       if (content !== undefined) {
         updates.push('content = ?');
         params.push(content);
+      }
+
+      if (review_id !== undefined) {
+        updates.push('review_id = ?');
+        params.push(review_id);
       }
 
       updates.push('updated_at = ?');

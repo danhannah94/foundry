@@ -94,5 +94,71 @@ export function createReviewsRouter(): Router {
     }
   });
 
+  // PATCH /reviews/:id - Update review
+  router.patch('/reviews/:id', async (req: Request<{ id: string }, Review, Partial<Pick<Review, 'status' | 'submitted_at' | 'completed_at'>>>, res: Response<Review>) => {
+    try {
+      const { id } = req.params;
+      const { status, submitted_at, completed_at } = req.body;
+
+      if (!status && !submitted_at && !completed_at) {
+        return res.status(400).json({
+          error: 'status, submitted_at, or completed_at must be provided',
+        } as any);
+      }
+
+      const db = getDb();
+
+      // First check if review exists
+      const existingStmt = db.prepare('SELECT * FROM reviews WHERE id = ?');
+      const existing = existingStmt.get(id) as Review | undefined;
+
+      if (!existing) {
+        return res.status(404).json({
+          error: 'Review not found',
+        } as any);
+      }
+
+      const now = new Date().toISOString();
+      const updates: string[] = [];
+      const params: any[] = [];
+
+      if (status !== undefined) {
+        updates.push('status = ?');
+        params.push(status);
+      }
+
+      if (submitted_at !== undefined) {
+        updates.push('submitted_at = ?');
+        params.push(submitted_at);
+      }
+
+      if (completed_at !== undefined) {
+        updates.push('completed_at = ?');
+        params.push(completed_at);
+      }
+
+      updates.push('updated_at = ?');
+      params.push(now);
+      params.push(id);
+
+      const updateStmt = db.prepare(`
+        UPDATE reviews
+        SET ${updates.join(', ')}
+        WHERE id = ?
+      `);
+
+      updateStmt.run(...params);
+
+      // Fetch updated review
+      const updatedReview = existingStmt.get(id) as Review;
+      res.json(updatedReview);
+    } catch (error) {
+      console.error('Error updating review:', error);
+      res.status(500).json({
+        error: 'Failed to update review',
+      } as any);
+    }
+  });
+
   return router;
 }
