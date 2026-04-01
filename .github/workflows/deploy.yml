@@ -1,52 +1,31 @@
-name: Deploy to GitHub Pages
+name: Deploy to Fly.io
 
 on:
   push:
     branches: [main]
-  repository_dispatch:
-    types: [source-docs-updated]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
-
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build site
-        run: npm run build
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: packages/site/dist/
-
   deploy:
-    needs: build
+    name: Deploy Foundry
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: deploy
+      cancel-in-progress: true
+
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - uses: actions/checkout@v4
+
+      - name: Inject content config
+        run: echo "${{ secrets.FOUNDRY_CONFIG }}" > foundry.config.yaml
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io
+        run: |
+          flyctl deploy --remote-only \
+            --build-arg GITHUB_TOKEN=${{ secrets.GH_CONTENT_TOKEN }} \
+            -a foundry-claymore
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          FOUNDRY_WRITE_TOKEN: ${{ secrets.FOUNDRY_WRITE_TOKEN }}
