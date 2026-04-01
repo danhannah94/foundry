@@ -838,6 +838,41 @@ pre.mermaid {
   color: var(--color-heading);
 }
 
+.thread-submit-btn {
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.thread-submit-btn:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+  transform: translateY(-1px);
+}
+
+.thread-submit-btn:disabled {
+  background: var(--color-text-muted);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.thread-submit-btn--loading {
+  animation: submitPulse 1.5s infinite;
+}
+
+.thread-panel--hidden .thread-submit-btn {
+  display: none;
+}
+
 .thread-toggle {
   background: none;
   border: none;
@@ -931,7 +966,7 @@ pre.mermaid {
 }
 
 .thread-comment:hover {
-  background: var(--color-sidebar-hover);
+  background: var(--color-bg-secondary);
   border-radius: 0 6px 6px 0;
 }
 
@@ -957,10 +992,20 @@ pre.mermaid {
   opacity: 0.7;
 }
 
-.thread-comment--orphaned {
-  border-left-color: var(--color-warning-border);
-  background: var(--color-warning-bg);
-  border-radius: 0 6px 6px 0;
+.thread-comment--stale {
+  opacity: 0.6;
+}
+
+.thread-comment--stale:hover {
+  opacity: 0.8;
+}
+
+.thread-comment--stale .thread-comment-header::after {
+  content: 'stale';
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  margin-left: var(--spacing-xs);
 }
 
 .thread-comment-collapsed {
@@ -1259,40 +1304,7 @@ pre.mermaid {
   padding: var(--spacing-xs) 0;
 }
 
-/* --- Orphaned Comments --- */
-.thread-orphaned {
-  margin-top: var(--spacing-lg);
-  border: none;
-  border-radius: 0;
-  overflow: visible;
-}
 
-.thread-orphaned-header {
-  background: none;
-  border: none;
-  border-bottom: 1px solid var(--color-warning-border);
-  padding: var(--spacing-xs) 0;
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  color: var(--color-warning-border);
-  font-size: 0.75rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  transition: color var(--transition-fast);
-}
-
-.thread-orphaned-header:hover {
-  color: var(--color-text);
-}
-
-.thread-orphaned-comments {
-  padding: var(--spacing-xs) 0;
-}
 
 /* --- Section Indicators --- */
 .section-indicator {
@@ -1335,24 +1347,16 @@ pre.mermaid {
 /* Hidden thread panel */
 .layout:has(.thread-panel--hidden),
 .layout.thread-hidden {
-  grid-template-columns: var(--sidebar-width) 1fr 40px;
+  grid-template-columns: var(--sidebar-width) 1fr 0;
 }
 
 .layout.sidebar-hidden:has(.thread-panel--hidden),
 .layout.sidebar-hidden.thread-hidden {
-  grid-template-columns: 0 1fr 40px;
+  grid-template-columns: 0 1fr 0;
 }
 
 /* --- Dark Theme Thread Panel --- */
-[data-theme="dark"] .thread-comment--orphaned {
-  background: rgba(251, 146, 60, 0.08);
-  border-left-color: var(--color-warning-border);
-}
 
-[data-theme="dark"] .thread-orphaned-header {
-  background: none;
-  color: var(--color-warning-border);
-}
 
 /* --- Mobile Thread Panel --- */
 @media (max-width: 1024px) {
