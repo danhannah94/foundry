@@ -237,12 +237,9 @@ export default function AnnotationThread({ docPath }: Props) {
   // Load panel visibility from localStorage
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored !== null) {
-      setIsVisible(stored === 'true');
-    } else {
-      // Default: hidden on mobile, visible on desktop
-      setIsVisible(window.innerWidth >= 1024);
-    }
+    const visible = stored !== null ? stored === 'true' : window.innerWidth >= 1024;
+    setIsVisible(visible);
+    document.getElementById('layout')?.classList.toggle('thread-hidden', !visible);
   }, []);
 
   // Save panel visibility to localStorage
@@ -250,6 +247,7 @@ export default function AnnotationThread({ docPath }: Props) {
     const newVisibility = !isVisible;
     setIsVisible(newVisibility);
     localStorage.setItem(STORAGE_KEY, String(newVisibility));
+    document.getElementById('layout')?.classList.toggle('thread-hidden', !newVisibility);
   }, [isVisible]);
 
   // Fetch annotations

@@ -43,7 +43,7 @@
   /* Layout */
   --sidebar-width: 280px;
   --thread-panel-width: 320px;
-  --content-max-width: 800px;
+  /* --content-max-width: 800px; */
   --header-height: 56px;
   --spacing-xs: 0.25rem;
   --spacing-sm: 0.5rem;
@@ -273,11 +273,9 @@ h6:hover .heading-anchor {
   grid-column: 2;
   padding: var(--spacing-xl);
   padding-top: calc(var(--header-height) + var(--spacing-xl));
-  max-width: var(--content-max-width);
 }
 
 .content {
-  max-width: var(--content-max-width);
   overflow-x: hidden;
 }
 
@@ -1240,11 +1238,13 @@ pre.mermaid {
 
 /* --- Thread Panel Grid Layout States --- */
 /* Hidden thread panel */
-.layout:has(.thread-panel--hidden) {
+.layout:has(.thread-panel--hidden),
+.layout.thread-hidden {
   grid-template-columns: var(--sidebar-width) 1fr 40px;
 }
 
-.layout.sidebar-hidden:has(.thread-panel--hidden) {
+.layout.sidebar-hidden:has(.thread-panel--hidden),
+.layout.sidebar-hidden.thread-hidden {
   grid-template-columns: 0 1fr 40px;
 }
 
