@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import type { Anvil } from '@claymore-dev/anvil';
-import { registerSearchTool } from '../tools/search.js';
+import { executeSearchQuery } from '../tools/search.js';
 import * as access from '../../access.js';
 
 // Mock Anvil instance
@@ -9,12 +8,7 @@ const mockAnvil = {
   search: vi.fn(),
 } as unknown as Anvil;
 
-// TODO: MCP Server test setup needs refactoring — registerSearchTool + registerAnnotationTools
-// both call setRequestHandler(ListToolsRequestSchema) which overwrites handlers.
-// Core search filtering logic is covered by route tests (routes/__tests__/search.test.ts).
-describe.skip('MCP search_docs tool access filtering', () => {
-  let server: Server;
-
+describe('MCP search_docs tool access filtering (Direct Testing)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
@@ -26,15 +20,6 @@ describe.skip('MCP search_docs tool access filtering', () => {
       if (path.startsWith('projects/')) return 'private';
       return 'public';
     });
-
-    // Create a new server instance for each test
-    server = new Server(
-      { name: 'test-mcp-server', version: '1.0.0' },
-      { capabilities: { tools: {} } }
-    );
-
-    // Register the search tool
-    registerSearchTool(server, mockAnvil);
   });
 
   it('should filter out private results when no auth token is provided', async () => {
@@ -65,21 +50,9 @@ describe.skip('MCP search_docs tool access filtering', () => {
 
     mockAnvil.search.mockResolvedValue(mockResults);
 
-    // Simulate calling the tool
-    const result = await server.handleRequest({
-      method: 'tools/call',
-      params: {
-        name: 'search_docs',
-        arguments: {
-          query: 'test query',
-        },
-      },
-    } as any);
+    const response = await executeSearchQuery(mockAnvil, 'test query');
 
     expect(mockAnvil.search).toHaveBeenCalledWith('test query', 10);
-
-    // Parse the response
-    const response = JSON.parse(result.content[0].text);
 
     // Should only return the public result
     expect(response.results).toHaveLength(1);
@@ -115,22 +88,9 @@ describe.skip('MCP search_docs tool access filtering', () => {
 
     mockAnvil.search.mockResolvedValue(mockResults);
 
-    // Simulate calling the tool with auth token
-    const result = await server.handleRequest({
-      method: 'tools/call',
-      params: {
-        name: 'search_docs',
-        arguments: {
-          query: 'test query',
-          auth_token: 'test-token',
-        },
-      },
-    } as any);
+    const response = await executeSearchQuery(mockAnvil, 'test query', 10, 'test-token');
 
     expect(mockAnvil.search).toHaveBeenCalledWith('test query', 10);
-
-    // Parse the response
-    const response = JSON.parse(result.content[0].text);
 
     // Should return both public and private results
     expect(response.results).toHaveLength(2);
@@ -169,22 +129,9 @@ describe.skip('MCP search_docs tool access filtering', () => {
 
     mockAnvil.search.mockResolvedValue(mockResults);
 
-    // Simulate calling the tool with invalid auth token
-    const result = await server.handleRequest({
-      method: 'tools/call',
-      params: {
-        name: 'search_docs',
-        arguments: {
-          query: 'test query',
-          auth_token: 'invalid-token',
-        },
-      },
-    } as any);
+    const response = await executeSearchQuery(mockAnvil, 'test query', 10, 'invalid-token');
 
     expect(mockAnvil.search).toHaveBeenCalledWith('test query', 10);
-
-    // Parse the response
-    const response = JSON.parse(result.content[0].text);
 
     // Should only return the public result
     expect(response.results).toHaveLength(1);
@@ -223,21 +170,9 @@ describe.skip('MCP search_docs tool access filtering', () => {
 
     mockAnvil.search.mockResolvedValue(mockResults);
 
-    // Simulate calling the tool without auth token (should work in dev mode)
-    const result = await server.handleRequest({
-      method: 'tools/call',
-      params: {
-        name: 'search_docs',
-        arguments: {
-          query: 'test query',
-        },
-      },
-    } as any);
+    const response = await executeSearchQuery(mockAnvil, 'test query');
 
     expect(mockAnvil.search).toHaveBeenCalledWith('test query', 10);
-
-    // Parse the response
-    const response = JSON.parse(result.content[0].text);
 
     // Should return both results in dev mode
     expect(response.results).toHaveLength(2);
@@ -264,32 +199,14 @@ describe.skip('MCP search_docs tool access filtering', () => {
 
     mockAnvil.search.mockResolvedValue(mockResults);
 
-    // Simulate calling the tool with custom top_k
-    await server.handleRequest({
-      method: 'tools/call',
-      params: {
-        name: 'search_docs',
-        arguments: {
-          query: 'test query',
-          top_k: 5,
-        },
-      },
-    } as any);
+    await executeSearchQuery(mockAnvil, 'test query', 5);
 
     expect(mockAnvil.search).toHaveBeenCalledWith('test query', 5);
   });
 
   it('should throw error for invalid query', async () => {
     await expect(
-      server.handleRequest({
-        method: 'tools/call',
-        params: {
-          name: 'search_docs',
-          arguments: {
-            query: '',
-          },
-        },
-      } as any)
+      executeSearchQuery(mockAnvil, '')
     ).rejects.toThrow('Query is required and must be a non-empty string');
 
     expect(mockAnvil.search).not.toHaveBeenCalled();
@@ -300,15 +217,7 @@ describe.skip('MCP search_docs tool access filtering', () => {
     mockAnvil.search.mockRejectedValue(searchError);
 
     await expect(
-      server.handleRequest({
-        method: 'tools/call',
-        params: {
-          name: 'search_docs',
-          arguments: {
-            query: 'test query',
-          },
-        },
-      } as any)
+      executeSearchQuery(mockAnvil, 'test query')
     ).rejects.toThrow('Search failed: Search service unavailable');
   });
 });

@@ -8,7 +8,7 @@ import type { Annotation } from '../../types/annotations.js';
  * Verify authentication token for MCP annotation tools
  * Returns null if auth is valid, or an error response object if invalid
  */
-function verifyAuthToken(authToken?: string): { content: Array<{ type: string; text: string }>; isError: true } | null {
+export function verifyAuthToken(authToken?: string): { content: Array<{ type: string; text: string }>; isError: true } | null {
   const expectedToken = process.env.FOUNDRY_WRITE_TOKEN;
 
   // If auth token is not configured, allow all requests (dev mode)

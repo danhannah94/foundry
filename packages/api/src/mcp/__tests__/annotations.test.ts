@@ -3,16 +3,15 @@ import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { getDb, closeDb } from '../../db.js';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
   listAnnotations,
   createAnnotation,
   resolveAnnotation,
   submitReview,
-  registerAnnotationTools
+  registerAnnotationTools,
+  verifyAuthToken
 } from '../tools/annotations.js';
-import { registerSearchTool } from '../tools/search.js';
+import { registerSearchTool, executeSearchQuery } from '../tools/search.js';
 
 // Mock Anvil for search tool tests
 const mockAnvil = {
@@ -97,99 +96,6 @@ afterEach(() => {
   delete process.env.FOUNDRY_DB_PATH;
 });
 
-/**
- * Test verifyAuthToken function directly
- */
-function testVerifyAuthToken(authToken?: string) {
-  // Extract the verifyAuthToken function to test it directly
-  const expectedToken = process.env.FOUNDRY_WRITE_TOKEN;
-
-  // If auth token is not configured, allow all requests (dev mode)
-  if (!expectedToken) {
-    return null;
-  }
-
-  // Check if auth token is provided and matches
-  if (!authToken || authToken !== expectedToken) {
-    return {
-      content: [{ type: "text", text: "Authentication required. Provide a valid auth_token parameter." }],
-      isError: true
-    };
-  }
-
-  return null;
-}
-
-/**
- * Helper function to simulate MCP tool calls for testing
- */
-async function callMcpTool(toolName: string, args: any, includeSearchTool = false): Promise<any> {
-  const server = new Server({
-    name: 'foundry-test',
-    version: '0.2.0',
-  }, {
-    capabilities: {
-      tools: {}
-    }
-  });
-
-  // Register annotation tools
-  registerAnnotationTools(server);
-
-  // Register search tool if requested
-  if (includeSearchTool) {
-    registerSearchTool(server, mockAnvil);
-  }
-
-  // Get the call tool request handler by accessing the private _requestHandlers
-  const callHandler = (server as any)._requestHandlers?.get(CallToolRequestSchema.name);
-  if (!callHandler) {
-    // Try alternative access patterns
-    const handlers = (server as any).requestHandlers || (server as any)._handlers;
-    const altHandler = handlers?.get(CallToolRequestSchema.name) || handlers?.get('tools/call');
-    if (!altHandler) {
-      throw new Error('No call handler registered');
-    }
-
-    // Use the alternative handler
-    const request = {
-      method: 'tools/call',
-      params: {
-        name: toolName,
-        arguments: args
-      }
-    };
-
-    try {
-      const result = await altHandler(request);
-      return result;
-    } catch (error) {
-      return {
-        content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
-        isError: true
-      };
-    }
-  }
-
-  // Simulate tool call
-  const request = {
-    method: 'tools/call',
-    params: {
-      name: toolName,
-      arguments: args
-    }
-  };
-
-  try {
-    const result = await callHandler(request);
-    return result;
-  } catch (error) {
-    return {
-      content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
-      isError: true
-    };
-  }
-}
 
 describe('Core annotation functions (no auth)', () => {
   describe('listAnnotations', () => {
@@ -383,77 +289,20 @@ describe('Core annotation functions (no auth)', () => {
   });
 });
 
-// TODO: MCP Server handler access via private _requestHandlers is brittle across SDK versions.
-// Core auth logic (verifyAuthToken) is tested inline above. HTTP route auth is tested in routes/__tests__/.
-describe.skip('MCP Tool Authentication', () => {
+describe('MCP Tool Authentication (Direct Testing)', () => {
   describe('Dev mode (no FOUNDRY_WRITE_TOKEN)', () => {
     beforeEach(() => {
       delete process.env.FOUNDRY_WRITE_TOKEN;
     });
 
-    it('should allow list_annotations without auth_token', async () => {
-      createAnnotation({
-        doc_path: 'test-doc.md',
-        section: 'intro',
-        content: 'Test annotation'
-      });
-
-      const result = await callMcpTool('list_annotations', {
-        doc_path: 'test-doc.md'
-      });
-
-      expect(result.content).toBeDefined();
-      expect(result.isError).toBeUndefined();
-      const data = JSON.parse(result.content[0].text);
-      expect(data).toHaveLength(1);
+    it('should allow requests without auth_token when FOUNDRY_WRITE_TOKEN is not set', () => {
+      const result = verifyAuthToken();
+      expect(result).toBeNull();
     });
 
-    it('should allow create_annotation without auth_token', async () => {
-      const result = await callMcpTool('create_annotation', {
-        doc_path: 'test-doc.md',
-        section: 'intro',
-        content: 'Test annotation'
-      });
-
-      expect(result.content).toBeDefined();
-      expect(result.isError).toBeUndefined();
-      const data = JSON.parse(result.content[0].text);
-      expect(data.status).toBe('created');
-      expect(data.annotation).toBeDefined();
-    });
-
-    it('should allow resolve_annotation without auth_token', async () => {
-      const annotation = createAnnotation({
-        doc_path: 'test-doc.md',
-        section: 'intro',
-        content: 'Test annotation'
-      });
-
-      const result = await callMcpTool('resolve_annotation', {
-        annotation_id: annotation.id
-      });
-
-      expect(result.content).toBeDefined();
-      expect(result.isError).toBeUndefined();
-      const data = JSON.parse(result.content[0].text);
-      expect(data.status).toBe('resolved');
-    });
-
-    it('should allow submit_review without auth_token', async () => {
-      createAnnotation({
-        doc_path: 'test-doc.md',
-        section: 'intro',
-        content: 'Test annotation'
-      });
-
-      const result = await callMcpTool('submit_review', {
-        doc_path: 'test-doc.md'
-      });
-
-      expect(result.content).toBeDefined();
-      expect(result.isError).toBeUndefined();
-      const data = JSON.parse(result.content[0].text);
-      expect(data.status).toBe('review_submitted');
+    it('should allow requests with auth_token when FOUNDRY_WRITE_TOKEN is not set', () => {
+      const result = verifyAuthToken('any-token');
+      expect(result).toBeNull();
     });
   });
 
@@ -462,179 +311,68 @@ describe.skip('MCP Tool Authentication', () => {
       process.env.FOUNDRY_WRITE_TOKEN = 'test-secret-token';
     });
 
-    it('should reject list_annotations without auth_token', async () => {
-      const result = await callMcpTool('list_annotations', {
-        doc_path: 'test-doc.md'
-      });
-
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toBe('Authentication required. Provide a valid auth_token parameter.');
+    it('should reject requests without auth_token', () => {
+      const result = verifyAuthToken();
+      expect(result).not.toBeNull();
+      expect(result?.isError).toBe(true);
+      expect(result?.content[0].text).toBe('Authentication required. Provide a valid auth_token parameter.');
     });
 
-    it('should reject list_annotations with invalid auth_token', async () => {
-      const result = await callMcpTool('list_annotations', {
-        doc_path: 'test-doc.md',
-        auth_token: 'wrong-token'
-      });
-
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toBe('Authentication required. Provide a valid auth_token parameter.');
+    it('should reject requests with invalid auth_token', () => {
+      const result = verifyAuthToken('wrong-token');
+      expect(result).not.toBeNull();
+      expect(result?.isError).toBe(true);
+      expect(result?.content[0].text).toBe('Authentication required. Provide a valid auth_token parameter.');
     });
 
-    it('should allow list_annotations with valid auth_token', async () => {
-      createAnnotation({
-        doc_path: 'test-doc.md',
-        section: 'intro',
-        content: 'Test annotation'
-      });
-
-      const result = await callMcpTool('list_annotations', {
-        doc_path: 'test-doc.md',
-        auth_token: 'test-secret-token'
-      });
-
-      expect(result.content).toBeDefined();
-      expect(result.isError).toBeUndefined();
-      const data = JSON.parse(result.content[0].text);
-      expect(data).toHaveLength(1);
+    it('should allow requests with valid auth_token', () => {
+      const result = verifyAuthToken('test-secret-token');
+      expect(result).toBeNull();
     });
 
-    it('should reject create_annotation without auth_token', async () => {
-      const result = await callMcpTool('create_annotation', {
-        doc_path: 'test-doc.md',
-        section: 'intro',
-        content: 'Test annotation'
-      });
-
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toBe('Authentication required. Provide a valid auth_token parameter.');
-    });
-
-    it('should allow create_annotation with valid auth_token', async () => {
-      const result = await callMcpTool('create_annotation', {
-        doc_path: 'test-doc.md',
-        section: 'intro',
-        content: 'Test annotation',
-        auth_token: 'test-secret-token'
-      });
-
-      expect(result.content).toBeDefined();
-      expect(result.isError).toBeUndefined();
-      const data = JSON.parse(result.content[0].text);
-      expect(data.status).toBe('created');
-    });
-
-    it('should reject resolve_annotation without auth_token', async () => {
-      const annotation = createAnnotation({
-        doc_path: 'test-doc.md',
-        section: 'intro',
-        content: 'Test annotation'
-      });
-
-      const result = await callMcpTool('resolve_annotation', {
-        annotation_id: annotation.id
-      });
-
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toBe('Authentication required. Provide a valid auth_token parameter.');
-    });
-
-    it('should allow resolve_annotation with valid auth_token', async () => {
-      const annotation = createAnnotation({
-        doc_path: 'test-doc.md',
-        section: 'intro',
-        content: 'Test annotation'
-      });
-
-      const result = await callMcpTool('resolve_annotation', {
-        annotation_id: annotation.id,
-        auth_token: 'test-secret-token'
-      });
-
-      expect(result.content).toBeDefined();
-      expect(result.isError).toBeUndefined();
-      const data = JSON.parse(result.content[0].text);
-      expect(data.status).toBe('resolved');
-    });
-
-    it('should reject submit_review without auth_token', async () => {
-      createAnnotation({
-        doc_path: 'test-doc.md',
-        section: 'intro',
-        content: 'Test annotation'
-      });
-
-      const result = await callMcpTool('submit_review', {
-        doc_path: 'test-doc.md'
-      });
-
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toBe('Authentication required. Provide a valid auth_token parameter.');
-    });
-
-    it('should allow submit_review with valid auth_token', async () => {
-      createAnnotation({
-        doc_path: 'test-doc.md',
-        section: 'intro',
-        content: 'Test annotation'
-      });
-
-      const result = await callMcpTool('submit_review', {
-        doc_path: 'test-doc.md',
-        auth_token: 'test-secret-token'
-      });
-
-      expect(result.content).toBeDefined();
-      expect(result.isError).toBeUndefined();
-      const data = JSON.parse(result.content[0].text);
-      expect(data.status).toBe('review_submitted');
+    it('should reject requests with empty auth_token', () => {
+      const result = verifyAuthToken('');
+      expect(result).not.toBeNull();
+      expect(result?.isError).toBe(true);
+      expect(result?.content[0].text).toBe('Authentication required. Provide a valid auth_token parameter.');
     });
   });
 });
 
-// TODO: Same MCP handler access issue as above.
-describe.skip('Search Tool (No Auth Required)', () => {
-  beforeEach(() => {
-    // Test both with and without FOUNDRY_WRITE_TOKEN to verify search is always public
+describe('Search Tool (Direct Testing)', () => {
+  it('should allow search without auth_token when FOUNDRY_WRITE_TOKEN is set', async () => {
     process.env.FOUNDRY_WRITE_TOKEN = 'test-secret-token';
+
+    const result = await executeSearchQuery(mockAnvil, 'test search query');
+
+    expect(result.results).toBeDefined();
+    expect(result.query).toBe('test search query');
+    expect(result.totalResults).toBe(1); // Based on our mock
   });
 
-  it('should allow search_docs without auth_token when FOUNDRY_WRITE_TOKEN is set', async () => {
-    const result = await callMcpTool('search_docs', {
-      query: 'test search query'
-    }, true);
-
-    expect(result.content).toBeDefined();
-    expect(result.isError).toBeUndefined();
-    const data = JSON.parse(result.content[0].text);
-    expect(data.results).toBeDefined();
-    expect(data.query).toBe('test search query');
-  });
-
-  it('should allow search_docs without auth_token when FOUNDRY_WRITE_TOKEN is not set', async () => {
+  it('should allow search without auth_token when FOUNDRY_WRITE_TOKEN is not set', async () => {
     delete process.env.FOUNDRY_WRITE_TOKEN;
 
-    const result = await callMcpTool('search_docs', {
-      query: 'test search query'
-    }, true);
+    const result = await executeSearchQuery(mockAnvil, 'test search query');
 
-    expect(result.content).toBeDefined();
-    expect(result.isError).toBeUndefined();
-    const data = JSON.parse(result.content[0].text);
-    expect(data.results).toBeDefined();
-    expect(data.query).toBe('test search query');
+    expect(result.results).toBeDefined();
+    expect(result.query).toBe('test search query');
+    expect(result.totalResults).toBe(1); // Based on our mock
   });
 
-  it('should handle search with top_k parameter', async () => {
-    const result = await callMcpTool('search_docs', {
-      query: 'test search query',
-      top_k: 5
-    }, true);
+  it('should handle search with custom top_k parameter', async () => {
+    const result = await executeSearchQuery(mockAnvil, 'test search query', 5);
 
-    expect(result.content).toBeDefined();
-    expect(result.isError).toBeUndefined();
-    const data = JSON.parse(result.content[0].text);
-    expect(data.results).toBeDefined();
-    expect(data.totalResults).toBe(1); // Based on our mock
+    expect(result.results).toBeDefined();
+    expect(result.totalResults).toBe(1); // Based on our mock
+    expect(result.query).toBe('test search query');
+  });
+
+  it('should throw error for empty query', async () => {
+    await expect(executeSearchQuery(mockAnvil, '')).rejects.toThrow('Query is required and must be a non-empty string');
+  });
+
+  it('should throw error for whitespace-only query', async () => {
+    await expect(executeSearchQuery(mockAnvil, '   ')).rejects.toThrow('Query is required and must be a non-empty string');
   });
 });
