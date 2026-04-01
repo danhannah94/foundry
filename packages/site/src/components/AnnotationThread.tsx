@@ -105,6 +105,11 @@ export default function AnnotationThread({ docPath }: Props) {
   const [authenticated, setAuthenticated] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
 
+  // Thread collapse/expand state (tracks which threads have replies expanded)
+  const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
+  // Archived section collapsed by default
+  const [showArchived, setShowArchived] = useState(false);
+
   // Ref for preserving scroll position
   const threadContentRef = useRef<HTMLDivElement>(null);
 
@@ -668,9 +673,26 @@ export default function AnnotationThread({ docPath }: Props) {
             )}
 
             {!isReply && annotation.replies && annotation.replies.length > 0 && (
-              <div className="thread-replies">
-                {annotation.replies.map(reply => renderAnnotation(reply, true))}
-              </div>
+              expandedThreads.has(annotation.id) ? (
+                <>
+                  <button
+                    className="thread-replies-toggle"
+                    onClick={() => setExpandedThreads(prev => { const next = new Set(prev); next.delete(annotation.id); return next; })}
+                  >
+                    💬 {annotation.replies.length} {annotation.replies.length === 1 ? 'reply' : 'replies'} ▾
+                  </button>
+                  <div className="thread-replies">
+                    {annotation.replies.map(reply => renderAnnotation(reply, true))}
+                  </div>
+                </>
+              ) : (
+                <button
+                  className="thread-replies-toggle"
+                  onClick={() => setExpandedThreads(prev => new Set(prev).add(annotation.id))}
+                >
+                  💬 {annotation.replies.length} {annotation.replies.length === 1 ? 'reply' : 'replies'} ▸
+                </button>
+              )
             )}
           </>
         )}
@@ -707,6 +729,58 @@ export default function AnnotationThread({ docPath }: Props) {
 
   const { reviewGroups, ungrouped, orphaned } = groupedAnnotations();
 
+  // Build all non-orphaned threads and split into active/archived
+  const allNonOrphaned = [...ungrouped, ...reviewGroups.flatMap(g => g.annotations)];
+  const allThreads = buildThreads(allNonOrphaned);
+  const activeThreads = allThreads.filter(t => t.status !== 'resolved');
+  const archivedThreads = allThreads.filter(t => t.status === 'resolved');
+
+  // Group active threads by review_id for section headers
+  const renderThreadsByReview = (threads: typeof allThreads) => {
+    // Split into ungrouped (no review_id) and review-grouped
+    const noReview = threads.filter(t => !t.review_id);
+    const byReview = new Map<string, typeof threads>();
+    threads.filter(t => t.review_id).forEach(t => {
+      const list = byReview.get(t.review_id!) || [];
+      list.push(t);
+      byReview.set(t.review_id!, list);
+    });
+
+    return (
+      <>
+        {noReview.map(annotation => renderAnnotation(annotation))}
+        {Array.from(byReview.entries()).map(([reviewId, reviewThreads]) => {
+          const isExpanded = expandedReviews.has(reviewId);
+          return (
+            <div key={reviewId} className="thread-review-group">
+              <button
+                className="thread-review-header"
+                onClick={() => setExpandedReviews(prev => {
+                  const next = new Set(prev);
+                  if (next.has(reviewId)) {
+                    next.delete(reviewId);
+                  } else {
+                    next.add(reviewId);
+                  }
+                  return next;
+                })}
+              >
+                <span className="thread-review-arrow">{isExpanded ? '▼' : '▶'}</span>
+                Review #{reviewId.slice(-6)} — {reviewThreads.length} thread{reviewThreads.length > 1 ? 's' : ''}
+              </button>
+
+              {isExpanded && (
+                <div className="thread-review-comments">
+                  {reviewThreads.map(annotation => renderAnnotation(annotation))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </>
+    );
+  };
+
   return (
     <div className={`thread-panel ${!isVisible ? 'thread-panel--hidden' : ''}`}>
       <div className="thread-header">
@@ -740,44 +814,29 @@ export default function AnnotationThread({ docPath }: Props) {
           renderEmpty()
         ) : (
           <>
-            {/* Current/ungrouped comments */}
-            {ungrouped.length > 0 && (
+            {/* Active section */}
+            {activeThreads.length > 0 && (
               <div className="thread-section">
-                {buildThreads(ungrouped).map(annotation => renderAnnotation(annotation))}
+                <div className="thread-section-header">
+                  Active ({activeThreads.length})
+                </div>
+                {renderThreadsByReview(activeThreads)}
               </div>
             )}
 
-            {/* Review groups */}
-            {reviewGroups.map(group => {
-              const isExpanded = expandedReviews.has(group.review_id);
-              const threadedAnnotations = buildThreads(group.annotations);
-
-              return (
-                <div key={group.review_id} className="thread-review-group">
-                  <button
-                    className="thread-review-header"
-                    onClick={() => setExpandedReviews(prev => {
-                      const next = new Set(prev);
-                      if (next.has(group.review_id)) {
-                        next.delete(group.review_id);
-                      } else {
-                        next.add(group.review_id);
-                      }
-                      return next;
-                    })}
-                  >
-                    <span className="thread-review-arrow">{isExpanded ? '▼' : '▶'}</span>
-                    Review #{group.review_id.slice(-6)} — {group.annotations.length} comment{group.annotations.length > 1 ? 's' : ''}
-                  </button>
-
-                  {isExpanded && (
-                    <div className="thread-review-comments">
-                      {threadedAnnotations.map(annotation => renderAnnotation(annotation))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {/* Archived section */}
+            {archivedThreads.length > 0 && (
+              <div className="thread-section">
+                <button
+                  className="thread-section-header thread-section-header--archived"
+                  onClick={() => setShowArchived(!showArchived)}
+                >
+                  <span className="thread-review-arrow">{showArchived ? '▼' : '▶'}</span>
+                  Archived ({archivedThreads.length})
+                </button>
+                {showArchived && renderThreadsByReview(archivedThreads)}
+              </div>
+            )}
 
             {/* Orphaned comments */}
             {orphaned.length > 0 && (
@@ -787,7 +846,7 @@ export default function AnnotationThread({ docPath }: Props) {
                   onClick={() => setShowOrphaned(!showOrphaned)}
                 >
                   <span className="thread-review-arrow">{showOrphaned ? '▼' : '▶'}</span>
-                  ⚠️ Orphaned Comments ({orphaned.length})
+                  ⚠️ Orphaned ({orphaned.length})
                 </button>
 
                 {showOrphaned && (
