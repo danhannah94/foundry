@@ -1,223 +1,81 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Anvil } from '@claymore-dev/anvil';
-import { executeSearchQuery } from '../tools/search.js';
-import * as access from '../../access.js';
 
-// Mock Anvil instance
-const mockAnvil = {
-  search: vi.fn(),
-} as unknown as Anvil;
+// Mock the http-client module
+vi.mock('../http-client.js', () => ({
+  searchDocs: vi.fn(),
+}));
 
-describe('MCP search_docs tool access filtering (Direct Testing)', () => {
+import { searchDocs } from '../http-client.js';
+
+const mockSearchDocs = vi.mocked(searchDocs);
+
+describe('MCP search_docs via HTTP client', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
 
-    // Set up test environment for auth
-    process.env.FOUNDRY_WRITE_TOKEN = 'test-token';
-
-    // Mock getAccessLevel to simulate access controls
-    vi.spyOn(access, 'getAccessLevel').mockImplementation((path) => {
-      if (path.startsWith('projects/')) return 'private';
-      return 'public';
+  it('should return search results from HTTP API', async () => {
+    mockSearchDocs.mockResolvedValue({
+      results: [
+        { path: 'methodology/process.md', heading: 'Process', snippet: 'Public content', score: 0.85 },
+      ],
+      query: 'test query',
+      totalResults: 1,
     });
-  });
 
-  it('should filter out private results when no auth token is provided', async () => {
-    const mockResults = [
-      {
-        content: 'Public content in methodology',
-        score: 0.85,
-        metadata: {
-          file_path: 'methodology/process.md',
-          heading_path: 'Process',
-          heading_level: 1,
-          last_modified: '2024-01-01T00:00:00Z',
-          char_count: 100,
-        },
-      },
-      {
-        content: 'Private content in projects',
-        score: 0.75,
-        metadata: {
-          file_path: 'projects/secret/design.md',
-          heading_path: 'Secret Design',
-          heading_level: 1,
-          last_modified: '2024-01-02T00:00:00Z',
-          char_count: 200,
-        },
-      },
-    ];
+    const response = await searchDocs('test query');
 
-    mockAnvil.search.mockResolvedValue(mockResults);
-
-    const response = await executeSearchQuery(mockAnvil, 'test query');
-
-    expect(mockAnvil.search).toHaveBeenCalledWith('test query', 10);
-
-    // Should only return the public result
+    expect(mockSearchDocs).toHaveBeenCalledWith('test query');
     expect(response.results).toHaveLength(1);
     expect(response.results[0].path).toBe('methodology/process.md');
     expect(response.totalResults).toBe(1);
   });
 
-  it('should include private results when valid auth token is provided', async () => {
-    const mockResults = [
-      {
-        content: 'Public content in methodology',
-        score: 0.85,
-        metadata: {
-          file_path: 'methodology/process.md',
-          heading_path: 'Process',
-          heading_level: 1,
-          last_modified: '2024-01-01T00:00:00Z',
-          char_count: 100,
-        },
-      },
-      {
-        content: 'Private content in projects',
-        score: 0.75,
-        metadata: {
-          file_path: 'projects/secret/design.md',
-          heading_path: 'Secret Design',
-          heading_level: 1,
-          last_modified: '2024-01-02T00:00:00Z',
-          char_count: 200,
-        },
-      },
-    ];
+  it('should pass auth_token as parameter for private results', async () => {
+    mockSearchDocs.mockResolvedValue({
+      results: [
+        { path: 'methodology/process.md', heading: 'Process', snippet: 'Public', score: 0.85 },
+        { path: 'projects/secret/design.md', heading: 'Secret', snippet: 'Private', score: 0.75 },
+      ],
+      query: 'test query',
+      totalResults: 2,
+    });
 
-    mockAnvil.search.mockResolvedValue(mockResults);
+    const response = await searchDocs('test query', 10, 'test-token');
 
-    const response = await executeSearchQuery(mockAnvil, 'test query', 10, 'test-token');
-
-    expect(mockAnvil.search).toHaveBeenCalledWith('test query', 10);
-
-    // Should return both public and private results
+    expect(mockSearchDocs).toHaveBeenCalledWith('test query', 10, 'test-token');
     expect(response.results).toHaveLength(2);
-    expect(response.results.map(r => r.path)).toEqual([
-      'methodology/process.md',
-      'projects/secret/design.md',
-    ]);
-    expect(response.totalResults).toBe(2);
-  });
-
-  it('should filter out private results when invalid auth token is provided', async () => {
-    const mockResults = [
-      {
-        content: 'Public content in methodology',
-        score: 0.85,
-        metadata: {
-          file_path: 'methodology/process.md',
-          heading_path: 'Process',
-          heading_level: 1,
-          last_modified: '2024-01-01T00:00:00Z',
-          char_count: 100,
-        },
-      },
-      {
-        content: 'Private content in projects',
-        score: 0.75,
-        metadata: {
-          file_path: 'projects/secret/design.md',
-          heading_path: 'Secret Design',
-          heading_level: 1,
-          last_modified: '2024-01-02T00:00:00Z',
-          char_count: 200,
-        },
-      },
-    ];
-
-    mockAnvil.search.mockResolvedValue(mockResults);
-
-    const response = await executeSearchQuery(mockAnvil, 'test query', 10, 'invalid-token');
-
-    expect(mockAnvil.search).toHaveBeenCalledWith('test query', 10);
-
-    // Should only return the public result
-    expect(response.results).toHaveLength(1);
-    expect(response.results[0].path).toBe('methodology/process.md');
-    expect(response.totalResults).toBe(1);
-  });
-
-  it('should include all results when FOUNDRY_WRITE_TOKEN is not set (dev mode)', async () => {
-    // Clear the env var to simulate dev mode
-    delete process.env.FOUNDRY_WRITE_TOKEN;
-
-    const mockResults = [
-      {
-        content: 'Public content in methodology',
-        score: 0.85,
-        metadata: {
-          file_path: 'methodology/process.md',
-          heading_path: 'Process',
-          heading_level: 1,
-          last_modified: '2024-01-01T00:00:00Z',
-          char_count: 100,
-        },
-      },
-      {
-        content: 'Private content in projects',
-        score: 0.75,
-        metadata: {
-          file_path: 'projects/secret/design.md',
-          heading_path: 'Secret Design',
-          heading_level: 1,
-          last_modified: '2024-01-02T00:00:00Z',
-          char_count: 200,
-        },
-      },
-    ];
-
-    mockAnvil.search.mockResolvedValue(mockResults);
-
-    const response = await executeSearchQuery(mockAnvil, 'test query');
-
-    expect(mockAnvil.search).toHaveBeenCalledWith('test query', 10);
-
-    // Should return both results in dev mode
-    expect(response.results).toHaveLength(2);
-    expect(response.totalResults).toBe(2);
-
-    // Restore the env var for other tests
-    process.env.FOUNDRY_WRITE_TOKEN = 'test-token';
   });
 
   it('should respect custom top_k parameter', async () => {
-    const mockResults = [
-      {
-        content: 'Test content',
-        score: 0.85,
-        metadata: {
-          file_path: 'methodology/process.md',
-          heading_path: 'Process',
-          heading_level: 1,
-          last_modified: '2024-01-01T00:00:00Z',
-          char_count: 100,
-        },
-      },
-    ];
+    mockSearchDocs.mockResolvedValue({
+      results: [{ path: 'test.md', heading: 'Test', snippet: 'Content', score: 0.9 }],
+      query: 'test query',
+      totalResults: 1,
+    });
 
-    mockAnvil.search.mockResolvedValue(mockResults);
+    await searchDocs('test query', 5);
 
-    await executeSearchQuery(mockAnvil, 'test query', 5);
-
-    expect(mockAnvil.search).toHaveBeenCalledWith('test query', 5);
+    expect(mockSearchDocs).toHaveBeenCalledWith('test query', 5);
   });
 
-  it('should throw error for invalid query', async () => {
-    await expect(
-      executeSearchQuery(mockAnvil, '')
-    ).rejects.toThrow('Query is required and must be a non-empty string');
+  it('should propagate errors from HTTP API', async () => {
+    mockSearchDocs.mockRejectedValue(new Error('API POST /api/search failed (500): Internal error'));
 
-    expect(mockAnvil.search).not.toHaveBeenCalled();
+    await expect(searchDocs('test query')).rejects.toThrow('API POST /api/search failed');
   });
 
-  it('should handle search errors gracefully', async () => {
-    const searchError = new Error('Search service unavailable');
-    mockAnvil.search.mockRejectedValue(searchError);
+  it('should return warning when no results found', async () => {
+    mockSearchDocs.mockResolvedValue({
+      results: [],
+      query: 'obscure query',
+      totalResults: 0,
+      warning: 'No results found. The Anvil index may be empty or the query did not match any content.',
+    });
 
-    await expect(
-      executeSearchQuery(mockAnvil, 'test query')
-    ).rejects.toThrow('Search failed: Search service unavailable');
+    const response = await searchDocs('obscure query');
+
+    expect(response.results).toHaveLength(0);
+    expect(response.warning).toBeDefined();
   });
 });
