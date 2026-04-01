@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getDrafts, clearDrafts, type DraftComment } from '../utils/draft-storage.js';
 import { authFetch } from '../utils/api.js';
 
@@ -19,6 +19,7 @@ export default function SubmitReview({ docPath }: Props) {
     error: null,
     success: false
   });
+  const submittingRef = useRef(false);
 
   // Load drafts on mount and when docPath changes
   useEffect(() => {
@@ -44,10 +45,12 @@ export default function SubmitReview({ docPath }: Props) {
   }, [docPath]);
 
   const handleSubmit = async () => {
-    if (drafts.length === 0) return;
+    if (drafts.length === 0 || submittingRef.current) return;
+    submittingRef.current = true;
 
     const confirmMessage = `Submit ${drafts.length} comment${drafts.length > 1 ? 's' : ''} for review?`;
     if (!window.confirm(confirmMessage)) {
+      submittingRef.current = false;
       return;
     }
 
@@ -163,6 +166,8 @@ export default function SubmitReview({ docPath }: Props) {
         error: error instanceof Error ? error.message : 'Failed to submit review',
         success: false
       });
+    } finally {
+      submittingRef.current = false;
     }
   };
 

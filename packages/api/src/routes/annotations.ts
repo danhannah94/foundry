@@ -85,6 +85,21 @@ export function createAnnotationsRouter(): Router {
       const id = createId();
       const now = new Date().toISOString();
 
+      // Check for duplicate annotation (same content + quoted_text + review_id within 30 seconds)
+      if (review_id) {
+        const recentDuplicate = db.prepare(`
+          SELECT id FROM annotations
+          WHERE review_id = ? AND content = ? AND quoted_text IS ?
+          AND created_at > datetime('now', '-30 seconds')
+        `).get(review_id, content, quoted_text || null);
+
+        if (recentDuplicate) {
+          // Return the existing annotation instead of creating a duplicate
+          const existing = db.prepare('SELECT * FROM annotations WHERE id = ?').get((recentDuplicate as any).id);
+          return res.status(200).json(existing as Annotation);
+        }
+      }
+
       const annotation: Annotation = {
         id,
         doc_path,
