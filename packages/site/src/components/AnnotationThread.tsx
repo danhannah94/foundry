@@ -112,6 +112,7 @@ export default function AnnotationThread({ docPath }: Props) {
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
   const [replySubmitting, setReplySubmitting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Helper to update annotation status via API
   const patchAnnotation = useCallback(async (id: string, updates: Partial<Pick<Annotation, 'status'>>) => {
@@ -292,6 +293,16 @@ export default function AnnotationThread({ docPath }: Props) {
       setLoading(false);
     }
   }, [docPath, recoverOrphanedAnnotations, detectOrphansAndDrift]);
+
+  // Manual refresh handler
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchAnnotations();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchAnnotations]);
 
   useEffect(() => {
     if (docPath) {
@@ -700,6 +711,15 @@ export default function AnnotationThread({ docPath }: Props) {
     <div className={`thread-panel ${!isVisible ? 'thread-panel--hidden' : ''}`}>
       <div className="thread-header">
         <h3>💬 Review Thread</h3>
+        <button
+          className={`thread-refresh-btn ${refreshing ? 'thread-refresh-btn--spinning' : ''}`}
+          onClick={handleRefresh}
+          disabled={refreshing}
+          aria-label="Refresh annotations"
+          title="Refresh annotations"
+        >
+          🔄
+        </button>
         <button
           className="thread-toggle"
           onClick={toggleVisibility}

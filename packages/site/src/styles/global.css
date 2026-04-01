@@ -794,9 +794,9 @@ pre.mermaid {
 /* Floating toggle tab when panel is hidden */
 .thread-panel--hidden .thread-header {
   position: absolute;
-  left: -40px;
+  left: -44px;
   top: 0;
-  width: 40px;
+  width: 44px;
   height: 40px;
   padding: 0;
   border: 1px solid var(--color-border);
@@ -813,6 +813,10 @@ pre.mermaid {
   display: none;
 }
 
+.thread-panel--hidden .thread-refresh-btn {
+  display: none;
+}
+
 .thread-panel--hidden .thread-content {
   display: none;
 }
@@ -820,7 +824,7 @@ pre.mermaid {
 .thread-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--spacing-xs);
   padding: var(--spacing-md);
   border-bottom: 1px solid var(--color-border);
   background: var(--color-bg-secondary);
@@ -828,6 +832,7 @@ pre.mermaid {
 
 .thread-header h3 {
   margin: 0;
+  flex: 1;
   font-size: var(--font-size-base);
   font-weight: 600;
   color: var(--color-heading);
@@ -847,6 +852,37 @@ pre.mermaid {
 .thread-toggle:hover {
   color: var(--color-text);
   background: var(--color-sidebar-hover);
+}
+
+.thread-refresh-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  font-size: 1em;
+  line-height: 1;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.thread-refresh-btn:hover {
+  color: var(--color-text);
+  background: var(--color-sidebar-hover);
+}
+
+.thread-refresh-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.thread-refresh-btn--spinning {
+  animation: thread-spin 0.8s linear infinite;
+}
+
+@keyframes thread-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .thread-content {
