@@ -45,6 +45,27 @@ export default function CommentDraft({ docPath }: Props) {
     setDrafts(loadedDrafts);
   }, [docPath]);
 
+  // Listen for draft and review events to reload drafts
+  useEffect(() => {
+    const handleDraftUpdated = () => {
+      const loadedDrafts = getDrafts(docPath);
+      setDrafts(loadedDrafts);
+    };
+
+    const handleReviewSubmitted = () => {
+      const loadedDrafts = getDrafts(docPath);
+      setDrafts(loadedDrafts);
+    };
+
+    window.addEventListener('foundry-draft-updated', handleDraftUpdated);
+    window.addEventListener('foundry-review-submitted', handleReviewSubmitted);
+
+    return () => {
+      window.removeEventListener('foundry-draft-updated', handleDraftUpdated);
+      window.removeEventListener('foundry-review-submitted', handleReviewSubmitted);
+    };
+  }, [docPath]);
+
   // Listen for text selection
   useEffect(() => {
     const handleSelection = () => {
@@ -60,6 +81,22 @@ export default function CommentDraft({ docPath }: Props) {
       if (!contentElement || !contentElement.contains(range.commonAncestorContainer)) {
         setFloatingButton({ show: false, x: 0, y: 0, selectedText: '', headingPath: '', contentHash: '' });
         return;
+      }
+
+      // Exclude selections within draft list and comment editor elements
+      const commonAncestor = range.commonAncestorContainer;
+      const ancestorElement = commonAncestor.nodeType === Node.ELEMENT_NODE ?
+        commonAncestor as Element :
+        commonAncestor.parentElement;
+
+      if (ancestorElement) {
+        const draftList = ancestorElement.closest('.draft-list');
+        const commentEditor = ancestorElement.closest('.comment-editor');
+
+        if (draftList || commentEditor) {
+          setFloatingButton({ show: false, x: 0, y: 0, selectedText: '', headingPath: '', contentHash: '' });
+          return;
+        }
       }
 
       const selectedText = selection.toString().trim();
