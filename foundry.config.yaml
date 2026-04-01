@@ -1,14 +1,13 @@
-# Our actual config — not committed (add to .gitignore)
-sources:
-  - repo: danhannah94/csdlc-docs
-    branch: main
-    paths:
-      - "docs/methodology/"
-      - "docs/about/"
-    access: public
+# Foundry — Content Source Configuration
+#
+# Copy foundry.config.example.yaml to get started, or add your sources below.
+# See README.md for full documentation.
+#
+# sources:
+#   - repo: your-org/docs-repo
+#     branch: main
+#     paths:
+#       - "docs/"
+#     access: public
 
-  - repo: danhannah94/csdlc-docs
-    branch: main
-    paths:
-      - "docs/projects/"
-    access: private
+sources: []
