@@ -30,6 +30,7 @@ export function saveDraft(docPath: string, draft: DraftComment): void {
     const existing = getDrafts(docPath);
     const updated = [...existing, draft];
     localStorage.setItem(key, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('foundry-draft-updated'));
   } catch {
     // Silently fail if localStorage is unavailable
   }
@@ -46,6 +47,7 @@ export function updateDraft(docPath: string, draftId: string, content: string): 
       draft.id === draftId ? { ...draft, content } : draft
     );
     localStorage.setItem(key, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('foundry-draft-updated'));
   } catch {
     // Silently fail if localStorage is unavailable
   }
@@ -60,6 +62,7 @@ export function deleteDraft(docPath: string, draftId: string): void {
     const existing = getDrafts(docPath);
     const updated = existing.filter(draft => draft.id !== draftId);
     localStorage.setItem(key, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('foundry-draft-updated'));
   } catch {
     // Silently fail if localStorage is unavailable
   }
@@ -72,6 +75,7 @@ export function clearDrafts(docPath: string): void {
   try {
     const key = `foundry-drafts-${docPath}`;
     localStorage.removeItem(key);
+    window.dispatchEvent(new CustomEvent('foundry-draft-updated'));
   } catch {
     // Silently fail if localStorage is unavailable
   }
