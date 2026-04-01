@@ -34,8 +34,14 @@ COPY packages/api/ ./
 RUN npm run build
 
 # Stage 4: Production runtime
-FROM node:22-alpine
+FROM node:22-slim
 WORKDIR /app
+
+# Install native dependencies required by sqlite-vss
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libopenblas0 \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy built artifacts
 COPY --from=site-builder /app/packages/site/dist packages/site/dist
@@ -43,6 +49,13 @@ COPY --from=api-builder /app/packages/api/dist packages/api/dist
 COPY --from=api-builder /app/packages/api/node_modules packages/api/node_modules
 COPY --from=api-builder /app/packages/api/package.json packages/api/
 COPY foundry.config.yaml nav.yaml ./
+
+# Fix cross-platform native modules (Alpine build → Debian runtime)
+RUN cd packages/api && npm install --os=linux --cpu=x64 sharp
+RUN cd packages/api && npm rebuild better-sqlite3
+RUN cd packages/api/node_modules/sqlite-vss-linux-x64/lib && \
+    ln -sf vss0.so vss0.so.so && \
+    ln -sf vector0.so vector0.so.so
 
 # Create data directory for SQLite
 RUN mkdir -p /data
