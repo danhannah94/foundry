@@ -873,6 +873,54 @@ pre.mermaid {
   display: none;
 }
 
+/* --- Draft Cards --- */
+.thread-drafts-list {
+  padding: var(--spacing-xs) 0;
+}
+
+.thread-draft-item {
+  border-left: 2px solid var(--color-accent);
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  transition: background-color var(--transition-fast);
+}
+
+.thread-draft-item:hover {
+  background: var(--color-bg-secondary);
+  border-radius: 0 6px 6px 0;
+}
+
+.thread-draft-heading {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  font-weight: 500;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thread-draft-preview {
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+.thread-section-header--drafts {
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--color-accent);
+  width: 100%;
+  text-align: left;
+  color: var(--color-accent);
+}
+
+.thread-section-header--drafts:hover {
+  color: var(--color-accent-hover);
+}
+
 .thread-toggle {
   background: none;
   border: none;

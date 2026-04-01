@@ -846,7 +846,7 @@ export default function AnnotationThread({ docPath }: Props) {
   const archivedThreads = allThreads.filter(t => t.status === 'resolved');
 
   // Group active threads by review_id for section headers
-  const renderThreadsByReview = (threads: typeof allThreads) => {
+  const renderThreadsByReview = (threads: typeof allThreads, sectionPrefix: string = '') => {
     // Split into ungrouped (no review_id) and review-grouped
     const noReview = threads.filter(t => !t.review_id);
     const byReview = new Map<string, typeof threads>();
@@ -860,17 +860,18 @@ export default function AnnotationThread({ docPath }: Props) {
       <>
         {noReview.map(annotation => renderAnnotation(annotation))}
         {Array.from(byReview.entries()).map(([reviewId, reviewThreads]) => {
-          const isExpanded = expandedReviews.has(reviewId);
+          const expandKey = `${sectionPrefix}${reviewId}`;
+          const isExpanded = expandedReviews.has(expandKey);
           return (
             <div key={reviewId} className="thread-review-group">
               <button
                 className="thread-review-header"
                 onClick={() => setExpandedReviews(prev => {
                   const next = new Set(prev);
-                  if (next.has(reviewId)) {
-                    next.delete(reviewId);
+                  if (next.has(expandKey)) {
+                    next.delete(expandKey);
                   } else {
-                    next.add(reviewId);
+                    next.add(expandKey);
                   }
                   return next;
                 })}
@@ -970,7 +971,7 @@ export default function AnnotationThread({ docPath }: Props) {
                 <div className="thread-section-header">
                   Active ({activeThreads.length})
                 </div>
-                {renderThreadsByReview(activeThreads)}
+                {renderThreadsByReview(activeThreads, 'active:')}
               </div>
             )}
 
@@ -984,7 +985,7 @@ export default function AnnotationThread({ docPath }: Props) {
                   <span className="thread-review-arrow">{showArchived ? '▼' : '▶'}</span>
                   📦 Archive ({archivedThreads.length})
                 </button>
-                {showArchived && renderThreadsByReview(archivedThreads)}
+                {showArchived && renderThreadsByReview(archivedThreads, 'archive:')}
               </div>
             )}
 
