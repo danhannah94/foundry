@@ -882,17 +882,23 @@ pre.mermaid {
 
 /* --- Thread Comments --- */
 .thread-comment {
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border-light);
-  border-radius: 8px;
-  padding: var(--spacing-md);
-  margin-bottom: var(--spacing-md);
+  background: none;
+  border: none;
+  border-radius: 0;
+  border-left: 2px solid var(--color-border);
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: 0;
   font-size: var(--font-size-sm);
   transition: background-color var(--transition-fast);
 }
 
+.thread-comment + .thread-comment {
+  border-top: 1px solid var(--color-border-light);
+}
+
 .thread-comment:hover {
   background: var(--color-sidebar-hover);
+  border-radius: 0 6px 6px 0;
 }
 
 .thread-comment-highlight {
@@ -905,7 +911,7 @@ pre.mermaid {
     background: var(--color-accent-light) !important;
   }
   100% {
-    background: var(--color-bg-secondary) !important;
+    background: transparent !important;
   }
 }
 
@@ -918,8 +924,9 @@ pre.mermaid {
 }
 
 .thread-comment--orphaned {
-  border-color: var(--color-warning-border);
+  border-left-color: var(--color-warning-border);
   background: var(--color-warning-bg);
+  border-radius: 0 6px 6px 0;
 }
 
 .thread-comment-collapsed {
@@ -1121,84 +1128,136 @@ pre.mermaid {
   color: var(--color-text-secondary);
 }
 
+/* --- Thread Collapse Indicator --- */
+.thread-replies-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--spacing-xs) 0;
+  font-size: 0.75rem;
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  transition: color var(--transition-fast);
+}
+
+.thread-replies-toggle:hover {
+  color: var(--color-accent-hover);
+}
+
+/* --- Active / Archived Section Headers --- */
+.thread-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) 0;
+  margin-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border-light);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.thread-section-header--archived {
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--color-border-light);
+  width: 100%;
+  text-align: left;
+}
+
+.thread-section-header--archived:hover {
+  color: var(--color-text-secondary);
+}
+
 /* --- Threaded Replies --- */
 .thread-reply {
   margin-left: var(--spacing-md);
-  border-left: 2px solid var(--color-border);
-  padding-left: var(--spacing-sm);
+  border-left-color: var(--color-text-muted);
 }
 
 .thread-replies {
-  margin-top: var(--spacing-sm);
+  margin-top: 0;
 }
 
 /* --- Review Groups --- */
 .thread-review-group {
   margin-bottom: var(--spacing-lg);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  overflow: hidden;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
 }
 
 .thread-review-header {
-  background: var(--color-bg-secondary);
+  background: none;
   border: none;
-  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--color-border-light);
+  padding: var(--spacing-xs) 0;
   width: 100%;
   text-align: left;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
-  color: var(--color-text);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  transition: background-color var(--transition-fast);
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  transition: color var(--transition-fast);
 }
 
 .thread-review-header:hover {
-  background: var(--color-sidebar-hover);
+  color: var(--color-text);
 }
 
 .thread-review-arrow {
-  font-size: 0.8em;
-  color: var(--color-text-secondary);
+  font-size: 0.7em;
+  color: var(--color-text-muted);
 }
 
 .thread-review-comments {
-  padding: var(--spacing-md);
+  padding: var(--spacing-xs) 0;
 }
 
 /* --- Orphaned Comments --- */
 .thread-orphaned {
   margin-top: var(--spacing-lg);
-  border: 1px solid var(--color-warning-border);
-  border-radius: 6px;
-  overflow: hidden;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
 }
 
 .thread-orphaned-header {
-  background: var(--color-warning-bg);
+  background: none;
   border: none;
-  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--color-warning-border);
+  padding: var(--spacing-xs) 0;
   width: 100%;
   text-align: left;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
-  color: var(--color-text);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  transition: background-color var(--transition-fast);
+  color: var(--color-warning-border);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  transition: color var(--transition-fast);
 }
 
 .thread-orphaned-header:hover {
-  background: var(--color-sidebar-hover);
+  color: var(--color-text);
 }
 
 .thread-orphaned-comments {
-  padding: var(--spacing-md);
+  padding: var(--spacing-xs) 0;
 }
 
 /* --- Section Indicators --- */
@@ -1250,12 +1309,13 @@ pre.mermaid {
 
 /* --- Dark Theme Thread Panel --- */
 [data-theme="dark"] .thread-comment--orphaned {
-  background: rgba(251, 146, 60, 0.1);
-  border-color: var(--color-warning-border);
+  background: rgba(251, 146, 60, 0.08);
+  border-left-color: var(--color-warning-border);
 }
 
 [data-theme="dark"] .thread-orphaned-header {
-  background: rgba(251, 146, 60, 0.1);
+  background: none;
+  color: var(--color-warning-border);
 }
 
 /* --- Mobile Thread Panel --- */
