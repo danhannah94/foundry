@@ -20,7 +20,9 @@ interface RawNavItem {
 function pathToHref(filePath: string): string {
   const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
   if (filePath === 'index.md') return base + '/';
-  return base + '/docs/' + filePath.replace(/\.md$/, '') + '/';
+  // Strip leading docs/ prefix — build.sh already strips this when copying content
+  const normalizedPath = filePath.replace(/^docs\//, '');
+  return base + '/docs/' + normalizedPath.replace(/\.md$/, '') + '/';
 }
 
 function processItems(items: RawNavItem[]): NavItem[] {
