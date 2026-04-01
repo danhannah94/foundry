@@ -1011,6 +1011,83 @@ pre.mermaid {
   margin: 0 var(--spacing-sm);
 }
 
+/* --- Reply Button and Editor --- */
+.thread-reply-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  padding: 0 var(--spacing-xs);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.thread-comment:hover .thread-reply-btn {
+  opacity: 1;
+}
+
+.thread-reply-btn:hover {
+  color: var(--color-accent);
+}
+
+.thread-reply-editor {
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg-secondary);
+}
+
+.thread-reply-editor__textarea {
+  width: 100%;
+  padding: var(--spacing-xs);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  resize: vertical;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.thread-reply-editor__textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.thread-reply-editor__actions {
+  display: flex;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-xs);
+  justify-content: flex-end;
+}
+
+.thread-reply-editor__submit {
+  background: var(--color-accent);
+  color: white;
+  border: none;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+}
+
+.thread-reply-editor__submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.thread-reply-editor__cancel {
+  background: none;
+  border: 1px solid var(--color-border);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
 /* --- Threaded Replies --- */
 .thread-reply {
   margin-left: var(--spacing-lg);

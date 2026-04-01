@@ -104,6 +104,11 @@ export default function AnnotationThread({ docPath }: Props) {
   const [showOrphaned, setShowOrphaned] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
 
+  // Reply state management
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyContent, setReplyContent] = useState('');
+  const [replySubmitting, setReplySubmitting] = useState(false);
+
   // Helper to update annotation status via API
   const patchAnnotation = useCallback(async (id: string, updates: Partial<Pick<Annotation, 'status'>>) => {
     try {
@@ -126,6 +131,7 @@ export default function AnnotationThread({ docPath }: Props) {
       return false;
     }
   }, []);
+
 
   // Recovery: restore falsely orphaned annotations
   const recoverOrphanedAnnotations = useCallback(async (annotations: Annotation[]): Promise<Annotation[]> => {
@@ -434,6 +440,47 @@ export default function AnnotationThread({ docPath }: Props) {
     return topLevel.map(addReplies);
   };
 
+  // Submit reply to API
+  const submitReply = useCallback(async (parentAnnotation: Annotation, content: string) => {
+    if (!content.trim()) return;
+
+    setReplySubmitting(true);
+    try {
+      const response = await authFetch('/api/annotations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          doc_path: parentAnnotation.doc_path,
+          heading_path: parentAnnotation.heading_path,
+          content_hash: '',
+          quoted_text: null,
+          content: content.trim(),
+          parent_id: parentAnnotation.id,
+          review_id: parentAnnotation.review_id,
+          author_type: 'human'
+        })
+      });
+
+      if (!response.ok) {
+        console.warn('Failed to submit reply:', response.status);
+        return false;
+      }
+
+      // Clear reply state and refresh annotations
+      setReplyingTo(null);
+      setReplyContent('');
+      fetchAnnotations();
+      return true;
+    } catch (err) {
+      console.warn('Error submitting reply:', err);
+      return false;
+    } finally {
+      setReplySubmitting(false);
+    }
+  }, [fetchAnnotations]);
+
   const renderAnnotation = (annotation: Annotation & { replies?: Annotation[] }, isReply = false) => {
     const isResolved = annotation.status === 'resolved';
     const isDraft = annotation.status === 'draft';
@@ -470,6 +517,15 @@ export default function AnnotationThread({ docPath }: Props) {
                 📍
               </button>
               <span className="thread-comment-time">{relativeTime(annotation.created_at)}</span>
+              {authenticated && !isOrphaned && (
+                <button
+                  className="thread-reply-btn"
+                  onClick={() => { setReplyingTo(annotation.id); setReplyContent(''); }}
+                  title="Reply"
+                >
+                  ↩ Reply
+                </button>
+              )}
               {isResolved && (
                 <button
                   className="thread-comment-collapse"
@@ -496,6 +552,36 @@ export default function AnnotationThread({ docPath }: Props) {
             <div className="thread-comment-content">
               {annotation.content}
             </div>
+
+            {/* Reply editor */}
+            {replyingTo === annotation.id && (
+              <div className="thread-reply-editor">
+                <textarea
+                  className="thread-reply-editor__textarea"
+                  value={replyContent}
+                  onChange={(e) => setReplyContent(e.target.value)}
+                  placeholder="Write a reply..."
+                  rows={3}
+                  autoFocus
+                />
+                <div className="thread-reply-editor__actions">
+                  <button
+                    className="thread-reply-editor__cancel"
+                    onClick={() => { setReplyingTo(null); setReplyContent(''); }}
+                    disabled={replySubmitting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="thread-reply-editor__submit"
+                    onClick={() => submitReply(annotation, replyContent)}
+                    disabled={!replyContent.trim() || replySubmitting}
+                  >
+                    {replySubmitting ? 'Replying...' : 'Reply'}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {annotation.replies && annotation.replies.length > 0 && (
               <div className="thread-replies">
