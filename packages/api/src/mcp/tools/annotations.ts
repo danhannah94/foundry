@@ -60,6 +60,15 @@ export function createAnnotation(params: {
   const id = createId();
   const now = new Date().toISOString();
 
+  // BUG-6: If replying to a parent, inherit its review_id
+  let effectiveReviewId: string | null = null;
+  if (params.parent_id) {
+    const parent = db.prepare('SELECT review_id FROM annotations WHERE id = ?').get(params.parent_id) as { review_id: string | null } | undefined;
+    if (parent?.review_id) {
+      effectiveReviewId = parent.review_id;
+    }
+  }
+
   const annotation = {
     id,
     doc_path: params.doc_path,
@@ -68,7 +77,7 @@ export function createAnnotation(params: {
     quoted_text: null,
     content: params.content,
     parent_id: params.parent_id || null,
-    review_id: null,
+    review_id: effectiveReviewId,
     user_id: 'clay',
     author_type: params.author_type || 'ai',
     status: params.parent_id ? 'replied' : 'submitted',

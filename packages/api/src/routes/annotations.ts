@@ -85,6 +85,15 @@ export function createAnnotationsRouter(): Router {
       const id = createId();
       const now = new Date().toISOString();
 
+      // BUG-6: If replying to a parent, inherit its review_id when not explicitly provided
+      let effectiveReviewId = review_id;
+      if (parent_id && !review_id) {
+        const parent = db.prepare('SELECT review_id FROM annotations WHERE id = ?').get(parent_id) as { review_id: string | null } | undefined;
+        if (parent?.review_id) {
+          effectiveReviewId = parent.review_id;
+        }
+      }
+
       // Check for duplicate annotation (same content + quoted_text + review_id within 30 seconds)
       if (review_id) {
         const recentDuplicate = db.prepare(`
@@ -108,7 +117,7 @@ export function createAnnotationsRouter(): Router {
         quoted_text: quoted_text || null,
         content,
         parent_id: parent_id || null,
-        review_id: review_id || null,
+        review_id: effectiveReviewId || null,
         user_id: 'dan',
         author_type,
         status: 'draft',
