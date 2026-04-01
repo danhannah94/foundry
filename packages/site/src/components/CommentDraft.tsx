@@ -76,7 +76,7 @@ export default function CommentDraft({ docPath }: Props) {
       // Get position for floating button
       const rect = range.getBoundingClientRect();
       const x = rect.right + 8; // 8px offset from selection
-      const y = rect.top + window.scrollY - 4; // Account for scroll and offset slightly up
+      const y = rect.top - 4; // Viewport-relative for fixed positioning
 
       // Get heading path and content hash
       const headingPath = getHeadingPath(range.startContainer);

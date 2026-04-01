@@ -1181,7 +1181,7 @@ pre.mermaid {
 
 /* Floating comment button */
 .comment-float-btn {
-  position: absolute;
+  position: fixed;
   z-index: 1000;
   padding: 4px 8px;
   background: var(--color-accent);

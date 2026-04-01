@@ -397,15 +397,12 @@ export default function AnnotationThread({ docPath }: Props) {
           indicator.textContent = String(headingAnnotations.length);
           indicator.title = `${headingAnnotations.length} comment${headingAnnotations.length > 1 ? 's' : ''}`;
 
-          // Position relative to heading
-          const headingRect = heading.getBoundingClientRect();
-          const contentArea = document.querySelector('.content') as HTMLElement;
-          if (contentArea) {
-            contentArea.style.position = 'relative';
-            const contentRect = contentArea.getBoundingClientRect();
+          // Position relative to heading (use heading's own offsetParent)
+          if (heading instanceof HTMLElement) {
+            heading.style.position = 'relative';
 
             indicator.style.position = 'absolute';
-            indicator.style.top = `${headingRect.top - contentRect.top + (headingRect.height / 2) - 10}px`;
+            indicator.style.top = `${(heading.offsetHeight / 2) - 10}px`;
             indicator.style.left = '-35px';
 
             // Add click handler to scroll to comment in thread
@@ -421,7 +418,7 @@ export default function AnnotationThread({ docPath }: Props) {
               }
             });
 
-            contentArea.appendChild(indicator);
+            heading.appendChild(indicator);
           }
           break;
         }
