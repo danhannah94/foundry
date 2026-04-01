@@ -13,6 +13,7 @@ COPY packages/site/package*.json packages/site/
 COPY packages/api/package*.json packages/api/
 RUN npm ci
 ARG GITHUB_TOKEN=""
+ARG CACHE_BUST=""
 ENV GITHUB_TOKEN=${GITHUB_TOKEN}
 RUN bash scripts/build.sh
 
