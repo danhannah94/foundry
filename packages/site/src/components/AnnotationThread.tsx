@@ -103,6 +103,7 @@ export default function AnnotationThread({ docPath }: Props) {
   const [expandedResolved, setExpandedResolved] = useState<Set<string>>(new Set());
   const [showOrphaned, setShowOrphaned] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
 
   // Reply state management
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
@@ -499,6 +500,19 @@ export default function AnnotationThread({ docPath }: Props) {
             <span className="thread-comment-author">{getAuthorBadge(annotation.author_type, annotation.user_id)}</span>
             <span className="thread-comment-preview">{annotation.content.slice(0, 50)}...</span>
             <span className="thread-comment-time">{relativeTime(annotation.created_at)}</span>
+            {authenticated && (
+              <button
+                className="thread-reopen-btn"
+                onClick={async (e) => {
+                  e.stopPropagation(); // Don't expand the collapsed view
+                  const success = await patchAnnotation(annotation.id, { status: "submitted" });
+                  if (success) fetchAnnotations();
+                }}
+                title="Reopen"
+              >
+                ↩ Reopen
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -524,6 +538,39 @@ export default function AnnotationThread({ docPath }: Props) {
                   title="Reply"
                 >
                   ↩ Reply
+                </button>
+              )}
+              {authenticated && !isReply && !isResolved && !isOrphaned && (
+                <button
+                  className="thread-resolve-btn"
+                  onClick={async () => {
+                    setResolvingId(annotation.id);
+                    const success = await patchAnnotation(annotation.id, { status: "resolved" });
+                    if (success) {
+                      // Check if all annotations in this review are resolved
+                      if (annotation.review_id) {
+                        const reviewAnnotations = annotations.filter(a => a.review_id === annotation.review_id);
+                        const allResolved = reviewAnnotations.every(a => a.id === annotation.id || a.status === "resolved");
+                        if (allResolved) {
+                          try {
+                            await authFetch(`/api/reviews/${annotation.review_id}`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ status: "complete", completed_at: new Date().toISOString() })
+                            });
+                          } catch (err) {
+                            console.warn("Failed to auto-complete review:", err);
+                          }
+                        }
+                      }
+                      fetchAnnotations();
+                    }
+                    setResolvingId(null);
+                  }}
+                  disabled={resolvingId === annotation.id}
+                  title="Resolve"
+                >
+                  {resolvingId === annotation.id ? "..." : "✅ Resolve"}
                 </button>
               )}
               {isResolved && (
