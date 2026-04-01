@@ -43,4 +43,16 @@ export default defineConfig({
   },
 
   // Content lives in content/ directory, populated by build script
+
+  vite: {
+    optimizeDeps: {
+      include: ['react', 'react-dom', 'react-dom/client'],
+    },
+    server: {
+      proxy: {
+        '/api': 'http://localhost:3001',
+        '/mcp': 'http://localhost:3001',
+      },
+    },
+  },
 });

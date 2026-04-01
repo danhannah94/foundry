@@ -13,7 +13,7 @@ let accessMap: AccessMap | null = null;
 export function loadAccessMap(contentPath: string): AccessMap {
   try {
     const raw = readFileSync(join(contentPath, '.access.json'), 'utf-8');
-    accessMap = JSON.parse(raw);
+    accessMap = JSON.parse(raw) as AccessMap;
     return accessMap;
   } catch {
     console.warn('⚠️ No .access.json found — all content treated as public');

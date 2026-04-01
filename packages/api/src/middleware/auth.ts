@@ -25,12 +25,14 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 
   // Check if Authorization header exists
   if (!authHeader) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
   }
 
   // Check if header follows Bearer token format
   if (!authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
   }
 
   // Extract token from "Bearer <token>" format
@@ -39,7 +41,8 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 
   // Verify token matches expected value
   if (token !== expectedToken) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
   }
 
   // Token is valid, proceed to next middleware/route handler

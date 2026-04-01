@@ -74,10 +74,10 @@ export function createAnnotationsRouter(): Router {
         author_type = 'human'
       } = req.body;
 
-      // Validate required fields
-      if (!doc_path || !heading_path || !content_hash || !content) {
+      // Validate required fields (content_hash is optional — used for drift detection)
+      if (!doc_path || !heading_path || !content) {
         return res.status(400).json({
-          error: 'doc_path, heading_path, content_hash, and content are required',
+          error: 'doc_path, heading_path, and content are required',
         } as any);
       }
 
@@ -89,7 +89,7 @@ export function createAnnotationsRouter(): Router {
         id,
         doc_path,
         heading_path,
-        content_hash,
+        content_hash: content_hash || '',
         quoted_text: quoted_text || null,
         content,
         parent_id: parent_id || null,

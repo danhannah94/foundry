@@ -174,22 +174,17 @@ async function startServer(): Promise<void> {
     protectedReviewsRouter.use(createReviewsRouter());
     app.use('/api', protectedReviewsRouter);
 
-    // Access-gated static serving for /docs paths
-    app.use('/docs', (req, res, next) => {
-      // Strip leading slash, trailing /index.html, trailing slash
-      let docPath = req.path.replace(/^\//, '').replace(/\/index\.html$/, '').replace(/\/$/, '');
-      // Also remove .html extension
-      docPath = docPath.replace(/\.html$/, '');
-
-      const level = getAccessLevel(docPath);
-      if (level === 'private') {
-        // Use the same requireAuth middleware from E5
-        return requireAuth(req, res, next);
-      }
-      next();
-    });
+    // Access control for docs:
+    // - Static HTML pages: client-side nav filtering hides private docs (no server gate)
+    // - API endpoints (/api/annotations, /api/reviews): Bearer token auth (requireAuth)
+    // - Search API: filters private results for unauthenticated requests
+    // - MCP tools: require auth_token for private results
+    // Server-side static gating removed — browser navigation doesn't send Bearer headers.
+    // TODO: Add cookie-based auth if server-side HTML gating is needed later.
 
     // Static file serving — serve the Astro build output
+    // Mount at /foundry to match Astro's base path, and at / for API/root access
+    app.use('/foundry', express.static(STATIC_PATH));
     app.use(express.static(STATIC_PATH));
 
     // Catch-all fallback for client-side routing — serve index.html for non-API, non-MCP routes

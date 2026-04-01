@@ -227,16 +227,27 @@ export default function AnnotationThread({ docPath }: Props) {
   // Detect orphaned annotations and content drift
   const detectOrphansAndDrift = useCallback(async (annotations: Annotation[]): Promise<Annotation[]> => {
     const headings = getDocumentHeadings();
+    // Build a set of normalized heading texts for fuzzy matching
+    const headingTexts = new Set<string>();
+    headings.forEach(path => {
+      const segments = path.split(' > ');
+      const last = segments[segments.length - 1].replace(/^#+\s*/, '').replace(/#$/, '').trim().toLowerCase();
+      if (last) headingTexts.add(last);
+    });
+
     const updatedAnnotations: Annotation[] = [];
 
     for (const annotation of annotations) {
       let updatedAnnotation = { ...annotation };
 
-      // Check if heading path exists in current document
-      const pathExists = headings.has(annotation.heading_path);
+      // Check if heading can be found in current document (fuzzy: match last segment text)
+      const annotationSegments = annotation.heading_path.split(' > ');
+      const annotationLastHeading = annotationSegments[annotationSegments.length - 1]
+        .replace(/^#+\s*/, '').replace(/#$/, '').trim().toLowerCase();
+      const pathExists = headings.has(annotation.heading_path) || headingTexts.has(annotationLastHeading);
 
-      if (!pathExists && annotation.status !== 'orphaned') {
-        // Mark as orphaned
+      if (!pathExists && annotation.status !== 'orphaned' && annotation.status !== 'resolved') {
+        // Mark as orphaned only if the heading text truly doesn't exist anywhere
         const success = await patchAnnotation(annotation.id, { status: 'orphaned' });
         if (success) {
           updatedAnnotation.status = 'orphaned';
@@ -244,11 +255,11 @@ export default function AnnotationThread({ docPath }: Props) {
       }
 
       // Content drift detection: heading exists but hash changed
-      if (pathExists && annotation.status !== 'orphaned') {
+      // Skip if content_hash is empty (not computed during creation)
+      if (pathExists && annotation.status !== 'orphaned' && annotation.content_hash) {
         try {
           const currentHash = await getSectionContentHash(annotation.heading_path);
           if (currentHash && currentHash !== annotation.content_hash) {
-            // Add a flag for UI display (the UI already handles ⚠️ display)
             updatedAnnotation = { ...updatedAnnotation, drifted: true } as Annotation & { drifted?: boolean };
           }
         } catch (err) {
