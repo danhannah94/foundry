@@ -1,0 +1,116 @@
+You are implementing QA fixes for E7 Batch 1. Here are the required changes:
+
+## Files to modify:
+- packages/site/src/components/AnnotationThread.tsx
+- packages/site/src/styles/global.css  
+- packages/site/src/layouts/DocLayout.astro (for SubmitReview relocation)
+
+## Changes Required:
+
+### 1. Fold orphaned comments into Active/Archived sections (AnnotationThread.tsx)
+Currently orphaned annotations are separated out in groupedAnnotations() and rendered in their own thread-orphaned section. Instead:
+- In groupedAnnotations(): STOP filtering out orphaned annotations into a separate array. Let them stay with ungrouped/review-grouped annotations.
+- Orphaned annotations should appear in **Active** section (since they're unresolved by nature — the user can resolve them to move to Archive)  
+- The separate orphaned section, showOrphaned state, and orphaned-specific rendering should be REMOVED entirely
+- In renderAnnotation(): for orphaned annotations, apply a muted/lighter text style instead of warning colors. Add class thread-comment--stale when annotation.status === 'orphaned'
+
+### 2. Section reordering: Draft → Active → Archive (AnnotationThread.tsx)
+Currently the render order is: Active → Archived → Orphaned.
+New order in the JSX return:
+1. **📝 Drafts (N)** — New section. Read drafts from localStorage using getDrafts(docPath) from '../utils/draft-storage.js'. Import it. Show drafts in a collapsible section (collapsed if empty, expanded if drafts exist). Each draft shows its heading_path and content preview. The drafts section is ONLY shown when there are drafts (hide completely when empty).
+2. **Active (N)** — unresolved threads (including orphaned/stale ones now)
+3. **📦 Archive (N)** — resolved threads (collapsed by default, as it already is)
+
+### 3. Submit button → thread header (AnnotationThread.tsx + DocLayout.astro + global.css)
+Currently SubmitReview is a floating positioned component mounted separately in DocLayout.astro. Move the submit functionality INTO the thread panel header:
+- In AnnotationThread.tsx: Import getDrafts, clearDrafts from '../utils/draft-storage.js' and authFetch from '../utils/api.js'. Add a submit button in the .thread-header div (between the title and refresh button) that only shows when drafts exist. Wire it to submit logic (create review, create annotations, patch statuses, clear drafts — same logic as SubmitReview.tsx).
+- In DocLayout.astro: Remove the <SubmitReview> component and its import entirely
+- In global.css: The .submit-review floating styles (lines ~1687-1800) can be removed or left as dead CSS for now
+
+### 4. Rename header title (AnnotationThread.tsx)
+Change <h3>💬 Review Thread</h3> to <h3>💬 Review</h3> — shorter, cleaner.
+
+### 5. Darken hover tint (global.css)
+The .thread-comment:hover background is too light. Change it:
+```css
+.thread-comment:hover {
+  background: var(--color-bg-secondary);
+  border-radius: 0 6px 6px 0;
+}
+```
+This uses --color-bg-secondary which is darker than --color-sidebar-hover. Test in both light and dark themes.
+
+### 6. Fix right margin asymmetry (global.css)
+When the thread panel is hidden, the grid column is 40px for the toggle tab, creating asymmetric margins. Fix:
+Change the grid-template-columns for hidden thread panel states from 40px to 0:
+```css
+.layout:has(.thread-panel--hidden),
+.layout.thread-hidden {
+  grid-template-columns: var(--sidebar-width) 1fr 0;
+}
+
+.layout.sidebar-hidden:has(.thread-panel--hidden),
+.layout.sidebar-hidden.thread-hidden {
+  grid-template-columns: 0 1fr 0;
+}
+```
+The toggle tab already uses position: absolute; left: -44px so it overflows from the panel — it doesn't need grid space.
+
+### 7. Stale comment styling (global.css)
+Add CSS for orphaned/stale comments (muted text instead of warning box):
+```css
+.thread-comment--stale {
+  opacity: 0.6;
+}
+
+.thread-comment--stale:hover {
+  opacity: 0.8;
+}
+
+.thread-comment--stale .thread-comment-header::after {
+  content: 'stale';
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  margin-left: var(--spacing-xs);
+}
+```
+
+Also remove or simplify the .thread-comment--orphaned styles (remove the warning-border/warning-bg, since stale replaces it):
+```css
+/* Remove these or simplify: */
+.thread-comment--orphaned {
+  /* Remove warning colors — handled by --stale now */
+}
+```
+
+And remove the dark theme orphaned overrides:
+```css
+/* Remove: */
+[data-theme="dark"] .thread-comment--orphaned { ... }
+[data-theme="dark"] .thread-orphaned-header { ... }
+```
+
+And remove .thread-orphaned, .thread-orphaned-header, .thread-orphaned-comments styles entirely.
+
+## Boundaries — DO NOT:
+- Change any API routes
+- Change the sidebar or its styling  
+- Change CommentDraft.tsx
+- Add any new npm dependencies
+- Change the orphan detection/recovery LOGIC in the useCallback functions — only change how orphaned annotations are rendered/grouped
+
+## Acceptance Criteria:
+- No separate orphaned section — stale comments appear in Active with muted styling
+- Section order: Draft → Active → Archive
+- Drafts section shows when drafts exist, hidden when empty
+- Submit button in thread header (only shows when drafts exist)
+- SubmitReview component removed from DocLayout.astro
+- Header title says '💬 Review' (not 'Review Thread')
+- Hover tint is darker/more visible  
+- Left and right margins are symmetric when thread panel is hidden
+- Stale comments have muted text + 'stale' label, not warning colors
+- Dark theme still looks correct
+- Build passes: npm run build --workspace=packages/site
+
+Start by examining the current code structure, then implement all changes systematically.

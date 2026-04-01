@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { authFetch, isAuthenticated } from '../utils/api.js';
 import { getCleanHeadingText } from '../utils/heading-text.js';
+import { getDrafts, clearDrafts, type DraftComment } from '../utils/draft-storage.js';
 
 // Types (copied from API package)
 type AnnotationStatus = "draft" | "submitted" | "replied" | "resolved" | "orphaned";
@@ -101,7 +102,6 @@ export default function AnnotationThread({ docPath }: Props) {
   const [isVisible, setIsVisible] = useState(true);
   const [expandedReviews, setExpandedReviews] = useState<Set<string>>(new Set());
   const [expandedResolved, setExpandedResolved] = useState<Set<string>>(new Set());
-  const [showOrphaned, setShowOrphaned] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
 
@@ -118,6 +118,16 @@ export default function AnnotationThread({ docPath }: Props) {
   const [replyContent, setReplyContent] = useState('');
   const [replySubmitting, setReplySubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Drafts state
+  const [drafts, setDrafts] = useState<DraftComment[]>([]);
+  const [showDrafts, setShowDrafts] = useState(true);
+  const [submitState, setSubmitState] = useState<{ isSubmitting: boolean; error: string | null; success: boolean }>({
+    isSubmitting: false,
+    error: null,
+    success: false
+  });
+  const submittingRef = useRef(false);
 
   // Helper to update annotation status via API
   const patchAnnotation = useCallback(async (id: string, updates: Partial<Pick<Annotation, 'status'>>) => {
@@ -349,6 +359,118 @@ export default function AnnotationThread({ docPath }: Props) {
     };
   }, [fetchAnnotations]);
 
+  // Load drafts and keep in sync with localStorage
+  useEffect(() => {
+    const loadDrafts = () => {
+      setDrafts(getDrafts(docPath));
+    };
+    loadDrafts();
+    window.addEventListener('foundry-draft-updated', loadDrafts);
+    window.addEventListener('storage', loadDrafts);
+    return () => {
+      window.removeEventListener('foundry-draft-updated', loadDrafts);
+      window.removeEventListener('storage', loadDrafts);
+    };
+  }, [docPath]);
+
+  // Submit drafts as a review
+  const handleSubmit = useCallback(async () => {
+    if (drafts.length === 0 || submittingRef.current) return;
+    submittingRef.current = true;
+
+    const confirmMessage = `Submit ${drafts.length} comment${drafts.length > 1 ? 's' : ''} for review?`;
+    if (!window.confirm(confirmMessage)) {
+      submittingRef.current = false;
+      return;
+    }
+
+    setSubmitState({ isSubmitting: true, error: null, success: false });
+
+    try {
+      // Step 1: Create the review
+      const reviewResponse = await authFetch(`/api/reviews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ doc_path: docPath })
+      });
+
+      if (!reviewResponse.ok) {
+        throw new Error(`Failed to create review: HTTP ${reviewResponse.status}`);
+      }
+
+      const review = await reviewResponse.json();
+      const reviewId = review.id;
+
+      // Step 2: Submit each draft as an annotation
+      const annotationPromises = drafts.map(async (draft) => {
+        const annotationResponse = await authFetch(`/api/annotations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            doc_path: draft.doc_path,
+            heading_path: draft.heading_path,
+            content_hash: draft.content_hash,
+            quoted_text: draft.quoted_text,
+            content: draft.content,
+            author_type: 'human',
+            review_id: reviewId
+          })
+        });
+
+        if (!annotationResponse.ok) {
+          throw new Error(`Failed to create annotation: HTTP ${annotationResponse.status}`);
+        }
+
+        const annotation = await annotationResponse.json();
+
+        const patchResponse = await authFetch(`/api/annotations/${annotation.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'submitted' })
+        });
+
+        if (!patchResponse.ok) {
+          throw new Error(`Failed to update annotation status: HTTP ${patchResponse.status}`);
+        }
+
+        return annotation;
+      });
+
+      await Promise.all(annotationPromises);
+
+      // Step 3: Update review status to submitted
+      const reviewPatchResponse = await authFetch(`/api/reviews/${reviewId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'submitted', submitted_at: new Date().toISOString() })
+      });
+
+      if (!reviewPatchResponse.ok) {
+        throw new Error(`Failed to update review status: HTTP ${reviewPatchResponse.status}`);
+      }
+
+      // Step 4: Clear drafts
+      clearDrafts(docPath);
+      setDrafts([]);
+
+      setSubmitState({ isSubmitting: false, error: null, success: true });
+      window.dispatchEvent(new CustomEvent('foundry-review-submitted'));
+
+      setTimeout(() => {
+        setSubmitState(prev => ({ ...prev, success: false }));
+      }, 3000);
+
+    } catch (err) {
+      setSubmitState({
+        isSubmitting: false,
+        error: err instanceof Error ? err.message : 'Failed to submit review',
+        success: false
+      });
+    } finally {
+      submittingRef.current = false;
+    }
+  }, [drafts, docPath]);
+
   // Add section margin indicators
   useEffect(() => {
     if (annotations.length === 0) return;
@@ -416,20 +538,16 @@ export default function AnnotationThread({ docPath }: Props) {
     };
   }, [annotations]);
 
-  // Group annotations
+  // Group annotations — orphaned annotations stay with their review group or ungrouped
   const groupedAnnotations = (): {
     reviewGroups: ReviewGroup[];
     ungrouped: Annotation[];
-    orphaned: Annotation[];
   } => {
     const reviewGroups: Map<string, Annotation[]> = new Map();
     const ungrouped: Annotation[] = [];
-    const orphaned: Annotation[] = [];
 
     annotations.forEach(annotation => {
-      if (annotation.status === 'orphaned') {
-        orphaned.push(annotation);
-      } else if (annotation.review_id) {
+      if (annotation.review_id) {
         if (!reviewGroups.has(annotation.review_id)) {
           reviewGroups.set(annotation.review_id, []);
         }
@@ -444,8 +562,7 @@ export default function AnnotationThread({ docPath }: Props) {
         review_id,
         annotations: annotations.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
       })),
-      ungrouped: ungrouped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-      orphaned: orphaned.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      ungrouped: ungrouped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     };
   };
 
@@ -533,7 +650,7 @@ export default function AnnotationThread({ docPath }: Props) {
     return (
       <div
         key={annotation.id}
-        className={`thread-comment ${isDraft ? 'thread-comment--draft' : ''} ${isResolved ? 'thread-comment--resolved' : ''} ${isReply ? 'thread-reply' : ''}`}
+        className={`thread-comment ${isDraft ? 'thread-comment--draft' : ''} ${isResolved ? 'thread-comment--resolved' : ''} ${isOrphaned ? 'thread-comment--stale' : ''} ${isReply ? 'thread-reply' : ''}`}
         data-annotation-heading={annotation.heading_path}
       >
         {isResolved && !expanded ? (
@@ -573,7 +690,7 @@ export default function AnnotationThread({ docPath }: Props) {
                 📍
               </button>
               <span className="thread-comment-time">{relativeTime(annotation.created_at)}</span>
-              {authenticated && !isOrphaned && (
+              {authenticated && (
                 <button
                   className="thread-reply-btn"
                   onClick={() => { setReplyingTo(annotation.id); setReplyContent(''); }}
@@ -582,7 +699,7 @@ export default function AnnotationThread({ docPath }: Props) {
                   ↩ Reply
                 </button>
               )}
-              {authenticated && !isReply && !isResolved && !isOrphaned && (
+              {authenticated && !isReply && !isResolved && (
                 <button
                   className="thread-resolve-btn"
                   onClick={async () => {
@@ -625,12 +742,6 @@ export default function AnnotationThread({ docPath }: Props) {
                 </button>
               )}
             </div>
-
-            {isOrphaned && (
-              <div className="thread-comment-orphan-context">
-                <strong>Original section:</strong> {annotation.heading_path}
-              </div>
-            )}
 
             {annotation.quoted_text && (
               <blockquote className="thread-comment-quote">
@@ -727,11 +838,10 @@ export default function AnnotationThread({ docPath }: Props) {
     </div>
   );
 
-  const { reviewGroups, ungrouped, orphaned } = groupedAnnotations();
+  const { reviewGroups, ungrouped } = groupedAnnotations();
 
-  // Build all non-orphaned threads and split into active/archived
-  const allNonOrphaned = [...ungrouped, ...reviewGroups.flatMap(g => g.annotations)];
-  const allThreads = buildThreads(allNonOrphaned);
+  // Build all threads and split into active/archived
+  const allThreads = buildThreads([...ungrouped, ...reviewGroups.flatMap(g => g.annotations)]);
   const activeThreads = allThreads.filter(t => t.status !== 'resolved');
   const archivedThreads = allThreads.filter(t => t.status === 'resolved');
 
@@ -784,7 +894,17 @@ export default function AnnotationThread({ docPath }: Props) {
   return (
     <div className={`thread-panel ${!isVisible ? 'thread-panel--hidden' : ''}`}>
       <div className="thread-header">
-        <h3>💬 Review Thread</h3>
+        <h3>💬 Review</h3>
+        {drafts.length > 0 && (
+          <button
+            className={`thread-submit-btn ${submitState.isSubmitting ? 'thread-submit-btn--loading' : ''}`}
+            onClick={handleSubmit}
+            disabled={submitState.isSubmitting}
+            title={`Submit ${drafts.length} comment${drafts.length > 1 ? 's' : ''} for review`}
+          >
+            {submitState.isSubmitting ? '🔄' : `📤 Submit (${drafts.length})`}
+          </button>
+        )}
         <button
           className={`thread-refresh-btn ${refreshing ? 'thread-refresh-btn--spinning' : ''}`}
           onClick={handleRefresh}
@@ -810,10 +930,40 @@ export default function AnnotationThread({ docPath }: Props) {
           <div className="thread-loading">Loading comments...</div>
         ) : error ? (
           <div className="thread-error">{error}</div>
-        ) : annotations.length === 0 ? (
-          renderEmpty()
         ) : (
           <>
+            {submitState.success && (
+              <div className="thread-submit-success">✅ Review submitted!</div>
+            )}
+            {submitState.error && (
+              <div className="thread-submit-error">❌ {submitState.error}</div>
+            )}
+
+            {/* Drafts section — only shown when drafts exist */}
+            {drafts.length > 0 && (
+              <div className="thread-section">
+                <button
+                  className="thread-section-header thread-section-header--drafts"
+                  onClick={() => setShowDrafts(!showDrafts)}
+                >
+                  <span className="thread-review-arrow">{showDrafts ? '▼' : '▶'}</span>
+                  📝 Drafts ({drafts.length})
+                </button>
+                {showDrafts && (
+                  <div className="thread-drafts-list">
+                    {drafts.map(draft => (
+                      <div key={draft.id} className="thread-draft-item">
+                        <div className="thread-draft-heading">{draft.heading_path}</div>
+                        <div className="thread-draft-preview">
+                          {draft.content.slice(0, 80)}{draft.content.length > 80 ? '…' : ''}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Active section */}
             {activeThreads.length > 0 && (
               <div className="thread-section">
@@ -832,30 +982,14 @@ export default function AnnotationThread({ docPath }: Props) {
                   onClick={() => setShowArchived(!showArchived)}
                 >
                   <span className="thread-review-arrow">{showArchived ? '▼' : '▶'}</span>
-                  Archived ({archivedThreads.length})
+                  📦 Archive ({archivedThreads.length})
                 </button>
                 {showArchived && renderThreadsByReview(archivedThreads)}
               </div>
             )}
 
-            {/* Orphaned comments */}
-            {orphaned.length > 0 && (
-              <div className="thread-orphaned">
-                <button
-                  className="thread-orphaned-header"
-                  onClick={() => setShowOrphaned(!showOrphaned)}
-                >
-                  <span className="thread-review-arrow">{showOrphaned ? '▼' : '▶'}</span>
-                  ⚠️ Orphaned ({orphaned.length})
-                </button>
-
-                {showOrphaned && (
-                  <div className="thread-orphaned-comments">
-                    {buildThreads(orphaned).map(annotation => renderAnnotation(annotation))}
-                  </div>
-                )}
-              </div>
-            )}
+            {/* Empty state */}
+            {annotations.length === 0 && drafts.length === 0 && renderEmpty()}
           </>
         )}
       </div>
