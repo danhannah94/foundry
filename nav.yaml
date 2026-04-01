@@ -99,6 +99,8 @@
               path: projects/foundry/epics/e5-auth.md
             - title: "E6: Public/Private Docs"
               path: projects/foundry/epics/e6-public-private.md
+            - title: "E7: UI/UX Refinement"
+              path: projects/foundry/epics/e7-ui-refinement.md
     - title: Forge
       children:
         - title: Design
