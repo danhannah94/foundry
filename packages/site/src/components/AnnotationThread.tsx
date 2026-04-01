@@ -93,104 +93,6 @@ function jumpToSection(headingPath: string) {
   }
 }
 
-// Get current document heading paths (same format as CommentDraft uses)
-function getDocumentHeadings(): Set<string> {
-  const contentElement = document.querySelector('article.content');
-  if (!contentElement) return new Set();
-
-  const allHeadings = Array.from(contentElement.querySelectorAll('h1, h2, h3, h4, h5, h6'));
-  const headingPaths = new Set<string>();
-
-  for (const heading of allHeadings) {
-    const level = parseInt(heading.tagName.charAt(1));
-    const text = getCleanHeadingText(heading);
-
-    // Build hierarchy - find all previous headings to build the path
-    const hierarchy: { level: number; text: string; prefix: string }[] = [];
-
-    for (const prevHeading of allHeadings) {
-      // Stop when we reach the current heading
-      if (prevHeading === heading) break;
-
-      // Only include headings that come before this one in document order
-      if (prevHeading.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING) {
-        const prevLevel = parseInt(prevHeading.tagName.charAt(1));
-        const prevText = getCleanHeadingText(prevHeading);
-        const prevPrefix = '#'.repeat(prevLevel);
-
-        // Build hierarchy - keep only headings that form a proper hierarchy
-        while (hierarchy.length > 0 && hierarchy[hierarchy.length - 1].level >= prevLevel) {
-          hierarchy.pop();
-        }
-
-        hierarchy.push({ level: prevLevel, text: prevText, prefix: prevPrefix });
-      }
-    }
-
-    // Add current heading to hierarchy
-    const prefix = '#'.repeat(level);
-    hierarchy.push({ level, text, prefix });
-
-    // Build the full path
-    const fullPath = hierarchy.map(h => `${h.prefix} ${h.text}`).join(' > ');
-    headingPaths.add(fullPath);
-  }
-
-  return headingPaths;
-}
-
-// Generate content hash for a section (similar to CommentDraft)
-async function getSectionContentHash(headingPath: string): Promise<string> {
-  const contentElement = document.querySelector('article.content');
-  if (!contentElement) return '';
-
-  // Parse the last segment to find the heading
-  const segments = headingPath.split(' > ');
-  const lastSegment = segments[segments.length - 1];
-  const headingText = lastSegment.replace(/^#+\s*/, '').replace(/[#§]+$/, '').trim();
-
-  // Find the heading element
-  const allHeadings = Array.from(contentElement.querySelectorAll('h1, h2, h3, h4, h5, h6'));
-  let currentHeading: Element | null = null;
-
-  for (const heading of allHeadings) {
-    if (getCleanHeadingText(heading) === headingText) {
-      currentHeading = heading;
-      break;
-    }
-  }
-
-  if (!currentHeading) return '';
-
-  // Get all content from this heading until the next heading of equal or higher level
-  const currentLevel = parseInt(currentHeading.tagName.charAt(1));
-  let sectionText = currentHeading.textContent || '';
-  let nextElement = currentHeading.nextElementSibling;
-
-  while (nextElement) {
-    const tagName = nextElement.tagName?.toLowerCase();
-    if (tagName && tagName.match(/^h[1-6]$/)) {
-      const nextLevel = parseInt(tagName.charAt(1));
-      if (nextLevel <= currentLevel) {
-        break; // Found next section
-      }
-    }
-
-    sectionText += nextElement.textContent || '';
-    nextElement = nextElement.nextElementSibling;
-  }
-
-  // Generate SHA-256 hash
-  try {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(sectionText.trim());
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  } catch {
-    return '';
-  }
-}
 
 export default function AnnotationThread({ docPath }: Props) {
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -225,46 +127,94 @@ export default function AnnotationThread({ docPath }: Props) {
     }
   }, []);
 
-  // Detect orphaned annotations and content drift
-  const detectOrphansAndDrift = useCallback(async (annotations: Annotation[]): Promise<Annotation[]> => {
-    const headings = getDocumentHeadings();
-    // Build a set of normalized heading texts for fuzzy matching
-    const headingTexts = new Set<string>();
-    headings.forEach(path => {
-      const segments = path.split(' > ');
-      const last = segments[segments.length - 1].replace(/^#+\s*/, '').replace(/#$/, '').trim().toLowerCase();
-      if (last) headingTexts.add(last);
-    });
+  // Recovery: restore falsely orphaned annotations
+  const recoverOrphanedAnnotations = useCallback(async (annotations: Annotation[]): Promise<Annotation[]> => {
+    const contentElement = document.querySelector('article.content');
+    if (!contentElement) return annotations;
+
+    const fullTextContent = contentElement.textContent || '';
+    const allHeadings = Array.from(contentElement.querySelectorAll('h1, h2, h3, h4, h5, h6'));
 
     const updatedAnnotations: Annotation[] = [];
 
     for (const annotation of annotations) {
       let updatedAnnotation = { ...annotation };
 
-      // Check if heading can be found in current document (fuzzy: match last segment text)
-      const annotationSegments = annotation.heading_path.split(' > ');
-      const annotationLastHeading = annotationSegments[annotationSegments.length - 1]
-        .replace(/^#+\s*/, '').replace(/[#§]\d*$/, '').trim().toLowerCase();
-      const pathExists = headings.has(annotation.heading_path) || headingTexts.has(annotationLastHeading);
+      // Only process orphaned annotations for recovery
+      if (annotation.status === 'orphaned') {
+        let textExists = false;
 
-      if (!pathExists && annotation.status !== 'orphaned' && annotation.status !== 'resolved') {
-        // Mark as orphaned only if the heading text truly doesn't exist anywhere
-        const success = await patchAnnotation(annotation.id, { status: 'orphaned' });
-        if (success) {
-          updatedAnnotation.status = 'orphaned';
+        if (annotation.quoted_text) {
+          // Check if quoted text exists in document
+          textExists = fullTextContent.includes(annotation.quoted_text);
+        } else {
+          // Check if heading text exists (for general section comments)
+          const segments = annotation.heading_path.split(' > ');
+          const lastSegment = segments[segments.length - 1];
+          const headingText = lastSegment.replace(/^#+\s*/, '').replace(/[#§]+$/, '').trim().toLowerCase();
+
+          textExists = allHeadings.some(heading => {
+            const cleanText = getCleanHeadingText(heading).toLowerCase();
+            return cleanText.includes(headingText) || headingText.includes(cleanText);
+          });
+        }
+
+        if (textExists) {
+          // Restore annotation to submitted status
+          const success = await patchAnnotation(annotation.id, { status: 'submitted' });
+          if (success) {
+            updatedAnnotation.status = 'submitted';
+          }
         }
       }
 
-      // Content drift detection: heading exists but hash changed
-      // Skip if content_hash is empty (not computed during creation)
-      if (pathExists && annotation.status !== 'orphaned' && annotation.content_hash) {
-        try {
-          const currentHash = await getSectionContentHash(annotation.heading_path);
-          if (currentHash && currentHash !== annotation.content_hash) {
-            updatedAnnotation = { ...updatedAnnotation, drifted: true } as Annotation & { drifted?: boolean };
-          }
-        } catch (err) {
-          console.warn('Error calculating content hash for drift detection:', err);
+      updatedAnnotations.push(updatedAnnotation);
+    }
+
+    return updatedAnnotations;
+  }, [patchAnnotation]);
+
+  // Detect orphaned annotations with simple quoted-text logic
+  const detectOrphansAndDrift = useCallback(async (annotations: Annotation[]): Promise<Annotation[]> => {
+    const contentElement = document.querySelector('article.content');
+    if (!contentElement) return annotations;
+
+    const fullTextContent = contentElement.textContent || '';
+    const allHeadings = Array.from(contentElement.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+
+    const updatedAnnotations: Annotation[] = [];
+
+    for (const annotation of annotations) {
+      let updatedAnnotation = { ...annotation };
+
+      // Skip if already resolved or orphaned
+      if (annotation.status === 'resolved' || annotation.status === 'orphaned') {
+        updatedAnnotations.push(updatedAnnotation);
+        continue;
+      }
+
+      let textExists = false;
+
+      if (annotation.quoted_text) {
+        // Simple check: does the quoted text exist in the document?
+        textExists = fullTextContent.includes(annotation.quoted_text);
+      } else {
+        // General section comment: check if heading text exists
+        const segments = annotation.heading_path.split(' > ');
+        const lastSegment = segments[segments.length - 1];
+        const headingText = lastSegment.replace(/^#+\s*/, '').replace(/[#§]+$/, '').trim().toLowerCase();
+
+        textExists = allHeadings.some(heading => {
+          const cleanText = getCleanHeadingText(heading).toLowerCase();
+          return cleanText.includes(headingText) || headingText.includes(cleanText);
+        });
+      }
+
+      // Only mark as orphaned if text is truly gone
+      if (!textExists) {
+        const success = await patchAnnotation(annotation.id, { status: 'orphaned' });
+        if (success) {
+          updatedAnnotation.status = 'orphaned';
         }
       }
 
@@ -313,8 +263,11 @@ export default function AnnotationThread({ docPath }: Props) {
 
       const data = await response.json();
 
-      // Run orphan detection and content drift detection
-      const processedAnnotations = await detectOrphansAndDrift(data);
+      // First, recover any falsely orphaned annotations
+      const recoveredAnnotations = await recoverOrphanedAnnotations(data);
+
+      // Then run orphan detection with simple quoted-text logic
+      const processedAnnotations = await detectOrphansAndDrift(recoveredAnnotations);
       setAnnotations(processedAnnotations);
     } catch (err) {
       console.warn('Failed to fetch annotations:', err);
@@ -323,7 +276,7 @@ export default function AnnotationThread({ docPath }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [docPath, detectOrphansAndDrift]);
+  }, [docPath, recoverOrphanedAnnotations, detectOrphansAndDrift]);
 
   useEffect(() => {
     if (docPath) {
@@ -481,11 +434,10 @@ export default function AnnotationThread({ docPath }: Props) {
     return topLevel.map(addReplies);
   };
 
-  const renderAnnotation = (annotation: Annotation & { replies?: Annotation[]; drifted?: boolean }, isReply = false) => {
+  const renderAnnotation = (annotation: Annotation & { replies?: Annotation[] }, isReply = false) => {
     const isResolved = annotation.status === 'resolved';
     const isDraft = annotation.status === 'draft';
     const isOrphaned = annotation.status === 'orphaned';
-    const isDrifted = annotation.drifted || false;
     const expanded = expandedResolved.has(annotation.id);
 
     return (
@@ -506,7 +458,6 @@ export default function AnnotationThread({ docPath }: Props) {
             <div className="thread-comment-header">
               <span className={`thread-comment-status ${isDraft ? 'thread-comment-status--dimmed' : ''}`}>
                 {getStatusIcon(annotation.status, !!annotation.replies?.length)}
-                {isDrifted && <span className="thread-comment-drift" title="Content has changed since this comment was made">⚠️</span>}
               </span>
               <span className="thread-comment-author">
                 {getAuthorBadge(annotation.author_type, annotation.user_id)}
