@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { authFetch, isAuthenticated } from '../utils/api.js';
 import { getCleanHeadingText } from '../utils/heading-text.js';
 
@@ -104,6 +104,9 @@ export default function AnnotationThread({ docPath }: Props) {
   const [showOrphaned, setShowOrphaned] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+
+  // Ref for preserving scroll position
+  const threadContentRef = useRef<HTMLDivElement>(null);
 
   // Reply state management
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
@@ -274,8 +277,15 @@ export default function AnnotationThread({ docPath }: Props) {
       const recoveredAnnotations = await recoverOrphanedAnnotations(data);
 
       // Then run orphan detection with simple quoted-text logic
+      const scrollTop = threadContentRef.current?.scrollTop ?? 0;
       const processedAnnotations = await detectOrphansAndDrift(recoveredAnnotations);
       setAnnotations(processedAnnotations);
+      // Restore scroll position after React re-render
+      requestAnimationFrame(() => {
+        if (threadContentRef.current) {
+          threadContentRef.current.scrollTop = scrollTop;
+        }
+      });
     } catch (err) {
       console.warn('Failed to fetch annotations:', err);
       setError('Unable to load comments');
@@ -425,20 +435,38 @@ export default function AnnotationThread({ docPath }: Props) {
     };
   };
 
-  // Build threaded structure
-  const buildThreads = (annotations: Annotation[]): Annotation[] => {
+  // Build threaded structure with flattened replies
+  const buildThreads = (annotations: Annotation[]): (Annotation & { replies?: Annotation[] })[] => {
     const topLevel = annotations.filter(a => !a.parent_id);
     const children = annotations.filter(a => a.parent_id);
 
-    const addReplies = (annotation: Annotation): Annotation & { replies?: Annotation[] } => {
-      const replies = children.filter(child => child.parent_id === annotation.id);
-      return {
-        ...annotation,
-        replies: replies.length > 0 ? replies.map(addReplies) : undefined
-      };
+    // Build a map of parent -> direct children
+    const childMap = new Map<string, Annotation[]>();
+    children.forEach(child => {
+      const list = childMap.get(child.parent_id!) || [];
+      list.push(child);
+      childMap.set(child.parent_id!, list);
+    });
+
+    // Collect ALL descendants of a top-level annotation (flattened, sorted by created_at)
+    const getAllDescendants = (rootId: string): Annotation[] => {
+      const result: Annotation[] = [];
+      const queue = [rootId];
+      while (queue.length > 0) {
+        const parentId = queue.shift()!;
+        const directChildren = childMap.get(parentId) || [];
+        for (const child of directChildren) {
+          result.push(child);
+          queue.push(child.id);
+        }
+      }
+      return result.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     };
 
-    return topLevel.map(addReplies);
+    return topLevel.map(annotation => ({
+      ...annotation,
+      replies: getAllDescendants(annotation.id).length > 0 ? getAllDescendants(annotation.id) : undefined
+    }));
   };
 
   // Submit reply to API
@@ -630,7 +658,7 @@ export default function AnnotationThread({ docPath }: Props) {
               </div>
             )}
 
-            {annotation.replies && annotation.replies.length > 0 && (
+            {!isReply && annotation.replies && annotation.replies.length > 0 && (
               <div className="thread-replies">
                 {annotation.replies.map(reply => renderAnnotation(reply, true))}
               </div>
@@ -683,7 +711,7 @@ export default function AnnotationThread({ docPath }: Props) {
         </button>
       </div>
 
-      <div className="thread-content">
+      <div className="thread-content" ref={threadContentRef}>
         {!authenticated ? (
           renderAuthPrompt()
         ) : loading ? (

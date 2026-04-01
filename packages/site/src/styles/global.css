@@ -1123,7 +1123,7 @@ pre.mermaid {
 
 /* --- Threaded Replies --- */
 .thread-reply {
-  margin-left: var(--spacing-lg);
+  margin-left: var(--spacing-md);
   border-left: 2px solid var(--color-border);
   padding-left: var(--spacing-sm);
 }
