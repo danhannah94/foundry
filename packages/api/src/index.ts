@@ -83,64 +83,49 @@ async function startServer(): Promise<void> {
     loadAccessMap(STATIC_PATH);
     console.log('✅ Access map loaded successfully');
 
-    // Create MCP server (only if anvil is available)
-    let mcpServer = null;
-    if (anvil) {
-      console.log('🔧 Initializing MCP server...');
-      mcpServer = createMcpServer(anvil);
-      console.log('✅ MCP server initialized successfully');
-    } else {
-      console.log('⚠️ MCP server disabled (Anvil unavailable)');
-    }
+    // Create MCP server (uses HTTP API, no Anvil dependency)
+    console.log('🔧 Initializing MCP server...');
+    const mcpServer = createMcpServer();
+    console.log('✅ MCP server initialized successfully');
 
     // Store active SSE transports
     const transports = new Map<string, SSEServerTransport>();
 
     // MCP SSE endpoints (only if mcpServer is available)
-    if (mcpServer) {
-      app.get('/mcp/sse', async (req, res) => {
-        try {
-          const transport = new SSEServerTransport('/mcp/message', res);
-          transports.set(transport.sessionId, transport);
+    // MCP SSE endpoints (always available — MCP uses HTTP API, not Anvil)
+    app.get('/mcp/sse', async (req, res) => {
+      try {
+        const transport = new SSEServerTransport('/mcp/message', res);
+        transports.set(transport.sessionId, transport);
 
-          // Clean up transport when connection closes
-          res.on('close', () => {
-            transports.delete(transport.sessionId);
-          });
+        // Clean up transport when connection closes
+        res.on('close', () => {
+          transports.delete(transport.sessionId);
+        });
 
-          await mcpServer.connect(transport);
-        } catch (error) {
-          console.error('MCP SSE connection error:', error);
-          res.status(500).json({ error: 'Failed to establish MCP connection' });
+        await mcpServer.connect(transport);
+      } catch (error) {
+        console.error('MCP SSE connection error:', error);
+        res.status(500).json({ error: 'Failed to establish MCP connection' });
+      }
+    });
+
+    app.post('/mcp/message', async (req, res) => {
+      try {
+        const sessionId = req.query.sessionId as string;
+        const transport = transports.get(sessionId);
+
+        if (!transport) {
+          return res.status(404).json({ error: 'Session not found' });
         }
-      });
 
-      app.post('/mcp/message', async (req, res) => {
-        try {
-          const sessionId = req.query.sessionId as string;
-          const transport = transports.get(sessionId);
-
-          if (!transport) {
-            return res.status(404).json({ error: 'Session not found' });
-          }
-
-          await transport.handleMessage(req.body);
-          res.status(200).end();
-        } catch (error) {
-          console.error('MCP message handling error:', error);
-          res.status(500).json({ error: 'Failed to handle MCP message' });
-        }
-      });
-    } else {
-      // Disable MCP endpoints when Anvil is not available
-      app.get('/mcp/sse', (req, res) => {
-        res.status(503).json({ error: 'MCP service unavailable (Anvil disabled)' });
-      });
-
-      app.post('/mcp/message', (req, res) => {
-        res.status(503).json({ error: 'MCP service unavailable (Anvil disabled)' });
-      });
-    }
+        await transport.handleMessage(req.body);
+        res.status(200).end();
+      } catch (error) {
+        console.error('MCP message handling error:', error);
+        res.status(500).json({ error: 'Failed to handle MCP message' });
+      }
+    });
 
     // Mount access router (always available, no anvil dependency)
     app.use('/api', createAccessRouter());
@@ -204,12 +189,8 @@ async function startServer(): Promise<void> {
       console.log(`🚀 Foundry API server running on port ${PORT}`);
       console.log(`📊 Health endpoint: http://localhost:${PORT}/api/health`);
       console.log(`📂 Static files: ${STATIC_PATH}`);
-      if (mcpServer) {
-        console.log(`🔌 MCP SSE endpoint: http://localhost:${PORT}/mcp/sse`);
-        console.log(`📨 MCP message endpoint: http://localhost:${PORT}/mcp/message`);
-      } else {
-        console.log(`🔌 MCP endpoints disabled (Anvil unavailable)`);
-      }
+      console.log(`🔌 MCP SSE endpoint: http://localhost:${PORT}/mcp/sse`);
+      console.log(`📨 MCP message endpoint: http://localhost:${PORT}/mcp/message`);
       console.log(`🌐 CORS enabled for GitHub Pages and localhost`);
       logAuthStatus();
     });
