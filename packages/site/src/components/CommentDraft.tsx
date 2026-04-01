@@ -7,6 +7,7 @@ import {
   deleteDraft
 } from '../utils/draft-storage.js';
 import { isAuthenticated } from '../utils/api.js';
+import { getCleanHeadingText } from '../utils/heading-text.js';
 
 interface Props {
   docPath: string;
@@ -122,7 +123,7 @@ export default function CommentDraft({ docPath }: Props) {
         
         if (tagName && tagName.match(/^h[1-6]$/)) {
           const level = parseInt(tagName.charAt(1));
-          const text = element.textContent?.trim() || '';
+          const text = getCleanHeadingText(element);
           const prefix = '#'.repeat(level);
           headings.push({ level, text, prefix });
         }
@@ -143,7 +144,7 @@ export default function CommentDraft({ docPath }: Props) {
           // Stop when we reach a heading that comes after our selection
           if (heading.compareDocumentPosition(nodeElement) & Node.DOCUMENT_POSITION_PRECEDING) {
             const level = parseInt(heading.tagName.charAt(1));
-            const text = heading.textContent?.trim() || '';
+            const text = getCleanHeadingText(heading);
             const prefix = '#'.repeat(level);
             
             // Build hierarchy - keep only headings that form a proper hierarchy

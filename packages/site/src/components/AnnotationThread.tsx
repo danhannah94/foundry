@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { authFetch, isAuthenticated } from '../utils/api.js';
+import { getCleanHeadingText } from '../utils/heading-text.js';
 
 // Types (copied from API package)
 type AnnotationStatus = "draft" | "submitted" | "replied" | "resolved" | "orphaned";
@@ -77,12 +78,12 @@ function jumpToSection(headingPath: string) {
   // Parse the last segment of the heading path (e.g., "Tech Stack" from "## Architecture > ### Tech Stack")
   const segments = headingPath.split(' > ');
   const lastSegment = segments[segments.length - 1];
-  const headingText = lastSegment.replace(/^#+\s*/, '').trim();
+  const headingText = lastSegment.replace(/^#+\s*/, '').replace(/[#§]+$/, '').trim();
 
   // Find the heading element whose text content matches
   const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
   for (const heading of headings) {
-    if (heading.textContent?.trim() === headingText) {
+    if (getCleanHeadingText(heading) === headingText) {
       heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
       // Add highlight animation
       heading.classList.add('thread-highlight');
@@ -102,7 +103,7 @@ function getDocumentHeadings(): Set<string> {
 
   for (const heading of allHeadings) {
     const level = parseInt(heading.tagName.charAt(1));
-    const text = heading.textContent?.trim() || '';
+    const text = getCleanHeadingText(heading);
 
     // Build hierarchy - find all previous headings to build the path
     const hierarchy: { level: number; text: string; prefix: string }[] = [];
@@ -114,7 +115,7 @@ function getDocumentHeadings(): Set<string> {
       // Only include headings that come before this one in document order
       if (prevHeading.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING) {
         const prevLevel = parseInt(prevHeading.tagName.charAt(1));
-        const prevText = prevHeading.textContent?.trim() || '';
+        const prevText = getCleanHeadingText(prevHeading);
         const prevPrefix = '#'.repeat(prevLevel);
 
         // Build hierarchy - keep only headings that form a proper hierarchy
@@ -146,14 +147,14 @@ async function getSectionContentHash(headingPath: string): Promise<string> {
   // Parse the last segment to find the heading
   const segments = headingPath.split(' > ');
   const lastSegment = segments[segments.length - 1];
-  const headingText = lastSegment.replace(/^#+\s*/, '').trim();
+  const headingText = lastSegment.replace(/^#+\s*/, '').replace(/[#§]+$/, '').trim();
 
   // Find the heading element
   const allHeadings = Array.from(contentElement.querySelectorAll('h1, h2, h3, h4, h5, h6'));
   let currentHeading: Element | null = null;
 
   for (const heading of allHeadings) {
-    if (heading.textContent?.trim() === headingText) {
+    if (getCleanHeadingText(heading) === headingText) {
       currentHeading = heading;
       break;
     }
@@ -243,7 +244,7 @@ export default function AnnotationThread({ docPath }: Props) {
       // Check if heading can be found in current document (fuzzy: match last segment text)
       const annotationSegments = annotation.heading_path.split(' > ');
       const annotationLastHeading = annotationSegments[annotationSegments.length - 1]
-        .replace(/^#+\s*/, '').replace(/#$/, '').trim().toLowerCase();
+        .replace(/^#+\s*/, '').replace(/[#§]\d*$/, '').trim().toLowerCase();
       const pathExists = headings.has(annotation.heading_path) || headingTexts.has(annotationLastHeading);
 
       if (!pathExists && annotation.status !== 'orphaned' && annotation.status !== 'resolved') {
@@ -385,12 +386,12 @@ export default function AnnotationThread({ docPath }: Props) {
       // Parse the last segment of the heading path
       const segments = headingPath.split(' > ');
       const lastSegment = segments[segments.length - 1];
-      const headingText = lastSegment.replace(/^#+\s*/, '').trim();
+      const headingText = lastSegment.replace(/^#+\s*/, '').replace(/[#§]+$/, '').trim();
 
       // Find the heading element
       const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
       for (const heading of headings) {
-        if (heading.textContent?.trim() === headingText) {
+        if (getCleanHeadingText(heading) === headingText) {
           // Create indicator
           const indicator = document.createElement('div');
           indicator.className = 'section-indicator';
