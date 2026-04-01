@@ -1,9 +1,4 @@
-# Foundry — Content Source Configuration
-# Each source defines a git repo and which paths to pull at build time.
-#
-# access: public|private — controls who can see these docs
-# public = anyone, private = requires bearer token auth
-
+# Our actual config — not committed (add to .gitignore)
 sources:
   - repo: danhannah94/csdlc-docs
     branch: main

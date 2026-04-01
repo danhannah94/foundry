@@ -1,0 +1,32 @@
+# Foundry — Example Content Source Configuration
+#
+# Copy this to foundry.config.yaml and customize for your docs.
+#
+# Each source defines a git repo and which paths to pull at build time.
+# Private repos require GITHUB_TOKEN to be set in your environment.
+#
+# access: public  — visible to anyone
+# access: private — requires bearer token (FOUNDRY_WRITE_TOKEN)
+
+sources:
+  # Public methodology docs — open to the world
+  - repo: your-org/docs-repo
+    branch: main
+    paths:
+      - "docs/methodology/"
+      - "docs/guides/"
+    access: public
+
+  # Private project docs — gated behind auth
+  - repo: your-org/docs-repo
+    branch: main
+    paths:
+      - "docs/projects/"
+    access: private
+
+  # You can pull from multiple repos
+  # - repo: your-org/another-repo
+  #   branch: main
+  #   paths:
+  #     - "docs/"
+  #   access: private

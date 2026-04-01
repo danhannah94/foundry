@@ -1,33 +1,92 @@
 # 🏭 Foundry
 
-Documentation platform for human-AI collaborative workflows. Built with Astro + Express + Anvil.
+A documentation platform built for human-AI collaborative workflows. One source of truth, two audiences: humans get a rich interactive UI with inline comments, AI agents get MCP tools for search and annotation.
 
 ## Features
-- Multi-repo content sourcing
-- Dark/light theme
-- TTS playback (Web Speech API)
-- Annotations + unified review thread
-- Bearer token authentication
-- Public/private doc access control
-- MCP server for AI agent integration
-- Semantic search via Anvil
+
+- **Multi-repo content sourcing** — pull markdown from any GitHub repo at build time
+- **Public/private access control** — open methodology docs, gated project docs
+- **Annotations + unified review thread** — highlight text, comment, threaded replies
+- **Bearer token auth** — protects write operations and private content
+- **Semantic search** — powered by [Anvil](https://github.com/claymore-dev/anvil) (local embeddings, no API keys)
+- **MCP server** — AI agents can search, read, and annotate docs via Model Context Protocol
+- **TTS playback** — read docs aloud via Web Speech API
+- **Dark/light theme** — system-aware with manual toggle
 
 ## Quick Start
 
-See [DEPLOY.md](DEPLOY.md) for setup instructions.
+### 1. Clone and install
 
 ```bash
-# Install dependencies
+git clone https://github.com/danhannah94/foundry.git
+cd foundry
 npm install
+```
 
-# Start dev server
-npm run dev
+### 2. Configure content sources
 
-# Build for production
-npm run build
+```bash
+cp foundry.config.example.yaml foundry.config.yaml
+```
 
-# Preview production build
-npm run preview
+Edit `foundry.config.yaml` to point at your doc repos:
+
+```yaml
+sources:
+  - repo: your-org/docs-repo
+    branch: main
+    paths:
+      - "docs/public/"
+    access: public
+
+  - repo: your-org/internal-docs
+    branch: main
+    paths:
+      - "docs/projects/"
+    access: private
+```
+
+For private repos, set `GITHUB_TOKEN`:
+```bash
+export GITHUB_TOKEN=$(gh auth token)
+```
+
+### 3. Configure navigation
+
+Edit `nav.yaml` to define your sidebar structure. See the existing file for format.
+
+### 4. Set up environment
+
+```bash
+cp .env.example .env
+# Generate a write token for auth:
+echo "FOUNDRY_WRITE_TOKEN=$(openssl rand -hex 32)" >> .env
+```
+
+### 5. Run locally
+
+**Dev mode (hot reload):**
+```bash
+# Terminal 1: API server
+cd packages/api && npm run dev
+
+# Terminal 2: Site
+cd packages/site && npm run dev
+```
+Site: `http://localhost:4321/foundry` | API: `http://localhost:3001`
+
+**Docker:**
+```bash
+docker compose up --build -d
+```
+Everything on `http://localhost:3001/foundry/`
+
+### 6. Deploy to Fly.io
+
+```bash
+fly launch
+fly secrets set FOUNDRY_WRITE_TOKEN=$(openssl rand -hex 32)
+fly deploy --remote-only --build-arg GITHUB_TOKEN=$(gh auth token)
 ```
 
 ## Project Structure
@@ -35,47 +94,60 @@ npm run preview
 ```
 foundry/
 ├── packages/
-│   ├── site/               # Astro static site
+│   ├── site/               # Astro static site (React islands)
 │   │   ├── src/
 │   │   │   ├── layouts/    # Page layouts
 │   │   │   ├── pages/      # Route pages
-│   │   │   ├── components/ # UI components
+│   │   │   ├── components/ # UI components (auth, comments, TTS)
 │   │   │   └── styles/     # Global CSS
-│   │   ├── content/        # Markdown docs (populated by build script)
-│   │   └── public/         # Static assets
-│   └── api/                # API server (v0.2+)
-├── foundry.config.yaml     # Content source repos
-├── nav.yaml                # Navigation tree
+│   │   └── content/        # Markdown docs (populated at build time)
+│   └── api/                # Express API server
+│       └── src/
+│           ├── routes/     # REST endpoints
+│           ├── middleware/  # Auth middleware
+│           └── mcp/        # MCP server + tools
+├── foundry.config.yaml     # Content source repos (your config)
+├── nav.yaml                # Sidebar navigation tree
 ├── scripts/
-│   └── build.sh            # Multi-repo content fetch
-└── package.json            # Monorepo root
+│   └── build.sh            # Multi-repo content fetcher
+├── Dockerfile              # Multi-stage production build
+├── docker-compose.yml      # Local Docker setup
+└── fly.toml                # Fly.io deployment config
 ```
 
-## Deployment
+## How It Works
 
-**Live site:** https://danhannah94.github.io/foundry/
+1. **Build time:** `scripts/build.sh` reads `foundry.config.yaml`, clones repos, copies specified paths into `packages/site/content/`, and generates `.access.json` for access control
+2. **Astro** builds the markdown into static HTML pages
+3. **Express** serves the static site + REST API + MCP endpoints
+4. **Anvil** indexes the markdown for semantic search (local embeddings via ONNX)
+5. **Auth** gates private docs in the nav sidebar and protects write endpoints
 
-The site auto-deploys to GitHub Pages on every push to `main` via GitHub Actions.
+## API Endpoints
 
-- **Automatic:** Push to `main` triggers a build and deploy
-- **Manual:** Go to Actions tab → "Deploy to GitHub Pages" → "Run workflow"
-- **Config:** `.github/workflows/deploy.yml`
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `GET /api/health` | No | Server status + Anvil stats |
+| `GET /api/access` | No | Access level map |
+| `GET /api/search?q=...` | Optional | Semantic search (private results need token) |
+| `GET /api/annotations?doc_path=...` | Yes | List annotations for a doc |
+| `POST /api/annotations` | Yes | Create annotation |
+| `PATCH /api/annotations/:id` | Yes | Update annotation status/content |
+| `POST /api/reviews` | Yes | Create review |
+| `PATCH /api/reviews/:id` | Yes | Update review status |
 
-## Architecture
-
-- **v0.1** — Static site on GitHub Pages
-- **v0.2** — API server with Anvil search, TTS, annotations
-- **v0.3** — MCP-first API (web UI + AI agents as equal clients)
+Auth: `Authorization: Bearer <FOUNDRY_WRITE_TOKEN>`
 
 ## Tech Stack
 
 | Layer | Choice |
 |-------|--------|
-| Framework | Astro + React islands |
-| Hosting | GitHub Pages |
-| Search (MVP) | Nav sidebar |
-| Search (v0.2+) | Anvil MCP server |
-| Auth | GitHub repo visibility |
+| Site | Astro 6 + React 19 islands |
+| API | Express + TypeScript |
+| Search | Anvil (sqlite-vss + ONNX embeddings) |
+| AI Integration | Model Context Protocol (MCP) |
+| Database | SQLite (better-sqlite3) |
+| Deploy | Docker + Fly.io |
 
 ## License
 

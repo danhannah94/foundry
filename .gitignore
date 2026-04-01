@@ -13,6 +13,9 @@ packages/site/content/
 .env
 .env.*
 
+# Local config (contains repo references)
+.foundry.config.local.yaml
+
 # OS
 .DS_Store
 Thumbs.db
