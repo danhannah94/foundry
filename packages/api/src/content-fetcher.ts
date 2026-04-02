@@ -56,6 +56,15 @@ export class ContentFetcher {
     }
   }
 
+  async snapshotRef(): Promise<string | null> {
+    return this.getCurrentRef();
+  }
+
+  async restoreRef(ref: string): Promise<void> {
+    await this.git(['reset', '--hard', ref]);
+    console.log(`[content-fetcher] Restored to ref: ${ref.substring(0, 8)}`);
+  }
+
   async pull(): Promise<PullResult | null> {
     // Mutex — skip if already pulling
     if (this.pulling) {

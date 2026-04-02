@@ -7,6 +7,7 @@ interface WebhookState {
   lastRef: string | null;
   lastError: string | null;
   status: 'idle' | 'updating' | 'ok' | 'error';
+  contentRef: string | null;
 }
 
 const state: WebhookState = {
@@ -14,6 +15,7 @@ const state: WebhookState = {
   lastRef: null,
   lastError: null,
   status: 'idle',
+  contentRef: null,
 };
 
 export function getWebhookState(): WebhookState {
@@ -68,6 +70,9 @@ export function createWebhookRouter(options: {
       return;
     }
 
+    // Snapshot before pull
+    const snapshotRef = await fetcher.snapshotRef() ?? null;
+
     state.status = 'updating';
     try {
       const result = await fetcher.pull();
@@ -81,9 +86,19 @@ export function createWebhookRouter(options: {
 
       // Call the content update callback (cache invalidation, nav regen, Anvil reindex)
       if (options.onContentUpdated) {
-        await options.onContentUpdated(result.changedFiles, result.isInitialClone);
+        try {
+          await options.onContentUpdated(result.changedFiles, result.isInitialClone);
+        } catch (updateError: any) {
+          // Rollback to last-known-good
+          if (snapshotRef) {
+            await fetcher.restoreRef(snapshotRef);
+            console.error('[webhook] Content update callback failed, rolled back:', updateError);
+          }
+          throw updateError; // Re-throw to set error state
+        }
       }
 
+      state.contentRef = result.ref;
       state.status = 'ok';
       state.lastError = null;
       console.log(`[webhook] Content update complete: ${result.ref.substring(0, 8)}`);
