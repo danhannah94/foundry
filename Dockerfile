@@ -32,6 +32,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy built artifacts
 COPY --from=site-builder /app/packages/site/dist packages/site/dist
+COPY --from=site-builder /app/packages/site/node_modules packages/site/node_modules
+COPY --from=site-builder /app/packages/site/package.json packages/site/
 COPY --from=api-builder /app/packages/api/dist packages/api/dist
 COPY --from=api-builder /app/packages/api/node_modules packages/api/node_modules
 COPY --from=api-builder /app/packages/api/package.json packages/api/
