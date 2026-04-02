@@ -1,4 +1,4 @@
-import type { Annotation } from '../types/annotations.js';
+import type { Annotation, Review } from '../types/annotations.js';
 
 const BASE_URL = process.env.FOUNDRY_API_URL || 'http://localhost:3001';
 const WRITE_TOKEN = () => process.env.FOUNDRY_WRITE_TOKEN || '';
@@ -223,6 +223,27 @@ export async function reopenAnnotation(
     }
     throw err;
   }
+}
+
+/**
+ * List reviews for a document, optionally filtered by status.
+ */
+export async function listReviews(
+  docPath: string,
+  status?: string,
+): Promise<Review[]> {
+  const params = new URLSearchParams({ doc_path: docPath });
+  if (status) params.set('status', status);
+  return apiFetch<Review[]>(`/api/reviews?${params}`);
+}
+
+/**
+ * Get a single review by ID, including its annotations.
+ */
+export async function getReview(
+  reviewId: string,
+): Promise<{ review: Review; annotations: Annotation[] }> {
+  return apiFetch<{ review: Review; annotations: Annotation[] }>(`/api/reviews/${reviewId}`);
 }
 
 interface SearchResult {

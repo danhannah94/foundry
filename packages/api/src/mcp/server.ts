@@ -1,6 +1,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { registerSearchTool } from './tools/search.js';
 import { registerAnnotationTools } from './tools/annotations.js';
+import { registerReviewTools } from './tools/review-tools.js';
 
 /**
  * Creates and configures the MCP server for Foundry.
@@ -28,6 +29,9 @@ export function createMcpServer(): Server {
 
   // Register annotation tools
   registerAnnotationTools(server);
+
+  // Register review tools
+  registerReviewTools(server);
 
   return server;
 }
