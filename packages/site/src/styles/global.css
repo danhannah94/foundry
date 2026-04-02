@@ -138,6 +138,17 @@ body {
   min-height: 100vh;
 }
 
+/* --- Selection Color (orange accent) --- */
+::selection {
+  background: rgba(249, 115, 22, 0.3);
+  color: inherit;
+}
+
+[data-theme="dark"] ::selection {
+  background: rgba(249, 115, 22, 0.35);
+  color: inherit;
+}
+
 /* --- Typography --- */
 h1, h2, h3, h4, h5, h6 {
   color: var(--color-heading);
@@ -269,6 +280,7 @@ h6:hover .heading-anchor {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr var(--thread-panel-width);
   min-height: 100vh;
+  overflow: hidden; /* prevent grid blowout */
 }
 
 .sidebar {
@@ -288,6 +300,7 @@ h6:hover .heading-anchor {
   grid-column: 2;
   padding: var(--spacing-xl);
   padding-top: calc(var(--header-height) + var(--spacing-xl));
+  min-width: 0; /* prevent wide content from blowing out the grid */
 }
 
 .content {
@@ -1056,7 +1069,7 @@ pre.mermaid {
 
 .thread-comment-highlight {
   background: var(--color-accent-light) !important;
-  animation: thread-comment-highlight-fade 2s ease-out forwards;
+  animation: thread-comment-highlight-fade 2.5s ease-out forwards;
 }
 
 @keyframes thread-comment-highlight-fade {
@@ -1442,12 +1455,13 @@ mark.annotation-highlight:hover {
 }
 
 mark.annotation-highlight--flash {
-  animation: annotation-flash 2s ease-out;
+  animation: annotation-flash 2.5s ease-out;
 }
 
 @keyframes annotation-flash {
-  0% { background: rgba(249, 115, 22, 0.4); }
-  100% { background: rgba(249, 115, 22, 0.12); }
+  0% { background: rgba(249, 115, 22, 0.6); box-shadow: 0 0 8px rgba(249, 115, 22, 0.4); }
+  50% { background: rgba(249, 115, 22, 0.35); box-shadow: 0 0 4px rgba(249, 115, 22, 0.2); }
+  100% { background: rgba(249, 115, 22, 0.12); box-shadow: none; }
 }
 
 [data-theme="dark"] mark.annotation-highlight {
