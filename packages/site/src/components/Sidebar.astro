@@ -17,81 +17,36 @@ function isActive(href: string | undefined): boolean {
   if (!href) return false;
   return normalizePath(href) === normalizePath(currentPath);
 }
+
+function renderNavItem(item: NavItem): string {
+  const accessAttr = item.access === 'private' ? ' data-access="private"' : '';
+
+  if (item.children && item.children.length > 0) {
+    const isOpen = isActiveOrAncestor(item, currentPath);
+    const linkOrTitle = item.href
+      ? `<a href="${item.href}" class="nav-link${isActive(item.href) ? ' active' : ''}">${item.title}</a>`
+      : item.title;
+
+    const childrenHtml = item.children.map(child => renderNavItem(child)).join('');
+
+    return `<li${accessAttr}>
+      <details class="nav-section"${isOpen ? ' open' : ''}>
+        <summary class="nav-section-title">${linkOrTitle}</summary>
+        <ul class="nav-children">${childrenHtml}</ul>
+      </details>
+    </li>`;
+  }
+
+  return `<li${accessAttr}>
+    <div class="nav-item${isActive(item.href) ? ' active' : ''}">
+      <a href="${item.href}" class="nav-link">${item.title}</a>
+    </div>
+  </li>`;
+}
 ---
 
 <nav class="sidebar" aria-label="Documentation navigation">
-  <ul class="nav-list">
-    {navItems.map((item) => (
-      <li data-access={item.access === 'private' ? 'private' : undefined}>
-        {item.children ? (
-          <details class="nav-section" open={isActiveOrAncestor(item, currentPath)}>
-            <summary class="nav-section-title">
-              {item.href ? (
-                <a href={item.href} class:list={['nav-link', { active: isActive(item.href) }]}>{item.title}</a>
-              ) : (
-                item.title
-              )}
-            </summary>
-            <ul class="nav-children">
-              {item.children.map((child) => (
-                <li data-access={child.access === 'private' ? 'private' : undefined}>
-                  {child.children ? (
-                    <details class="nav-section" open={isActiveOrAncestor(child, currentPath)}>
-                      <summary class="nav-section-title">
-                        {child.href ? (
-                          <a href={child.href} class:list={['nav-link', { active: isActive(child.href) }]}>{child.title}</a>
-                        ) : (
-                          child.title
-                        )}
-                      </summary>
-                      <ul class="nav-children">
-                        {child.children.map((grandchild) => (
-                          <li data-access={grandchild.access === 'private' ? 'private' : undefined}>
-                            {grandchild.children ? (
-                              <details class="nav-section" open={isActiveOrAncestor(grandchild, currentPath)}>
-                                <summary class="nav-section-title">
-                                  {grandchild.href ? (
-                                    <a href={grandchild.href} class:list={['nav-link', { active: isActive(grandchild.href) }]}>{grandchild.title}</a>
-                                  ) : (
-                                    grandchild.title
-                                  )}
-                                </summary>
-                                <ul class="nav-children">
-                                  {grandchild.children!.map((leaf) => (
-                                    <li data-access={leaf.access === 'private' ? 'private' : undefined}>
-                                      <div class:list={['nav-item', { active: isActive(leaf.href) }]}>
-                                        <a href={leaf.href} class="nav-link">{leaf.title}</a>
-                                      </div>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </details>
-                            ) : (
-                              <div class:list={['nav-item', { active: isActive(grandchild.href) }]}>
-                                <a href={grandchild.href} class="nav-link">{grandchild.title}</a>
-                              </div>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
-                  ) : (
-                    <div class:list={['nav-item', { active: isActive(child.href) }]}>
-                      <a href={child.href} class="nav-link">{child.title}</a>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </details>
-        ) : (
-          <div class:list={['nav-item', { active: isActive(item.href) }]}>
-            <a href={item.href} class="nav-link">{item.title}</a>
-          </div>
-        )}
-      </li>
-    ))}
-  </ul>
+  <ul class="nav-list" set:html={navItems.map(item => renderNavItem(item)).join('')} />
 </nav>
 
 <script is:inline>
