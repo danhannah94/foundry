@@ -13,6 +13,10 @@ import {
   getReview,
   listPages,
   searchDocs,
+  getPage,
+  getSection,
+  getStatus,
+  reindex,
 } from './http-client.js';
 
 /**
@@ -182,6 +186,47 @@ export function createMcpServer(): Server {
           required: ['query'],
         },
       },
+      // Page tools
+      {
+        name: 'get_page',
+        description: 'Get a single document page by path, including its section structure.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'Path to the document' },
+          },
+          required: ['path'],
+        },
+      },
+      {
+        name: 'get_section',
+        description: 'Get a specific section from a document by path and heading.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'Path to the document' },
+            heading_path: { type: 'string', description: 'Heading path of the section to retrieve' },
+          },
+          required: ['path', 'heading_path'],
+        },
+      },
+      // Status tools
+      {
+        name: 'get_status',
+        description: 'Get Foundry server health and status, including Anvil index statistics.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'reindex',
+        description: 'Trigger a full reindex of all documentation. Requires authentication.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
     ],
   }));
 
@@ -266,6 +311,27 @@ export function createMcpServer(): Server {
           (args.top_k as number) || 10,
           args.auth_token as string | undefined,
         );
+        return json(result);
+      }
+      // ── Pages ──────────────────────────────────────────────
+      case 'get_page': {
+        const result = await getPage(args.path as string);
+        return json(result);
+      }
+      case 'get_section': {
+        const result = await getSection(
+          args.path as string,
+          args.heading_path as string,
+        );
+        return json(result);
+      }
+      // ── Status ─────────────────────────────────────────────
+      case 'get_status': {
+        const result = await getStatus();
+        return json(result);
+      }
+      case 'reindex': {
+        const result = await reindex();
         return json(result);
       }
       default:

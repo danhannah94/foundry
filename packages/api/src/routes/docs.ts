@@ -50,6 +50,18 @@ export function createDocsRouter(anvil: Anvil): Router {
     }
   });
 
+  // GET /docs/:path(*)/sections/:heading(*) - Get a specific section from a document
+  router.get('/docs/:path(*)/sections/:heading(*)', async (req, res) => {
+    try {
+      const section = await anvil.getSection(req.params.path, req.params.heading);
+      if (!section) return res.status(404).json({ error: 'Section not found' });
+      res.json(section);
+    } catch (error) {
+      console.error('Error fetching section:', error);
+      res.status(500).json({ error: 'Failed to fetch section' });
+    }
+  });
+
   // GET /docs/:path(*) - Get single document with section structure
   router.get('/docs/:path(*)', async (req: Request, res: Response<DocumentDetail>) => {
     try {

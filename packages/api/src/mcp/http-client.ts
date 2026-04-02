@@ -275,6 +275,39 @@ interface SearchResponse {
 }
 
 /**
+ * Get a single page by path.
+ */
+export async function getPage(
+  path: string,
+): Promise<object> {
+  return apiFetch<object>(`/api/docs/${encodeURIComponent(path)}`);
+}
+
+/**
+ * Get a specific section from a document.
+ */
+export async function getSection(
+  path: string,
+  headingPath: string,
+): Promise<object> {
+  return apiFetch<object>(`/api/docs/${encodeURIComponent(path)}/sections/${encodeURIComponent(headingPath)}`);
+}
+
+/**
+ * Get server health/status.
+ */
+export async function getStatus(): Promise<object> {
+  return apiFetch<object>('/api/health');
+}
+
+/**
+ * Trigger a full reindex of documentation.
+ */
+export async function reindex(): Promise<object> {
+  return apiFetch<object>('/api/reindex', { method: 'POST' });
+}
+
+/**
  * Semantic search via HTTP API.
  */
 export async function searchDocs(
