@@ -1,17 +1,14 @@
 import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
+import node from '@astrojs/node';
 import rehypeSlug from 'rehype-slug';
 import rehypeAutolinkHeadings from 'rehype-autolink-headings';
 import remarkAdmonitions from './src/plugins/remark-admonitions.ts';
 import remarkMermaid from './src/plugins/remark-mermaid.ts';
 
-console.error('>>> remarkAdmonitions type:', typeof remarkAdmonitions, remarkAdmonitions?.name);
-console.error('>>> remarkMermaid type:', typeof remarkMermaid, remarkMermaid?.name);
-console.error('>>> remarkAdmonitions keys:', remarkAdmonitions ? Object.keys(remarkAdmonitions) : 'null');
-
 export default defineConfig({
-  site: 'https://danhannah94.github.io',
-  base: '/foundry',
+  output: 'server',
+  adapter: node({ mode: 'standalone' }),
   integrations: [react()],
 
   markdown: {
@@ -41,8 +38,6 @@ export default defineConfig({
       },
     },
   },
-
-  // Content lives in content/ directory, populated by build script
 
   vite: {
     optimizeDeps: {
