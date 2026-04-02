@@ -8,9 +8,11 @@ import { getDocsPath } from './config.js';
 import { createHealthRouter } from './routes/health.js';
 import { createDocsRouter } from './routes/docs.js';
 import { createSearchRouter } from './routes/search.js';
+import { createReindexRouter } from './routes/reindex.js';
 import { createAnnotationsRouter } from './routes/annotations.js';
 import { createReviewsRouter } from './routes/reviews.js';
 import { createAccessRouter } from './routes/access.js';
+import { createWebhookRouter } from './routes/webhook.js';
 import { createPagesRouter } from './routes/pages.js';
 import { requireAuth, logAuthStatus } from './middleware/auth.js';
 import { loadAccessMap, getAccessLevel } from './access.js';
@@ -164,6 +166,41 @@ async function startServer(): Promise<void> {
       }
     });
 
+    // Webhook content update callback
+    // Defined here so it can capture `anvil` from the closure
+    async function onContentUpdated(changedFiles: string[], isInitialClone: boolean) {
+      const mdFiles = changedFiles.filter(f => f.endsWith('.md'));
+
+      // TODO: Cache invalidation (invalidateAll/invalidateRoute) requires IPC to the Astro SSR process.
+      // The page cache lives in packages/site, not packages/api.
+      // For now, we log what would be invalidated. The page cache has a TTL
+      // or can be manually cleared via /api/cache-stats endpoint.
+      // TODO: Nav invalidation (invalidateNav) also lives in packages/site — same IPC needed.
+      if (isInitialClone || changedFiles.length === 0) {
+        console.log('[webhook] Full content refresh — all caches need invalidation');
+      } else {
+        console.log(`[webhook] Changed files: ${mdFiles.join(', ')}`);
+      }
+
+      // Anvil reindex (if available)
+      if (anvil) {
+        try {
+          if (isInitialClone || mdFiles.length === 0) {
+            console.log('[webhook] Triggering full Anvil reindex');
+            await anvil.index();
+          } else {
+            console.log(`[webhook] Reindexing ${mdFiles.length} changed files`);
+            await anvil.reindexFiles(mdFiles);
+          }
+        } catch (error) {
+          console.error('[webhook] Anvil reindex failed:', error);
+        }
+      }
+    }
+
+    // Mount webhook router (works with or without Anvil)
+    app.use('/api', createWebhookRouter({ onContentUpdated }));
+
     // Mount access router (always available, no anvil dependency)
     app.use('/api', createAccessRouter());
 
@@ -175,6 +212,7 @@ async function startServer(): Promise<void> {
       app.use('/api', createHealthRouter(anvil));
       app.use('/api', createDocsRouter(anvil));
       app.use('/api', createSearchRouter(anvil));
+      app.use('/api', createReindexRouter(anvil));
     } else {
       // Basic health endpoint when Anvil unavailable
       app.get('/api/health', (req, res) => res.json({

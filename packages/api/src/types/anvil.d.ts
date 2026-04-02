@@ -10,6 +10,8 @@ declare module '@claymore-dev/anvil' {
     getPage(path: string): Promise<any>;
     getSection(path: string, heading: string): Promise<any>;
     listPages(): Promise<{ pages: any[] }>;
+    index(): Promise<any>;
+    reindexFiles(files: string[]): Promise<any>;
   }
   
   export function createAnvil(options: { docsPath: string }): Promise<Anvil>;
