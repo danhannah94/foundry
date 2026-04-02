@@ -8,6 +8,7 @@ import PlayAllManager from '../components/PlayAllManager.tsx';
 import TtsControlsBar from '../components/TtsControlsBar.tsx';
 import AnnotationThread from '../components/AnnotationThread.tsx';
 import CommentDraft from '../components/CommentDraft.tsx';
+import ContentStatusBanner from '../components/ContentStatusBanner.tsx';
 
 import TokenModal from '../components/TokenModal.tsx';
 import AuthIndicator from '../components/AuthIndicator.tsx';
@@ -68,6 +69,7 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
       <Breadcrumbs currentPath={currentPath} />
 
       <article class="content">
+        <ContentStatusBanner client:load />
         <slot />
         <TtsSectionManager client:load />
         <PlayAllManager client:load />
