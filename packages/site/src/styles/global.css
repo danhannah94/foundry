@@ -874,7 +874,7 @@ pre.mermaid {
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
-  padding: var(--spacing-md);
+  padding: var(--spacing-sm);
   border-bottom: 1px solid var(--color-border);
   background: var(--color-bg-secondary);
 }
@@ -882,7 +882,7 @@ pre.mermaid {
 .thread-header h3 {
   margin: 0;
   flex: 1;
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-heading);
 }
@@ -971,13 +971,14 @@ pre.mermaid {
 }
 
 .thread-toggle {
+  display: inline-flex;
+  align-items: center;
   background: none;
   border: none;
   cursor: pointer;
   padding: var(--spacing-xs);
   border-radius: 4px;
   color: var(--color-text-secondary);
-  font-size: 1.2em;
   transition: color var(--transition-fast), background-color var(--transition-fast);
 }
 
@@ -987,13 +988,14 @@ pre.mermaid {
 }
 
 .thread-refresh-btn {
+  display: inline-flex;
+  align-items: center;
   background: none;
   border: none;
   cursor: pointer;
   padding: var(--spacing-xs);
   border-radius: 4px;
   color: var(--color-text-secondary);
-  font-size: 1em;
   line-height: 1;
   transition: color var(--transition-fast), background-color var(--transition-fast);
 }
@@ -1107,7 +1109,7 @@ pre.mermaid {
 
 .thread-comment-collapsed {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--spacing-xs);
   cursor: pointer;
   opacity: 0.7;
@@ -1119,43 +1121,40 @@ pre.mermaid {
 
 .thread-comment-header {
   display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
+  align-items: flex-start;
+  justify-content: space-between;
   margin-bottom: var(--spacing-sm);
-  font-size: 0.8rem;
 }
 
-.thread-comment-status {
-  font-size: 1em;
-}
-
-.thread-comment-status--dimmed {
-  opacity: 0.5;
+.thread-comment-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .thread-comment-author {
   font-weight: 600;
+  font-size: 0.8rem;
   color: var(--color-text);
 }
 
-.thread-comment-jump {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 2px;
-  border-radius: 3px;
-  opacity: 0.6;
-  transition: opacity var(--transition-fast), background-color var(--transition-fast);
-}
-
-.thread-comment-jump:hover {
-  opacity: 1;
-  background: var(--color-bg);
-}
-
 .thread-comment-time {
+  font-size: 0.7rem;
+  font-weight: 500;
   color: var(--color-text-muted);
-  margin-left: auto;
+  margin-left: 0;
+}
+
+.thread-comment-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.thread-comment:hover .thread-comment-actions {
+  opacity: 1;
 }
 
 .thread-comment-collapse {
@@ -1174,18 +1173,15 @@ pre.mermaid {
 }
 
 .thread-resolve-btn {
+  display: inline-flex;
+  align-items: center;
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  padding: 0 var(--spacing-xs);
-  opacity: 0;
-  transition: opacity var(--transition-fast);
-}
-
-.thread-comment:hover .thread-resolve-btn {
-  opacity: 1;
+  color: var(--color-text-muted);
+  padding: 2px;
+  border-radius: 3px;
+  transition: color var(--transition-fast);
 }
 
 .thread-resolve-btn:hover {
@@ -1193,13 +1189,16 @@ pre.mermaid {
 }
 
 .thread-reopen-btn {
+  display: inline-flex;
+  align-items: center;
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 0.7rem;
-  color: var(--color-text-secondary);
-  padding: 0 var(--spacing-xs);
+  color: var(--color-text-muted);
+  padding: 2px;
+  border-radius: 3px;
   margin-left: auto;
+  transition: color var(--transition-fast);
 }
 
 .thread-reopen-btn:hover {
@@ -1229,18 +1228,15 @@ pre.mermaid {
 
 /* --- Reply Button and Editor --- */
 .thread-reply-btn {
+  display: inline-flex;
+  align-items: center;
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  padding: 0 var(--spacing-xs);
-  opacity: 0;
-  transition: opacity var(--transition-fast);
-}
-
-.thread-comment:hover .thread-reply-btn {
-  opacity: 1;
+  color: var(--color-text-muted);
+  padding: 2px;
+  border-radius: 3px;
+  transition: color var(--transition-fast);
 }
 
 .thread-reply-btn:hover {
