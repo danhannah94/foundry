@@ -377,7 +377,7 @@ export default function AnnotationThread({ docPath }: Props) {
   }, [isVisible]);
 
   // Fetch annotations
-  const fetchAnnotations = useCallback(async () => {
+  const fetchAnnotations = useCallback(async (silent = false) => {
     if (!isAuthenticated()) {
       setLoading(false);
       setAnnotations([]);
@@ -385,7 +385,12 @@ export default function AnnotationThread({ docPath }: Props) {
       return;
     }
 
-    setLoading(true);
+    // Capture scroll position BEFORE any state changes that trigger re-render
+    const scrollTop = threadContentRef.current?.scrollTop ?? 0;
+
+    if (!silent) {
+      setLoading(true);
+    }
     setError(null);
 
     try {
@@ -401,7 +406,6 @@ export default function AnnotationThread({ docPath }: Props) {
       const recoveredAnnotations = await recoverOrphanedAnnotations(data);
 
       // Then run orphan detection with simple quoted-text logic
-      const scrollTop = threadContentRef.current?.scrollTop ?? 0;
       const processedAnnotations = await detectOrphansAndDrift(recoveredAnnotations);
       setAnnotations(processedAnnotations);
       // Restore scroll position after React re-render
@@ -807,10 +811,10 @@ export default function AnnotationThread({ docPath }: Props) {
         return false;
       }
 
-      // Clear reply state and refresh annotations
+      // Clear reply state and refresh annotations (silent to preserve scroll)
       setReplyingTo(null);
       setReplyContent('');
-      fetchAnnotations();
+      fetchAnnotations(true);
       return true;
     } catch (err) {
       console.warn('Error submitting reply:', err);
@@ -852,7 +856,7 @@ export default function AnnotationThread({ docPath }: Props) {
                 }}
                 title="Reopen"
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
               </button>
             )}
           </div>
@@ -872,7 +876,7 @@ export default function AnnotationThread({ docPath }: Props) {
                     onClick={(e) => { e.stopPropagation(); setReplyingTo(annotation.id); setReplyContent(''); }}
                     title="Reply"
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
                   </button>
                 )}
                 {authenticated && !isReply && !isResolved && (
@@ -905,7 +909,7 @@ export default function AnnotationThread({ docPath }: Props) {
                     disabled={resolvingId === annotation.id}
                     title="Resolve"
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                   </button>
                 )}
                 {isResolved && (
@@ -1090,7 +1094,7 @@ export default function AnnotationThread({ docPath }: Props) {
           aria-label="Refresh annotations"
           title="Refresh annotations"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         </button>
         <button
           className="thread-toggle"

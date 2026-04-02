@@ -280,7 +280,7 @@ h6:hover .heading-anchor {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr var(--thread-panel-width);
   min-height: 100vh;
-  overflow: hidden; /* prevent grid blowout */
+  overflow-x: hidden; /* prevent wide content blowout without breaking sticky */
 }
 
 .sidebar {
@@ -1179,8 +1179,8 @@ pre.mermaid {
   border: none;
   cursor: pointer;
   color: var(--color-text-muted);
-  padding: 2px;
-  border-radius: 3px;
+  padding: 4px;
+  border-radius: 4px;
   transition: color var(--transition-fast);
 }
 
@@ -1195,8 +1195,8 @@ pre.mermaid {
   border: none;
   cursor: pointer;
   color: var(--color-text-muted);
-  padding: 2px;
-  border-radius: 3px;
+  padding: 4px;
+  border-radius: 4px;
   margin-left: auto;
   transition: color var(--transition-fast);
 }
@@ -1234,8 +1234,8 @@ pre.mermaid {
   border: none;
   cursor: pointer;
   color: var(--color-text-muted);
-  padding: 2px;
-  border-radius: 3px;
+  padding: 4px;
+  border-radius: 4px;
   transition: color var(--transition-fast);
 }
 
