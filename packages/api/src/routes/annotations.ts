@@ -12,6 +12,7 @@ interface AnnotationListQuery {
   doc_path: string;
   section?: string;
   status?: AnnotationStatus;
+  review_id?: string;
 }
 
 /**
@@ -23,7 +24,7 @@ export function createAnnotationsRouter(): Router {
   // GET /annotations - List annotations with filters
   router.get('/annotations', async (req: Request<{}, Annotation[], {}, AnnotationListQuery>, res: Response<Annotation[]>) => {
     try {
-      const { doc_path, section, status } = req.query;
+      const { doc_path, section, status, review_id } = req.query;
 
       if (!doc_path) {
         return res.status(400).json({
@@ -44,6 +45,11 @@ export function createAnnotationsRouter(): Router {
       if (status) {
         query += ' AND status = ?';
         params.push(status);
+      }
+
+      if (review_id) {
+        query += ' AND review_id = ?';
+        params.push(review_id);
       }
 
       query += ' ORDER BY created_at DESC';

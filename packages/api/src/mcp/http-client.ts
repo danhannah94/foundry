@@ -35,10 +35,12 @@ export async function listAnnotations(
   docPath: string,
   section?: string,
   status?: string,
+  reviewId?: string,
 ): Promise<Annotation[]> {
   const params = new URLSearchParams({ doc_path: docPath });
   if (section) params.set('section', section);
   if (status) params.set('status', status);
+  if (reviewId) params.set('review_id', reviewId);
   return apiFetch<Annotation[]>(`/api/annotations?${params}`);
 }
 

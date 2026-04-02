@@ -39,6 +39,10 @@ export function registerAnnotationTools(server: Server): void {
                 type: 'string',
                 description: 'Optional status filter (draft, submitted, replied, resolved, orphaned)'
               },
+              review_id: {
+                type: 'string',
+                description: 'Optional review ID to filter annotations by review'
+              },
               auth_token: {
                 type: 'string',
                 description: 'Authentication token (kept for backward compatibility)'
@@ -201,7 +205,8 @@ export function registerAnnotationTools(server: Server): void {
         const result = await listAnnotations(
           args.doc_path as string,
           args.section as string | undefined,
-          args.status as string | undefined
+          args.status as string | undefined,
+          args.review_id as string | undefined
         );
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
