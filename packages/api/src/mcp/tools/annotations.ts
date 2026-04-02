@@ -5,6 +5,8 @@ import {
   createAnnotation,
   resolveAnnotation,
   deleteAnnotation,
+  editAnnotation,
+  reopenAnnotation,
   submitReview,
 } from '../http-client.js';
 
@@ -134,6 +136,38 @@ export function registerAnnotationTools(server: Server): void {
             },
             required: ['annotation_id']
           }
+        },
+        {
+          name: 'edit_annotation',
+          description: 'Edit the content of an existing annotation.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              annotation_id: {
+                type: 'string',
+                description: 'ID of the annotation to edit'
+              },
+              content: {
+                type: 'string',
+                description: 'New content for the annotation'
+              }
+            },
+            required: ['annotation_id', 'content']
+          }
+        },
+        {
+          name: 'reopen_annotation',
+          description: 'Reopen a previously resolved annotation.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              annotation_id: {
+                type: 'string',
+                description: 'ID of the annotation to reopen'
+              }
+            },
+            required: ['annotation_id']
+          }
         }
       ]
     };
@@ -184,6 +218,19 @@ export function registerAnnotationTools(server: Server): void {
       case 'delete_annotation': {
         const result = await deleteAnnotation(args.annotation_id as string);
         return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      }
+
+      case 'edit_annotation': {
+        const result = await editAnnotation(
+          args.annotation_id as string,
+          args.content as string,
+        );
+        return { content: [{ type: "text", text: JSON.stringify({ status: "updated", annotation: result }) }] };
+      }
+
+      case 'reopen_annotation': {
+        const result = await reopenAnnotation(args.annotation_id as string);
+        return { content: [{ type: "text", text: JSON.stringify({ status: "reopened", annotation: result }) }] };
       }
 
       default:

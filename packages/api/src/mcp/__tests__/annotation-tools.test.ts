@@ -7,6 +7,8 @@ vi.mock('../http-client.js', () => ({
   createAnnotation: vi.fn(),
   resolveAnnotation: vi.fn(),
   deleteAnnotation: vi.fn(),
+  editAnnotation: vi.fn(),
+  reopenAnnotation: vi.fn(),
   submitReview: vi.fn(),
 }));
 
@@ -15,6 +17,8 @@ import {
   createAnnotation,
   resolveAnnotation,
   deleteAnnotation,
+  editAnnotation,
+  reopenAnnotation,
   submitReview,
 } from '../http-client.js';
 
@@ -22,6 +26,8 @@ const mockListAnnotations = vi.mocked(listAnnotations);
 const mockCreateAnnotation = vi.mocked(createAnnotation);
 const mockResolveAnnotation = vi.mocked(resolveAnnotation);
 const mockDeleteAnnotation = vi.mocked(deleteAnnotation);
+const mockEditAnnotation = vi.mocked(editAnnotation);
+const mockReopenAnnotation = vi.mocked(reopenAnnotation);
 const mockSubmitReview = vi.mocked(submitReview);
 
 function makeAnnotation(overrides: Partial<Annotation> = {}): Annotation {
@@ -229,5 +235,45 @@ describe('deleteAnnotation', () => {
 
     expect(result.status).toBe('error');
     expect(result.message).toBe('Annotation not found');
+  });
+});
+
+describe('editAnnotation', () => {
+  it('should edit annotation with correct args and return updated annotation', async () => {
+    const updated = makeAnnotation({ content: 'Updated content' });
+    mockEditAnnotation.mockResolvedValue(updated);
+
+    const result = await editAnnotation('test-id-1', 'Updated content');
+
+    expect(mockEditAnnotation).toHaveBeenCalledWith('test-id-1', 'Updated content');
+    expect(result.id).toBe('test-id-1');
+    expect(result.content).toBe('Updated content');
+  });
+
+  it('should throw error for non-existent annotation', async () => {
+    mockEditAnnotation.mockRejectedValue(new Error('Annotation not found'));
+
+    await expect(editAnnotation('non-existent-id', 'content'))
+      .rejects.toThrow('Annotation not found');
+  });
+});
+
+describe('reopenAnnotation', () => {
+  it('should reopen annotation with correct args and return updated annotation', async () => {
+    const updated = makeAnnotation({ status: 'submitted' });
+    mockReopenAnnotation.mockResolvedValue(updated);
+
+    const result = await reopenAnnotation('test-id-1');
+
+    expect(mockReopenAnnotation).toHaveBeenCalledWith('test-id-1');
+    expect(result.id).toBe('test-id-1');
+    expect(result.status).toBe('submitted');
+  });
+
+  it('should throw error for non-existent annotation', async () => {
+    mockReopenAnnotation.mockRejectedValue(new Error('Annotation not found'));
+
+    await expect(reopenAnnotation('non-existent-id'))
+      .rejects.toThrow('Annotation not found');
   });
 });
