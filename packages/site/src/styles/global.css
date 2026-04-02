@@ -280,7 +280,6 @@ h6:hover .heading-anchor {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr var(--thread-panel-width);
   min-height: 100vh;
-  overflow-x: hidden; /* prevent wide content blowout without breaking sticky */
 }
 
 .sidebar {
@@ -301,6 +300,7 @@ h6:hover .heading-anchor {
   padding: var(--spacing-xl);
   padding-top: calc(var(--header-height) + var(--spacing-xl));
   min-width: 0; /* prevent wide content from blowing out the grid */
+  overflow-x: hidden; /* contain wide tables/code — safe here because this column isn't sticky */
 }
 
 .content {
