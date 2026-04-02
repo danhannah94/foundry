@@ -109,6 +109,10 @@
       children:
         - title: Design
           path: projects/forge/design.md
+    - title: Lookout
+      children:
+        - title: Design
+          path: projects/lookout/design.md
     - title: QuoteAI
       children:
         - title: Design
