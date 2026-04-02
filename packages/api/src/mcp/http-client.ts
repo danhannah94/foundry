@@ -246,6 +246,20 @@ export async function getReview(
   return apiFetch<{ review: Review; annotations: Annotation[] }>(`/api/reviews/${reviewId}`);
 }
 
+/**
+ * List pages from the navigation tree.
+ */
+export async function listPages(
+  includePrivate?: boolean,
+): Promise<Array<{ title: string; path: string; access: string }>> {
+  const params = new URLSearchParams();
+  if (includePrivate) params.set('include_private', 'true');
+  const qs = params.toString();
+  return apiFetch<Array<{ title: string; path: string; access: string }>>(
+    `/api/pages${qs ? `?${qs}` : ''}`,
+  );
+}
+
 interface SearchResult {
   path: string;
   heading: string;

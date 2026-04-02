@@ -2,6 +2,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { registerSearchTool } from './tools/search.js';
 import { registerAnnotationTools } from './tools/annotations.js';
 import { registerReviewTools } from './tools/review-tools.js';
+import { registerNavTools } from './tools/nav-tools.js';
 
 /**
  * Creates and configures the MCP server for Foundry.
@@ -13,6 +14,9 @@ import { registerReviewTools } from './tools/review-tools.js';
  * - create_annotation: Create new annotation
  * - resolve_annotation: Mark annotation as resolved
  * - submit_review: Submit annotations as review batch
+ * - list_reviews: List reviews for a document
+ * - get_review: Get a review by ID with annotations
+ * - list_pages: List pages from nav tree
  */
 export function createMcpServer(): Server {
   const server = new Server({
@@ -32,6 +36,9 @@ export function createMcpServer(): Server {
 
   // Register review tools
   registerReviewTools(server);
+
+  // Register nav tools
+  registerNavTools(server);
 
   return server;
 }
