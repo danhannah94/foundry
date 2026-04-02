@@ -95,9 +95,39 @@ function jumpToSection(headingPath: string) {
 }
 
 // Inline highlight helpers for bidirectional navigation
+function normalizeWs(s: string): string {
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+// Build a mapping from normalized-string index → original-string index.
+// Returns an array of length normalizedStr.length + 1 (extra end sentinel).
+function buildNormMap(original: string): number[] {
+  const map: number[] = [];
+  let i = 0;
+  // Skip leading whitespace (trim)
+  while (i < original.length && /\s/.test(original[i])) i++;
+  // Find end of content (trim trailing whitespace)
+  let end = original.length;
+  while (end > i && /\s/.test(original[end - 1])) end--;
+
+  while (i < end) {
+    if (/\s/.test(original[i])) {
+      map.push(i); // collapsed whitespace → single space
+      while (i < end && /\s/.test(original[i])) i++;
+    } else {
+      map.push(i);
+      i++;
+    }
+  }
+  map.push(end); // end sentinel
+  return map;
+}
+
 function highlightText(rootElement: Element, searchText: string, annotationId: string): boolean {
   const walker = document.createTreeWalker(rootElement, NodeFilter.SHOW_TEXT);
   let node: Node | null;
+
+  // First pass: exact match (fast path)
   while ((node = walker.nextNode())) {
     const idx = (node.textContent || '').indexOf(searchText);
     if (idx !== -1) {
@@ -111,11 +141,41 @@ function highlightText(rootElement: Element, searchText: string, annotationId: s
         range.surroundContents(mark);
         return true;
       } catch {
-        // surroundContents throws if range spans multiple elements — skip gracefully
         return false;
       }
     }
   }
+
+  // Second pass: normalized whitespace match
+  const normalizedSearch = normalizeWs(searchText);
+  if (normalizedSearch === searchText) return false; // already tried exact
+
+  const walker2 = document.createTreeWalker(rootElement, NodeFilter.SHOW_TEXT);
+  while ((node = walker2.nextNode())) {
+    const originalText = node.textContent || '';
+    const normalizedText = normalizeWs(originalText);
+    const normIdx = normalizedText.indexOf(normalizedSearch);
+    if (normIdx !== -1) {
+      const indexMap = buildNormMap(originalText);
+      const origStart = indexMap[normIdx];
+      const origEnd = normIdx + normalizedSearch.length < indexMap.length
+        ? indexMap[normIdx + normalizedSearch.length]
+        : originalText.length;
+      try {
+        const range = document.createRange();
+        range.setStart(node, origStart);
+        range.setEnd(node, origEnd);
+        const mark = document.createElement('mark');
+        mark.className = 'annotation-highlight';
+        mark.dataset.annotationId = annotationId;
+        range.surroundContents(mark);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  }
+
   return false;
 }
 
@@ -601,18 +661,52 @@ export default function AnnotationThread({ docPath }: Props) {
       highlightText(contentElement, annotation.quoted_text, annotation.id);
     }
 
-    // Click handler: mark → scroll to comment in thread
+    // Click handler: mark → auto-expand thread group and scroll to comment
     const handleMarkClick = (e: Event) => {
       const mark = (e.target as Element).closest('mark.annotation-highlight');
       if (!mark) return;
       const annotationId = (mark as HTMLElement).dataset.annotationId;
       if (!annotationId) return;
-      const comment = document.querySelector(`.thread-comment[data-annotation-id="${annotationId}"]`);
-      if (comment) {
-        comment.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        comment.classList.add('thread-comment-highlight');
-        setTimeout(() => comment.classList.remove('thread-comment-highlight'), 2000);
+
+      // Look up the annotation from state
+      const annotation = annotations.find(a => a.id === annotationId);
+      if (!annotation) return;
+
+      // 1. Ensure thread panel is visible
+      setIsVisible(true);
+      localStorage.setItem(STORAGE_KEY, 'true');
+      document.getElementById('layout')?.classList.remove('thread-hidden');
+
+      // 2. Determine section (active vs archived) and expand review group
+      const isArchived = annotation.status === 'resolved';
+      if (isArchived) {
+        setShowArchived(true);
       }
+      if (annotation.review_id) {
+        const prefix = isArchived ? 'archive:' : 'active:';
+        setExpandedReviews(prev => new Set(prev).add(prefix + annotation.review_id));
+      }
+
+      // 3. If this is a reply, expand the parent thread
+      if (annotation.parent_id) {
+        let topParentId = annotation.parent_id;
+        let parent = annotations.find(a => a.id === topParentId);
+        while (parent?.parent_id) {
+          topParentId = parent.parent_id;
+          parent = annotations.find(a => a.id === topParentId);
+        }
+        setExpandedThreads(prev => new Set(prev).add(topParentId));
+      }
+
+      // 4. Wait for React to render expanded content, then scroll
+      requestAnimationFrame(() => {
+        const comment = document.querySelector(`.thread-comment[data-annotation-id="${annotationId}"]`);
+        if (comment) {
+          comment.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          comment.classList.add('thread-comment-highlight');
+          setTimeout(() => comment.classList.remove('thread-comment-highlight'), 2000);
+        }
+      });
     };
 
     contentElement.addEventListener('click', handleMarkClick);
