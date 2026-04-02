@@ -4,6 +4,7 @@ import type { Annotation } from '../../types/annotations.js';
 // Mock the http-client module
 vi.mock('../http-client.js', () => ({
   listAnnotations: vi.fn(),
+  getAnnotation: vi.fn(),
   createAnnotation: vi.fn(),
   resolveAnnotation: vi.fn(),
   deleteAnnotation: vi.fn(),
@@ -14,6 +15,7 @@ vi.mock('../http-client.js', () => ({
 
 import {
   listAnnotations,
+  getAnnotation,
   createAnnotation,
   resolveAnnotation,
   deleteAnnotation,
@@ -23,6 +25,7 @@ import {
 } from '../http-client.js';
 
 const mockListAnnotations = vi.mocked(listAnnotations);
+const mockGetAnnotation = vi.mocked(getAnnotation);
 const mockCreateAnnotation = vi.mocked(createAnnotation);
 const mockResolveAnnotation = vi.mocked(resolveAnnotation);
 const mockDeleteAnnotation = vi.mocked(deleteAnnotation);
@@ -84,6 +87,36 @@ describe('listAnnotations', () => {
     expect(results).toHaveLength(1);
     expect(results[0].content).toBe('Resolved annotation');
     expect(mockListAnnotations).toHaveBeenCalledWith('test-doc.md', undefined, 'resolved');
+  });
+});
+
+describe('getAnnotation', () => {
+  it('should get annotation by ID with replies', async () => {
+    const annotation = makeAnnotation({ id: 'parent-1', content: 'Parent comment' });
+    const replies = [
+      makeAnnotation({ id: 'reply-1', parent_id: 'parent-1', content: 'First reply', created_at: '2024-01-01T01:00:00.000Z' }),
+      makeAnnotation({ id: 'reply-2', parent_id: 'parent-1', content: 'Second reply', created_at: '2024-01-01T02:00:00.000Z' }),
+    ];
+    mockGetAnnotation.mockResolvedValue({ annotation, replies });
+
+    const result = await getAnnotation('parent-1');
+
+    expect(result.annotation.id).toBe('parent-1');
+    expect(result.annotation.content).toBe('Parent comment');
+    expect(result.replies).toHaveLength(2);
+    expect(result.replies[0].id).toBe('reply-1');
+    expect(result.replies[1].id).toBe('reply-2');
+    expect(mockGetAnnotation).toHaveBeenCalledWith('parent-1');
+  });
+
+  it('should return empty replies array when no replies exist', async () => {
+    const annotation = makeAnnotation({ id: 'solo-1' });
+    mockGetAnnotation.mockResolvedValue({ annotation, replies: [] });
+
+    const result = await getAnnotation('solo-1');
+
+    expect(result.annotation.id).toBe('solo-1');
+    expect(result.replies).toEqual([]);
   });
 });
 
