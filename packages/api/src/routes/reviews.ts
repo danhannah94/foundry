@@ -2,12 +2,14 @@ import { Router, Request, Response } from 'express';
 import { createId } from '@paralleldrive/cuid2';
 import { getDb } from '../db.js';
 import {
+  Annotation,
   Review,
   CreateReviewBody
 } from '../types/annotations.js';
 
 interface ReviewListQuery {
   doc_path: string;
+  status?: string;
 }
 
 /**
@@ -19,7 +21,7 @@ export function createReviewsRouter(): Router {
   // GET /reviews - List reviews for a document
   router.get('/reviews', async (req: Request<{}, Review[], {}, ReviewListQuery>, res: Response<Review[]>) => {
     try {
-      const { doc_path } = req.query;
+      const { doc_path, status } = req.query;
 
       if (!doc_path) {
         return res.status(400).json({
@@ -29,8 +31,18 @@ export function createReviewsRouter(): Router {
 
       const db = getDb();
 
-      const stmt = db.prepare('SELECT * FROM reviews WHERE doc_path = ? ORDER BY created_at DESC');
-      const rows = stmt.all(doc_path) as Review[];
+      let query = 'SELECT * FROM reviews WHERE doc_path = ?';
+      const params: any[] = [doc_path];
+
+      if (status) {
+        query += ' AND status = ?';
+        params.push(status);
+      }
+
+      query += ' ORDER BY created_at DESC';
+
+      const stmt = db.prepare(query);
+      const rows = stmt.all(...params) as Review[];
 
       res.json(rows);
     } catch (error) {
@@ -38,6 +50,29 @@ export function createReviewsRouter(): Router {
       res.status(500).json({
         error: 'Failed to list reviews',
       } as any);
+    }
+  });
+
+  // GET /reviews/:id - Get single review with its annotations
+  router.get('/reviews/:id', async (req: Request<{ id: string }>, res: Response) => {
+    try {
+      const { id } = req.params;
+      const db = getDb();
+
+      const review = db.prepare('SELECT * FROM reviews WHERE id = ?').get(id) as Review | undefined;
+
+      if (!review) {
+        return res.status(404).json({ error: 'Review not found' });
+      }
+
+      const annotations = db.prepare(
+        'SELECT * FROM annotations WHERE review_id = ? ORDER BY created_at ASC'
+      ).all(id) as Annotation[];
+
+      res.json({ review, annotations });
+    } catch (error) {
+      console.error('Error getting review:', error);
+      res.status(500).json({ error: 'Failed to get review' });
     }
   });
 
