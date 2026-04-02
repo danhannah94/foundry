@@ -1,20 +1,22 @@
 ---
-import { getCollection, render } from 'astro:content';
+import { renderMarkdown } from '../../utils/markdown';
 import DocLayout from '../../layouts/DocLayout.astro';
+import path from 'node:path';
+import fs from 'node:fs';
 
-export async function getStaticPaths() {
-  const docs = await getCollection('docs');
-  return docs.map((entry) => ({
-    params: { slug: entry.id },
-    props: { entry },
-  }));
+const slug = Astro.params.slug;
+const contentDir = path.resolve(process.cwd(), 'content');
+const filePath = path.join(contentDir, `${slug}.md`);
+
+// Check if file exists, return 404 if not
+if (!fs.existsSync(filePath)) {
+  return Astro.redirect('/404');
 }
 
-const { entry } = Astro.props;
-const { Content } = await render(entry);
-const title = entry.data.title || entry.id;
+const { html, frontmatter } = await renderMarkdown(filePath);
+const title = frontmatter.title || slug;
 ---
 
 <DocLayout title={title} currentPath={Astro.url.pathname}>
-  <Content />
+  <Fragment set:html={html} />
 </DocLayout>
