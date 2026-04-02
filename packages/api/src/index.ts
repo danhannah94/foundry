@@ -3,6 +3,7 @@ import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { loadAnvil } from './anvil-loader.js';
+import { ContentFetcher } from './content-fetcher.js';
 import { getDocsPath } from './config.js';
 import { createHealthRouter } from './routes/health.js';
 import { createDocsRouter } from './routes/docs.js';
@@ -21,6 +22,17 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const PORT = process.env.FOUNDRY_PORT ? parseInt(process.env.FOUNDRY_PORT, 10) : 3001;
 const STATIC_PATH = process.env.FOUNDRY_STATIC_PATH || join(__dirname, '../../site/dist');
+
+// Content fetcher singleton (initialized if CONTENT_REPO is set)
+let contentFetcher: ContentFetcher | null = null;
+
+/**
+ * Returns the ContentFetcher instance, or null if not configured.
+ * Used by webhook endpoint (F3-S2) to trigger pulls.
+ */
+export function getContentFetcher(): ContentFetcher | null {
+  return contentFetcher;
+}
 
 interface ErrorWithStatus extends Error {
   status?: number;
@@ -75,6 +87,30 @@ async function startServer(): Promise<void> {
     // Get docs path from configuration
     const docsPath = getDocsPath();
     console.log(`📁 Using docs path: ${docsPath}`);
+
+    // Initialize content fetcher (runtime git clone/pull)
+    const contentRepo = process.env.CONTENT_REPO;
+    if (contentRepo) {
+      const contentBranch = process.env.CONTENT_BRANCH || 'main';
+      const deployKeyPath = process.env.DEPLOY_KEY_PATH;
+      contentFetcher = new ContentFetcher({
+        contentDir: docsPath,
+        repoUrl: contentRepo,
+        branch: contentBranch,
+        deployKeyPath: deployKeyPath,
+      });
+      console.log(`📦 Content fetcher enabled: ${contentRepo} (branch: ${contentBranch})`);
+      try {
+        const result = await contentFetcher.pull();
+        if (result) {
+          console.log(`✅ Content ${result.isInitialClone ? 'cloned' : 'updated'}: ${result.ref.substring(0, 8)}`);
+        }
+      } catch (error) {
+        console.error('⚠️ Initial content fetch failed (continuing without content):', error);
+      }
+    } else {
+      console.log('📦 Content fetcher disabled (no CONTENT_REPO set)');
+    }
 
     // Initialize Anvil (dynamic import — handles missing package gracefully)
     const anvil = await loadAnvil(docsPath);
