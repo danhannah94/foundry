@@ -1,44 +1,277 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { registerSearchTool } from './tools/search.js';
-import { registerAnnotationTools } from './tools/annotations.js';
-import { registerReviewTools } from './tools/review-tools.js';
-import { registerNavTools } from './tools/nav-tools.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+  listAnnotations,
+  getAnnotation,
+  createAnnotation,
+  editAnnotation,
+  deleteAnnotation,
+  resolveAnnotation,
+  reopenAnnotation,
+  submitReview,
+  listReviews,
+  getReview,
+  listPages,
+  searchDocs,
+} from './http-client.js';
 
 /**
  * Creates and configures the MCP server for Foundry.
- * All tools communicate via HTTP API (no direct DB or Anvil dependency).
  *
- * Available tools:
- * - search_docs: Semantic search (delegates auth filtering to HTTP API)
- * - list_annotations: List annotations for a document
- * - create_annotation: Create new annotation
- * - resolve_annotation: Mark annotation as resolved
- * - submit_review: Submit annotations as review batch
- * - list_reviews: List reviews for a document
- * - get_review: Get a review by ID with annotations
- * - list_pages: List pages from nav tree
+ * All tools communicate via HTTP API (no direct DB or Anvil dependency).
+ * Tools and call handlers are registered once (MCP SDK allows only one
+ * handler per request schema — multiple setRequestHandler calls overwrite).
  */
 export function createMcpServer(): Server {
   const server = new Server({
     name: 'foundry',
-    version: '0.2.0',
+    version: '0.3.0',
   }, {
     capabilities: {
       tools: {}
     }
   });
 
-  // Register the search_docs tool
-  registerSearchTool(server);
+  // ── Tool Definitions ────────────────────────────────────────────
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: [
+      // Annotation tools
+      {
+        name: 'list_annotations',
+        description: 'List annotations for a document, optionally filtered by section, status, or review_id.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            doc_path: { type: 'string', description: 'Path to the document' },
+            section: { type: 'string', description: 'Optional section filter' },
+            status: { type: 'string', description: 'Optional status filter (draft, submitted, replied, resolved, orphaned)' },
+            review_id: { type: 'string', description: 'Optional review ID to filter annotations by review' },
+          },
+          required: ['doc_path'],
+        },
+      },
+      {
+        name: 'get_annotation',
+        description: 'Get a single annotation by ID, including its reply thread.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            annotation_id: { type: 'string', description: 'ID of the annotation to retrieve' },
+          },
+          required: ['annotation_id'],
+        },
+      },
+      {
+        name: 'create_annotation',
+        description: 'Create an annotation on a document section.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            doc_path: { type: 'string', description: 'Path to the document' },
+            section: { type: 'string', description: 'Section identifier' },
+            content: { type: 'string', description: 'Annotation content' },
+            parent_id: { type: 'string', description: 'Optional parent annotation ID for threading' },
+            author_type: { type: 'string', description: 'Optional author type (human or ai), defaults to ai' },
+          },
+          required: ['doc_path', 'section', 'content'],
+        },
+      },
+      {
+        name: 'edit_annotation',
+        description: 'Edit the content of an existing annotation.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            annotation_id: { type: 'string', description: 'ID of the annotation to edit' },
+            content: { type: 'string', description: 'New content for the annotation' },
+          },
+          required: ['annotation_id', 'content'],
+        },
+      },
+      {
+        name: 'delete_annotation',
+        description: 'Delete an annotation by ID. If the annotation has child replies, all replies are cascade-deleted.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            annotation_id: { type: 'string', description: 'ID of the annotation to delete' },
+          },
+          required: ['annotation_id'],
+        },
+      },
+      {
+        name: 'resolve_annotation',
+        description: 'Mark an annotation as resolved.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            annotation_id: { type: 'string', description: 'ID of the annotation to resolve' },
+          },
+          required: ['annotation_id'],
+        },
+      },
+      {
+        name: 'reopen_annotation',
+        description: 'Reopen a previously resolved annotation.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            annotation_id: { type: 'string', description: 'ID of the annotation to reopen' },
+          },
+          required: ['annotation_id'],
+        },
+      },
+      {
+        name: 'submit_review',
+        description: 'Submit annotations as a review batch.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            doc_path: { type: 'string', description: 'Path to the document being reviewed' },
+            annotation_ids: { type: 'array', items: { type: 'string' }, description: 'Optional array of annotation IDs to include in review' },
+          },
+          required: ['doc_path'],
+        },
+      },
+      // Review tools
+      {
+        name: 'list_reviews',
+        description: 'List reviews for a document, optionally filtered by status.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            doc_path: { type: 'string', description: 'Path to the document' },
+            status: { type: 'string', description: 'Optional status filter (draft, submitted, complete)' },
+          },
+          required: ['doc_path'],
+        },
+      },
+      {
+        name: 'get_review',
+        description: 'Get a single review by ID, including its annotations.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            review_id: { type: 'string', description: 'ID of the review to retrieve' },
+          },
+          required: ['review_id'],
+        },
+      },
+      // Nav tools
+      {
+        name: 'list_pages',
+        description: 'List all pages in the Foundry nav tree with their paths and access levels.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            include_private: { type: 'boolean', description: 'Include private pages (default: false)', default: false },
+          },
+        },
+      },
+      // Search tools
+      {
+        name: 'search_docs',
+        description: 'Semantic search across Foundry documentation.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'The search query to find relevant documentation' },
+            top_k: { type: 'number', description: 'Number of results to return (default: 10)', default: 10 },
+            auth_token: { type: 'string', description: 'Optional auth token to include private doc results' },
+          },
+          required: ['query'],
+        },
+      },
+    ],
+  }));
 
-  // Register annotation tools
-  registerAnnotationTools(server);
+  // ── Tool Call Dispatch ──────────────────────────────────────────
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+    if (!args) throw new Error('Tool arguments are required');
 
-  // Register review tools
-  registerReviewTools(server);
+    const json = (data: unknown) => ({
+      content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }],
+    });
 
-  // Register nav tools
-  registerNavTools(server);
+    switch (name) {
+      // ── Annotations ─────────────────────────────────────────
+      case 'list_annotations': {
+        const result = await listAnnotations(
+          args.doc_path as string,
+          args.section as string | undefined,
+          args.status as string | undefined,
+          args.review_id as string | undefined,
+        );
+        return json(result);
+      }
+      case 'get_annotation': {
+        const result = await getAnnotation(args.annotation_id as string);
+        return json(result);
+      }
+      case 'create_annotation': {
+        const result = await createAnnotation({
+          doc_path: args.doc_path as string,
+          section: args.section as string,
+          content: args.content as string,
+          parent_id: args.parent_id as string | undefined,
+          author_type: args.author_type as string | undefined,
+        });
+        return json({ status: 'created', annotation: result });
+      }
+      case 'edit_annotation': {
+        const result = await editAnnotation(args.annotation_id as string, args.content as string);
+        return json({ status: 'updated', annotation: result });
+      }
+      case 'delete_annotation': {
+        const result = await deleteAnnotation(args.annotation_id as string);
+        return json(result);
+      }
+      case 'resolve_annotation': {
+        const result = await resolveAnnotation(args.annotation_id as string);
+        return json(result);
+      }
+      case 'reopen_annotation': {
+        const result = await reopenAnnotation(args.annotation_id as string);
+        return json({ status: 'reopened', annotation: result });
+      }
+      case 'submit_review': {
+        const result = await submitReview(
+          args.doc_path as string,
+          args.annotation_ids as string[] | undefined,
+        );
+        return json(result);
+      }
+      // ── Reviews ─────────────────────────────────────────────
+      case 'list_reviews': {
+        const result = await listReviews(
+          args.doc_path as string,
+          args.status as string | undefined,
+        );
+        return json(result);
+      }
+      case 'get_review': {
+        const result = await getReview(args.review_id as string);
+        return json(result);
+      }
+      // ── Nav ─────────────────────────────────────────────────
+      case 'list_pages': {
+        const result = await listPages((args.include_private as boolean) || false);
+        return json(result);
+      }
+      // ── Search ──────────────────────────────────────────────
+      case 'search_docs': {
+        const result = await searchDocs(
+          args.query as string,
+          (args.top_k as number) || 10,
+          args.auth_token as string | undefined,
+        );
+        return json(result);
+      }
+      default:
+        throw new Error(`Unknown tool: ${name}`);
+    }
+  });
 
   return server;
 }
