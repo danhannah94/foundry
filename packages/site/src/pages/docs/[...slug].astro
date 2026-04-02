@@ -1,5 +1,6 @@
 ---
 import { renderMarkdown } from '../../utils/markdown';
+import { getCachedPage, setCachedPage } from '../../utils/page-cache';
 import DocLayout from '../../layouts/DocLayout.astro';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -13,7 +14,21 @@ if (!fs.existsSync(filePath)) {
   return Astro.redirect('/404');
 }
 
-const { html, frontmatter } = await renderMarkdown(filePath);
+// Check cache first, render on miss
+let html: string;
+let frontmatter: Record<string, any>;
+
+const cached = getCachedPage(slug!);
+if (cached) {
+  html = cached.html;
+  frontmatter = cached.frontmatter;
+} else {
+  const rendered = await renderMarkdown(filePath);
+  html = rendered.html;
+  frontmatter = rendered.frontmatter;
+  setCachedPage(slug!, html, frontmatter);
+}
+
 const title = frontmatter.title || slug;
 ---
 
