@@ -331,6 +331,73 @@ describe('Annotations Router', () => {
     });
   });
 
+  // ─── GET /annotations?review_id= ─────────────────────────────────
+
+  describe('GET /annotations filtered by review_id', () => {
+    let reviewId: string;
+
+    beforeAll(async () => {
+      // Create a review
+      const review = await request(app)
+        .post('/api/reviews')
+        .set('Authorization', 'Bearer test-token')
+        .send({ doc_path: 'review-filter/doc.md' })
+        .expect(201);
+      reviewId = review.body.id;
+
+      // Create annotations with and without review_id
+      await request(app)
+        .post('/api/annotations')
+        .set('Authorization', 'Bearer test-token')
+        .send(validBody({ doc_path: 'review-filter/doc.md', content: 'with review', review_id: reviewId }))
+        .expect(201);
+
+      const noReview = await request(app)
+        .post('/api/annotations')
+        .set('Authorization', 'Bearer test-token')
+        .send(validBody({ doc_path: 'review-filter/doc.md', content: 'no review' }))
+        .expect(201);
+
+      // Also create a submitted annotation with review_id for combined filter test
+      const submitted = await request(app)
+        .post('/api/annotations')
+        .set('Authorization', 'Bearer test-token')
+        .send(validBody({ doc_path: 'review-filter/doc.md', content: 'submitted with review', review_id: reviewId }))
+        .expect(201);
+
+      await request(app)
+        .patch(`/api/annotations/${submitted.body.id}`)
+        .set('Authorization', 'Bearer test-token')
+        .send({ status: 'submitted' })
+        .expect(200);
+    });
+
+    it('should filter annotations by review_id', async () => {
+      const res = await request(app)
+        .get('/api/annotations')
+        .set('Authorization', 'Bearer test-token')
+        .query({ doc_path: 'review-filter/doc.md', review_id: reviewId })
+        .expect(200);
+
+      expect(res.body.length).toBe(2);
+      for (const ann of res.body) {
+        expect(ann.review_id).toBe(reviewId);
+      }
+    });
+
+    it('should combine review_id and status filters', async () => {
+      const res = await request(app)
+        .get('/api/annotations')
+        .set('Authorization', 'Bearer test-token')
+        .query({ doc_path: 'review-filter/doc.md', review_id: reviewId, status: 'submitted' })
+        .expect(200);
+
+      expect(res.body.length).toBe(1);
+      expect(res.body[0].review_id).toBe(reviewId);
+      expect(res.body[0].status).toBe('submitted');
+    });
+  });
+
   // ─── GET /annotations/:id ─────────────────────────────────────────
 
   describe('GET /annotations/:id', () => {

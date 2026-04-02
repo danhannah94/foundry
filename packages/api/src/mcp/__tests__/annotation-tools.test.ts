@@ -88,6 +88,17 @@ describe('listAnnotations', () => {
     expect(results[0].content).toBe('Resolved annotation');
     expect(mockListAnnotations).toHaveBeenCalledWith('test-doc.md', undefined, 'resolved');
   });
+
+  it('should filter by review_id', async () => {
+    mockListAnnotations.mockResolvedValue([
+      makeAnnotation({ review_id: 'review-1', content: 'Review annotation' }),
+    ]);
+
+    const results = await listAnnotations('test-doc.md', undefined, undefined, 'review-1');
+    expect(results).toHaveLength(1);
+    expect(results[0].review_id).toBe('review-1');
+    expect(mockListAnnotations).toHaveBeenCalledWith('test-doc.md', undefined, undefined, 'review-1');
+  });
 });
 
 describe('getAnnotation', () => {
