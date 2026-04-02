@@ -173,6 +173,47 @@ export async function deleteAnnotation(
   throw new Error(`API DELETE /api/annotations/${annotationId} failed (${res.status}): ${body}`);
 }
 
+/**
+ * Edit the content of an existing annotation.
+ */
+export async function editAnnotation(
+  annotationId: string,
+  content: string,
+): Promise<Annotation> {
+  try {
+    return await apiFetch<Annotation>(`/api/annotations/${annotationId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ content }),
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('404')) {
+      throw new Error('Annotation not found');
+    }
+    throw err;
+  }
+}
+
+/**
+ * Reopen a previously resolved annotation by setting status back to "submitted".
+ */
+export async function reopenAnnotation(
+  annotationId: string,
+): Promise<Annotation> {
+  try {
+    return await apiFetch<Annotation>(`/api/annotations/${annotationId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'submitted' }),
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('404')) {
+      throw new Error('Annotation not found');
+    }
+    throw err;
+  }
+}
+
 interface SearchResult {
   path: string;
   heading: string;
