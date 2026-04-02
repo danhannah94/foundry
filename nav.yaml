@@ -103,6 +103,8 @@
               path: projects/foundry/epics/e7-ui-refinement.md
             - title: "E8: Live Content Pipeline"
               path: projects/foundry/epics/e8-live-content-pipeline.md
+            - title: "E9: MCP Agent Surface"
+              path: projects/foundry/epics/e9-mcp-agent-surface.md
     - title: Forge
       children:
         - title: Design
