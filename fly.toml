@@ -8,11 +8,19 @@ primary_region = 'iad'
 [build]
 
 [http_service]
-  internal_port = 3001
+  internal_port = 4321
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
+
+[http_service.checks]
+  [http_service.checks.content_status]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "15s"
+    method = "GET"
+    path = "/api/content/status"
 
 [mounts]
   source = 'foundry_data'
