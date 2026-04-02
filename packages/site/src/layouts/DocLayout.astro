@@ -113,6 +113,22 @@ const base = import.meta.env.BASE_URL;
     }
   </script>
 
+  {/* Scroll progress bar */}
+  <script is:inline>
+    (function() {
+      const header = document.querySelector('.header');
+      if (!header) return;
+      function updateProgress() {
+        const scrollTop = window.scrollY || document.documentElement.scrollTop;
+        const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+        const progress = docHeight > 0 ? Math.min(scrollTop / docHeight, 1) : 0;
+        header.style.setProperty('--scroll-progress', String(progress));
+      }
+      window.addEventListener('scroll', updateProgress, { passive: true });
+      updateProgress();
+    })();
+  </script>
+
   {/* Cancel TTS on navigation */}
   <script is:inline>
     window.addEventListener("beforeunload", function() {
