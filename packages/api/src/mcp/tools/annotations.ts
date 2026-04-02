@@ -4,6 +4,7 @@ import {
   listAnnotations,
   createAnnotation,
   resolveAnnotation,
+  deleteAnnotation,
   submitReview,
 } from '../http-client.js';
 
@@ -119,6 +120,20 @@ export function registerAnnotationTools(server: Server): void {
             },
             required: ['doc_path']
           }
+        },
+        {
+          name: 'delete_annotation',
+          description: 'Delete an annotation by ID. If the annotation has child replies, all replies are cascade-deleted.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              annotation_id: {
+                type: 'string',
+                description: 'ID of the annotation to delete'
+              }
+            },
+            required: ['annotation_id']
+          }
         }
       ]
     };
@@ -164,6 +179,11 @@ export function registerAnnotationTools(server: Server): void {
           args.annotation_ids as string[] | undefined
         );
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      }
+
+      case 'delete_annotation': {
+        const result = await deleteAnnotation(args.annotation_id as string);
+        return { content: [{ type: "text", text: JSON.stringify(result) }] };
       }
 
       default:

@@ -223,5 +223,46 @@ export function createAnnotationsRouter(): Router {
     }
   });
 
+  // DELETE /annotations/:id - Delete annotation (cascade children + orphan review cleanup)
+  router.delete('/annotations/:id', async (req: Request<{ id: string }>, res: Response) => {
+    try {
+      const { id } = req.params;
+      const db = getDb();
+
+      // Check if annotation exists
+      const existing = db.prepare('SELECT * FROM annotations WHERE id = ?').get(id) as Annotation | undefined;
+
+      if (!existing) {
+        return res.status(404).json({
+          error: 'Annotation not found',
+        } as any);
+      }
+
+      // Cascade delete child replies first (foreign key constraint)
+      db.prepare('DELETE FROM annotations WHERE parent_id = ?').run(id);
+
+      // Delete the annotation itself
+      db.prepare('DELETE FROM annotations WHERE id = ?').run(id);
+
+      // Orphan review cleanup: if annotation had a review_id, check if any annotations remain
+      if (existing.review_id) {
+        const remaining = db.prepare(
+          'SELECT COUNT(*) as count FROM annotations WHERE review_id = ?'
+        ).get(existing.review_id) as { count: number };
+
+        if (remaining.count === 0) {
+          db.prepare('DELETE FROM reviews WHERE id = ?').run(existing.review_id);
+        }
+      }
+
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting annotation:', error);
+      res.status(500).json({
+        error: 'Failed to delete annotation',
+      } as any);
+    }
+  });
+
   return router;
 }

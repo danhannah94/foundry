@@ -147,6 +147,32 @@ export async function submitReview(
   };
 }
 
+/**
+ * Delete an annotation by ID. Cascade-deletes child replies and cleans up orphan reviews.
+ */
+export async function deleteAnnotation(
+  annotationId: string,
+): Promise<{ status: 'deleted' | 'error'; message?: string }> {
+  const url = `${BASE_URL}/api/annotations/${annotationId}`;
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      ...authHeaders(),
+    },
+  });
+
+  if (res.status === 204) {
+    return { status: 'deleted' };
+  }
+
+  if (res.status === 404) {
+    return { status: 'error', message: 'Annotation not found' };
+  }
+
+  const body = await res.text();
+  throw new Error(`API DELETE /api/annotations/${annotationId} failed (${res.status}): ${body}`);
+}
+
 interface SearchResult {
   path: string;
   heading: string;
