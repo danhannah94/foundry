@@ -94,6 +94,56 @@ function jumpToSection(headingPath: string) {
   }
 }
 
+// Inline highlight helpers for bidirectional navigation
+function highlightText(rootElement: Element, searchText: string, annotationId: string): boolean {
+  const walker = document.createTreeWalker(rootElement, NodeFilter.SHOW_TEXT);
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    const idx = (node.textContent || '').indexOf(searchText);
+    if (idx !== -1) {
+      try {
+        const range = document.createRange();
+        range.setStart(node, idx);
+        range.setEnd(node, idx + searchText.length);
+        const mark = document.createElement('mark');
+        mark.className = 'annotation-highlight';
+        mark.dataset.annotationId = annotationId;
+        range.surroundContents(mark);
+        return true;
+      } catch {
+        // surroundContents throws if range spans multiple elements — skip gracefully
+        return false;
+      }
+    }
+  }
+  return false;
+}
+
+function clearHighlights() {
+  document.querySelectorAll('mark.annotation-highlight').forEach(mark => {
+    const parent = mark.parentNode;
+    if (!parent) return;
+    while (mark.firstChild) {
+      parent.insertBefore(mark.firstChild, mark);
+    }
+    parent.removeChild(mark);
+    parent.normalize();
+  });
+}
+
+function jumpToAnnotation(annotation: Annotation) {
+  if (annotation.quoted_text) {
+    const mark = document.querySelector(`mark.annotation-highlight[data-annotation-id="${annotation.id}"]`);
+    if (mark) {
+      mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      mark.classList.add('annotation-highlight--flash');
+      setTimeout(() => mark.classList.remove('annotation-highlight--flash'), 2000);
+      return;
+    }
+  }
+  jumpToSection(annotation.heading_path);
+}
+
 
 export default function AnnotationThread({ docPath }: Props) {
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -538,6 +588,41 @@ export default function AnnotationThread({ docPath }: Props) {
     };
   }, [annotations]);
 
+  // Apply inline text highlights and doc→thread click navigation
+  useEffect(() => {
+    clearHighlights();
+
+    const contentElement = document.querySelector('article.content');
+    if (!contentElement || annotations.length === 0) return;
+
+    // Highlight quoted text for each annotation
+    for (const annotation of annotations) {
+      if (!annotation.quoted_text || annotation.quoted_text.length < 10) continue;
+      highlightText(contentElement, annotation.quoted_text, annotation.id);
+    }
+
+    // Click handler: mark → scroll to comment in thread
+    const handleMarkClick = (e: Event) => {
+      const mark = (e.target as Element).closest('mark.annotation-highlight');
+      if (!mark) return;
+      const annotationId = (mark as HTMLElement).dataset.annotationId;
+      if (!annotationId) return;
+      const comment = document.querySelector(`.thread-comment[data-annotation-id="${annotationId}"]`);
+      if (comment) {
+        comment.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        comment.classList.add('thread-comment-highlight');
+        setTimeout(() => comment.classList.remove('thread-comment-highlight'), 2000);
+      }
+    };
+
+    contentElement.addEventListener('click', handleMarkClick);
+
+    return () => {
+      contentElement.removeEventListener('click', handleMarkClick);
+      clearHighlights();
+    };
+  }, [annotations]);
+
   // Group annotations — orphaned annotations stay with their review group or ungrouped
   const groupedAnnotations = (): {
     reviewGroups: ReviewGroup[];
@@ -651,6 +736,7 @@ export default function AnnotationThread({ docPath }: Props) {
       <div
         key={annotation.id}
         className={`thread-comment ${isDraft ? 'thread-comment--draft' : ''} ${isResolved ? 'thread-comment--resolved' : ''} ${isOrphaned ? 'thread-comment--stale' : ''} ${isReply ? 'thread-reply' : ''}`}
+        data-annotation-id={annotation.id}
         data-annotation-heading={annotation.heading_path}
       >
         {isResolved && !expanded ? (
@@ -684,8 +770,8 @@ export default function AnnotationThread({ docPath }: Props) {
               </span>
               <button
                 className="thread-comment-jump"
-                onClick={() => jumpToSection(annotation.heading_path)}
-                title="Jump to section"
+                onClick={() => jumpToAnnotation(annotation)}
+                title="Jump to annotation"
               >
                 📍
               </button>

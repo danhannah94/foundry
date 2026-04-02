@@ -1427,6 +1427,38 @@ pre.mermaid {
   }
 }
 
+/* --- Annotation Inline Highlights --- */
+mark.annotation-highlight {
+  background: rgba(249, 115, 22, 0.12);
+  border-bottom: 2px solid var(--color-accent);
+  padding: 0 2px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+mark.annotation-highlight:hover {
+  background: rgba(249, 115, 22, 0.25);
+}
+
+mark.annotation-highlight--flash {
+  animation: annotation-flash 2s ease-out;
+}
+
+@keyframes annotation-flash {
+  0% { background: rgba(249, 115, 22, 0.4); }
+  100% { background: rgba(249, 115, 22, 0.12); }
+}
+
+[data-theme="dark"] mark.annotation-highlight {
+  background: rgba(249, 115, 22, 0.15);
+  color: inherit;
+}
+
+[data-theme="dark"] mark.annotation-highlight:hover {
+  background: rgba(249, 115, 22, 0.3);
+}
+
 /* --- Thread Panel Grid Layout States --- */
 /* Hidden thread panel */
 .layout:has(.thread-panel--hidden),
