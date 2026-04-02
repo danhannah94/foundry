@@ -60,6 +60,29 @@ export function createAnnotationsRouter(): Router {
     }
   });
 
+  // GET /annotations/:id - Get single annotation with reply thread
+  router.get('/annotations/:id', async (req: Request<{ id: string }>, res: Response) => {
+    try {
+      const { id } = req.params;
+      const db = getDb();
+
+      const annotation = db.prepare('SELECT * FROM annotations WHERE id = ?').get(id) as Annotation | undefined;
+
+      if (!annotation) {
+        return res.status(404).json({ error: 'Annotation not found' });
+      }
+
+      const replies = db.prepare(
+        'SELECT * FROM annotations WHERE parent_id = ? ORDER BY created_at ASC'
+      ).all(id) as Annotation[];
+
+      res.json({ annotation, replies });
+    } catch (error) {
+      console.error('Error getting annotation:', error);
+      res.status(500).json({ error: 'Failed to get annotation' });
+    }
+  });
+
   // POST /annotations - Create new annotation
   router.post('/annotations', async (req: Request<{}, Annotation, CreateAnnotationBody>, res: Response<Annotation>) => {
     try {

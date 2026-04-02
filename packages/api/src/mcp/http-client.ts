@@ -43,6 +43,15 @@ export async function listAnnotations(
 }
 
 /**
+ * Get a single annotation by ID, including its reply thread.
+ */
+export async function getAnnotation(
+  annotationId: string,
+): Promise<{ annotation: Annotation; replies: Annotation[] }> {
+  return apiFetch<{ annotation: Annotation; replies: Annotation[] }>(`/api/annotations/${annotationId}`);
+}
+
+/**
  * Create an annotation via HTTP API.
  */
 export async function createAnnotation(params: {

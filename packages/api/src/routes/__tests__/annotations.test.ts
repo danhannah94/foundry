@@ -331,6 +331,87 @@ describe('Annotations Router', () => {
     });
   });
 
+  // ─── GET /annotations/:id ─────────────────────────────────────────
+
+  describe('GET /annotations/:id', () => {
+    let parentId: string;
+    let replyId1: string;
+    let replyId2: string;
+
+    beforeAll(async () => {
+      // Create a parent annotation
+      const parentRes = await request(app)
+        .post('/api/annotations')
+        .set('Authorization', 'Bearer test-token')
+        .send(validBody({ doc_path: 'getbyid-test/doc.md', content: 'parent annotation' }))
+        .expect(201);
+      parentId = parentRes.body.id;
+
+      // Create replies with slight delay to ensure different created_at
+      const reply1Res = await request(app)
+        .post('/api/annotations')
+        .set('Authorization', 'Bearer test-token')
+        .send(validBody({ doc_path: 'getbyid-test/doc.md', content: 'first reply', parent_id: parentId }))
+        .expect(201);
+      replyId1 = reply1Res.body.id;
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      const reply2Res = await request(app)
+        .post('/api/annotations')
+        .set('Authorization', 'Bearer test-token')
+        .send(validBody({ doc_path: 'getbyid-test/doc.md', content: 'second reply', parent_id: parentId }))
+        .expect(201);
+      replyId2 = reply2Res.body.id;
+    });
+
+    it('should return annotation by ID with empty replies array', async () => {
+      // Get a reply (which has no children)
+      const res = await request(app)
+        .get(`/api/annotations/${replyId1}`)
+        .set('Authorization', 'Bearer test-token')
+        .expect(200);
+
+      expect(res.body.annotation).toBeDefined();
+      expect(res.body.annotation.id).toBe(replyId1);
+      expect(res.body.annotation.content).toBe('first reply');
+      expect(res.body.replies).toEqual([]);
+    });
+
+    it('should return annotation with replies sorted by created_at ASC', async () => {
+      const res = await request(app)
+        .get(`/api/annotations/${parentId}`)
+        .set('Authorization', 'Bearer test-token')
+        .expect(200);
+
+      expect(res.body.annotation).toBeDefined();
+      expect(res.body.annotation.id).toBe(parentId);
+      expect(res.body.annotation.content).toBe('parent annotation');
+      expect(res.body.replies).toHaveLength(2);
+      expect(res.body.replies[0].id).toBe(replyId1);
+      expect(res.body.replies[1].id).toBe(replyId2);
+      // Verify chronological order
+      expect(res.body.replies[0].created_at <= res.body.replies[1].created_at).toBe(true);
+    });
+
+    it('should return 404 for non-existent annotation ID', async () => {
+      const res = await request(app)
+        .get('/api/annotations/nonexistent-id-99999')
+        .set('Authorization', 'Bearer test-token')
+        .expect(404);
+
+      expect(res.body.error).toBe('Annotation not found');
+    });
+
+    it('should return 401 without auth token', async () => {
+      const res = await request(app)
+        .get(`/api/annotations/${parentId}`)
+        .expect(401);
+
+      expect(res.body.error).toBe('Unauthorized');
+    });
+  });
+
   // ─── PATCH /annotations/:id ────────────────────────────────────────
 
   describe('PATCH /annotations/:id', () => {

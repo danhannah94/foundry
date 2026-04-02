@@ -2,6 +2,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
   listAnnotations,
+  getAnnotation,
   createAnnotation,
   resolveAnnotation,
   deleteAnnotation,
@@ -44,6 +45,20 @@ export function registerAnnotationTools(server: Server): void {
               }
             },
             required: ['doc_path']
+          }
+        },
+        {
+          name: 'get_annotation',
+          description: 'Get a single annotation by ID, including its reply thread.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              annotation_id: {
+                type: 'string',
+                description: 'ID of the annotation to retrieve'
+              }
+            },
+            required: ['annotation_id']
           }
         },
         {
@@ -188,6 +203,11 @@ export function registerAnnotationTools(server: Server): void {
           args.section as string | undefined,
           args.status as string | undefined
         );
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      }
+
+      case 'get_annotation': {
+        const result = await getAnnotation(args.annotation_id as string);
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
 
