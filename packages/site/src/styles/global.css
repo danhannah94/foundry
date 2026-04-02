@@ -69,10 +69,10 @@
   --color-bg: #111318;
   --color-bg-secondary: #1a1d24;
   --color-bg-code: #1e2028;
-  --color-text: #e2e8f0;
-  --color-text-secondary: #94a3b8;
-  --color-text-muted: #64748b;
-  --color-heading: #f1f5f9;
+  --color-text: #e8e4df;
+  --color-text-secondary: #9e9a95;
+  --color-text-muted: #6b6862;
+  --color-heading: #f5f0eb;
   --color-link: #60a5fa;
   --color-link-hover: #93bbfd;
   --color-border: #2a2d35;
@@ -109,6 +109,9 @@
   height: 3px;
   background: linear-gradient(90deg, var(--color-accent), #f59e0b);
   z-index: 1;
+  transform-origin: left;
+  transform: scaleX(var(--scroll-progress, 0));
+  transition: transform 50ms linear;
 }
 
 /* --- Reset & Base --- */
