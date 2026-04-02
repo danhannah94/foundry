@@ -10,6 +10,7 @@ import { createSearchRouter } from './routes/search.js';
 import { createAnnotationsRouter } from './routes/annotations.js';
 import { createReviewsRouter } from './routes/reviews.js';
 import { createAccessRouter } from './routes/access.js';
+import { createPagesRouter } from './routes/pages.js';
 import { requireAuth, logAuthStatus } from './middleware/auth.js';
 import { loadAccessMap, getAccessLevel } from './access.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
@@ -129,6 +130,9 @@ async function startServer(): Promise<void> {
 
     // Mount access router (always available, no anvil dependency)
     app.use('/api', createAccessRouter());
+
+    // Mount pages router (no auth middleware — route handles auth internally)
+    app.use('/api', createPagesRouter());
 
     // Mount routers only when anvil is available
     if (anvil) {
