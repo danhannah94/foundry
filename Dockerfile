@@ -15,7 +15,7 @@ RUN npm ci
 ARG GITHUB_TOKEN=""
 ARG CACHE_BUST=""
 ENV GITHUB_TOKEN=${GITHUB_TOKEN}
-RUN bash scripts/build.sh
+RUN echo "cache-bust: ${CACHE_BUST}" && bash scripts/build.sh
 
 # Stage 2: Build static site
 FROM node:22-alpine AS site-builder
