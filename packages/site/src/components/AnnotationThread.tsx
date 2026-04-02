@@ -832,95 +832,92 @@ export default function AnnotationThread({ docPath }: Props) {
         className={`thread-comment ${isDraft ? 'thread-comment--draft' : ''} ${isResolved ? 'thread-comment--resolved' : ''} ${isOrphaned ? 'thread-comment--stale' : ''} ${isReply ? 'thread-reply' : ''}`}
         data-annotation-id={annotation.id}
         data-annotation-heading={annotation.heading_path}
+        onClick={() => jumpToAnnotation(annotation)}
+        style={{ cursor: 'pointer' }}
       >
         {isResolved && !expanded ? (
-          <div className="thread-comment-collapsed" onClick={() => setExpandedResolved(prev => new Set(prev).add(annotation.id))}>
-            <span className="thread-comment-status">{getStatusIcon(annotation.status)}</span>
-            <span className="thread-comment-author">{getAuthorBadge(annotation.author_type, annotation.user_id)}</span>
+          <div className="thread-comment-collapsed" onClick={(e) => { e.stopPropagation(); setExpandedResolved(prev => new Set(prev).add(annotation.id)); }}>
+            <div className="thread-comment-meta">
+              <span className="thread-comment-author">{getAuthorBadge(annotation.author_type, annotation.user_id)}</span>
+              <span className="thread-comment-time">{relativeTime(annotation.created_at)}</span>
+            </div>
             <span className="thread-comment-preview">{annotation.content.slice(0, 50)}...</span>
-            <span className="thread-comment-time">{relativeTime(annotation.created_at)}</span>
             {authenticated && (
               <button
                 className="thread-reopen-btn"
                 onClick={async (e) => {
-                  e.stopPropagation(); // Don't expand the collapsed view
+                  e.stopPropagation();
                   const success = await patchAnnotation(annotation.id, { status: "submitted" });
                   if (success) fetchAnnotations();
                 }}
                 title="Reopen"
               >
-                ↩ Reopen
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
               </button>
             )}
           </div>
         ) : (
           <>
             <div className="thread-comment-header">
-              <span className={`thread-comment-status ${isDraft ? 'thread-comment-status--dimmed' : ''}`}>
-                {getStatusIcon(annotation.status, !!annotation.replies?.length)}
-              </span>
-              <span className="thread-comment-author">
-                {getAuthorBadge(annotation.author_type, annotation.user_id)}
-              </span>
-              <button
-                className="thread-comment-jump"
-                onClick={() => jumpToAnnotation(annotation)}
-                title="Jump to annotation"
-              >
-                📍
-              </button>
-              <span className="thread-comment-time">{relativeTime(annotation.created_at)}</span>
-              {authenticated && (
-                <button
-                  className="thread-reply-btn"
-                  onClick={() => { setReplyingTo(annotation.id); setReplyContent(''); }}
-                  title="Reply"
-                >
-                  ↩ Reply
-                </button>
-              )}
-              {authenticated && !isReply && !isResolved && (
-                <button
-                  className="thread-resolve-btn"
-                  onClick={async () => {
-                    setResolvingId(annotation.id);
-                    const success = await patchAnnotation(annotation.id, { status: "resolved" });
-                    if (success) {
-                      // Check if all annotations in this review are resolved
-                      if (annotation.review_id) {
-                        const reviewAnnotations = annotations.filter(a => a.review_id === annotation.review_id);
-                        const allResolved = reviewAnnotations.every(a => a.id === annotation.id || a.status === "resolved");
-                        if (allResolved) {
-                          try {
-                            await authFetch(`/api/reviews/${annotation.review_id}`, {
-                              method: "PATCH",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ status: "complete", completed_at: new Date().toISOString() })
-                            });
-                          } catch (err) {
-                            console.warn("Failed to auto-complete review:", err);
+              <div className="thread-comment-meta">
+                <span className="thread-comment-author">
+                  {getAuthorBadge(annotation.author_type, annotation.user_id)}
+                </span>
+                <span className="thread-comment-time">{relativeTime(annotation.created_at)}</span>
+              </div>
+              <div className="thread-comment-actions">
+                {authenticated && (
+                  <button
+                    className="thread-reply-btn"
+                    onClick={(e) => { e.stopPropagation(); setReplyingTo(annotation.id); setReplyContent(''); }}
+                    title="Reply"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+                  </button>
+                )}
+                {authenticated && !isReply && !isResolved && (
+                  <button
+                    className="thread-resolve-btn"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      setResolvingId(annotation.id);
+                      const success = await patchAnnotation(annotation.id, { status: "resolved" });
+                      if (success) {
+                        if (annotation.review_id) {
+                          const reviewAnnotations = annotations.filter(a => a.review_id === annotation.review_id);
+                          const allResolved = reviewAnnotations.every(a => a.id === annotation.id || a.status === "resolved");
+                          if (allResolved) {
+                            try {
+                              await authFetch(`/api/reviews/${annotation.review_id}`, {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ status: "complete", completed_at: new Date().toISOString() })
+                              });
+                            } catch (err) {
+                              console.warn("Failed to auto-complete review:", err);
+                            }
                           }
                         }
+                        fetchAnnotations();
                       }
-                      fetchAnnotations();
-                    }
-                    setResolvingId(null);
-                  }}
-                  disabled={resolvingId === annotation.id}
-                  title="Resolve"
-                >
-                  {resolvingId === annotation.id ? "..." : "✅ Resolve"}
-                </button>
-              )}
-              {isResolved && (
-                <button
-                  className="thread-comment-collapse"
-                  onClick={() => setExpandedResolved(prev => { const next = new Set(prev); next.delete(annotation.id); return next; })}
-                  title="Collapse"
-                >
-                  ×
-                </button>
-              )}
+                      setResolvingId(null);
+                    }}
+                    disabled={resolvingId === annotation.id}
+                    title="Resolve"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                  </button>
+                )}
+                {isResolved && (
+                  <button
+                    className="thread-comment-collapse"
+                    onClick={(e) => { e.stopPropagation(); setExpandedResolved(prev => { const next = new Set(prev); next.delete(annotation.id); return next; }); }}
+                    title="Collapse"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             </div>
 
             {annotation.quoted_text && (
@@ -935,7 +932,7 @@ export default function AnnotationThread({ docPath }: Props) {
 
             {/* Reply editor */}
             {replyingTo === annotation.id && (
-              <div className="thread-reply-editor">
+              <div className="thread-reply-editor" onClick={(e) => e.stopPropagation()}>
                 <textarea
                   className="thread-reply-editor__textarea"
                   value={replyContent}
@@ -968,7 +965,7 @@ export default function AnnotationThread({ docPath }: Props) {
                 <>
                   <button
                     className="thread-replies-toggle"
-                    onClick={() => setExpandedThreads(prev => { const next = new Set(prev); next.delete(annotation.id); return next; })}
+                    onClick={(e) => { e.stopPropagation(); setExpandedThreads(prev => { const next = new Set(prev); next.delete(annotation.id); return next; }); }}
                   >
                     💬 {annotation.replies.length} {annotation.replies.length === 1 ? 'reply' : 'replies'} ▾
                   </button>
@@ -979,7 +976,7 @@ export default function AnnotationThread({ docPath }: Props) {
               ) : (
                 <button
                   className="thread-replies-toggle"
-                  onClick={() => setExpandedThreads(prev => new Set(prev).add(annotation.id))}
+                  onClick={(e) => { e.stopPropagation(); setExpandedThreads(prev => new Set(prev).add(annotation.id)); }}
                 >
                   💬 {annotation.replies.length} {annotation.replies.length === 1 ? 'reply' : 'replies'} ▸
                 </button>
@@ -1057,7 +1054,7 @@ export default function AnnotationThread({ docPath }: Props) {
                 })}
               >
                 <span className="thread-review-arrow">{isExpanded ? '▼' : '▶'}</span>
-                Review #{reviewId.slice(-6)} — {reviewThreads.length} thread{reviewThreads.length > 1 ? 's' : ''}
+                <span>Review · {reviewThreads.length} thread{reviewThreads.length > 1 ? 's' : ''} · {relativeTime(reviewThreads[0].created_at)}</span>
               </button>
 
               {isExpanded && (
@@ -1075,7 +1072,7 @@ export default function AnnotationThread({ docPath }: Props) {
   return (
     <div className={`thread-panel ${!isVisible ? 'thread-panel--hidden' : ''}`}>
       <div className="thread-header">
-        <h3>💬 Review</h3>
+        <h3>Review</h3>
         {drafts.length > 0 && (
           <button
             className={`thread-submit-btn ${submitState.isSubmitting ? 'thread-submit-btn--loading' : ''}`}
@@ -1093,14 +1090,16 @@ export default function AnnotationThread({ docPath }: Props) {
           aria-label="Refresh annotations"
           title="Refresh annotations"
         >
-          🔄
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         </button>
         <button
           className="thread-toggle"
           onClick={toggleVisibility}
           aria-label={isVisible ? "Hide thread panel" : "Show thread panel"}
         >
-          {isVisible ? '→' : '←'}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {isVisible ? <polyline points="9 18 15 12 9 6"/> : <polyline points="15 18 9 12 15 6"/>}
+          </svg>
         </button>
       </div>
 
