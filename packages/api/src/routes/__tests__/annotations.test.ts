@@ -5,6 +5,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { unlinkSync } from 'fs';
 import { createAnnotationsRouter } from '../annotations.js';
+import { createReviewsRouter } from '../reviews.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { getDb, closeDb } from '../../db.js';
 
@@ -26,6 +27,12 @@ beforeAll(() => {
   protectedAnnotationsRouter.use('/annotations', requireAuth);
   protectedAnnotationsRouter.use(createAnnotationsRouter());
   app.use('/api', protectedAnnotationsRouter);
+
+  // Create protected reviews router (needed for orphan review cleanup tests)
+  const protectedReviewsRouter = express.Router();
+  protectedReviewsRouter.use('/reviews', requireAuth);
+  protectedReviewsRouter.use(createReviewsRouter());
+  app.use('/api', protectedReviewsRouter);
 });
 
 afterAll(() => {
@@ -416,6 +423,122 @@ describe('Annotations Router', () => {
         .expect(404);
 
       expect(res.body.error).toContain('not found');
+    });
+  });
+
+  // ─── DELETE /annotations/:id ──────────────────────────────────────
+
+  describe('DELETE /annotations/:id', () => {
+    it('should delete a single annotation and return 204', async () => {
+      const created = await request(app)
+        .post('/api/annotations')
+        .set('Authorization', 'Bearer test-token')
+        .send(validBody({ doc_path: 'delete-test/doc.md', content: 'to be deleted' }))
+        .expect(201);
+
+      await request(app)
+        .delete(`/api/annotations/${created.body.id}`)
+        .set('Authorization', 'Bearer test-token')
+        .expect(204);
+
+      // Verify it's gone
+      const list = await request(app)
+        .get('/api/annotations')
+        .set('Authorization', 'Bearer test-token')
+        .query({ doc_path: 'delete-test/doc.md' })
+        .expect(200);
+
+      const ids = list.body.map((a: any) => a.id);
+      expect(ids).not.toContain(created.body.id);
+    });
+
+    it('should cascade delete child replies', async () => {
+      // Create parent
+      const parent = await request(app)
+        .post('/api/annotations')
+        .set('Authorization', 'Bearer test-token')
+        .send(validBody({ doc_path: 'delete-cascade/doc.md', content: 'parent' }))
+        .expect(201);
+
+      // Create children
+      await request(app)
+        .post('/api/annotations')
+        .set('Authorization', 'Bearer test-token')
+        .send(validBody({ doc_path: 'delete-cascade/doc.md', content: 'child 1', parent_id: parent.body.id }))
+        .expect(201);
+
+      await request(app)
+        .post('/api/annotations')
+        .set('Authorization', 'Bearer test-token')
+        .send(validBody({ doc_path: 'delete-cascade/doc.md', content: 'child 2', parent_id: parent.body.id }))
+        .expect(201);
+
+      // Delete parent
+      await request(app)
+        .delete(`/api/annotations/${parent.body.id}`)
+        .set('Authorization', 'Bearer test-token')
+        .expect(204);
+
+      // Verify all are gone
+      const list = await request(app)
+        .get('/api/annotations')
+        .set('Authorization', 'Bearer test-token')
+        .query({ doc_path: 'delete-cascade/doc.md' })
+        .expect(200);
+
+      expect(list.body).toHaveLength(0);
+    });
+
+    it('should clean up orphaned review when last annotation is deleted', async () => {
+      // Create a review
+      const review = await request(app)
+        .post('/api/reviews')
+        .set('Authorization', 'Bearer test-token')
+        .send({ doc_path: 'delete-review/doc.md' })
+        .expect(201);
+
+      // Create annotation linked to review
+      const ann = await request(app)
+        .post('/api/annotations')
+        .set('Authorization', 'Bearer test-token')
+        .send(validBody({ doc_path: 'delete-review/doc.md', content: 'review comment', review_id: review.body.id }))
+        .expect(201);
+
+      // Patch annotation to set review_id (POST may not set it via body directly)
+      await request(app)
+        .patch(`/api/annotations/${ann.body.id}`)
+        .set('Authorization', 'Bearer test-token')
+        .send({ review_id: review.body.id })
+        .expect(200);
+
+      // Delete the annotation
+      await request(app)
+        .delete(`/api/annotations/${ann.body.id}`)
+        .set('Authorization', 'Bearer test-token')
+        .expect(204);
+
+      // Verify review is also deleted
+      const reviews = await request(app)
+        .get('/api/reviews')
+        .set('Authorization', 'Bearer test-token')
+        .query({ doc_path: 'delete-review/doc.md' })
+        .expect(200);
+
+      const reviewIds = reviews.body.map((r: any) => r.id);
+      expect(reviewIds).not.toContain(review.body.id);
+    });
+
+    it('should return 404 for non-existent annotation', async () => {
+      await request(app)
+        .delete('/api/annotations/nonexistent-id-99999')
+        .set('Authorization', 'Bearer test-token')
+        .expect(404);
+    });
+
+    it('should return 401 without auth token', async () => {
+      await request(app)
+        .delete('/api/annotations/any-id')
+        .expect(401);
     });
   });
 });

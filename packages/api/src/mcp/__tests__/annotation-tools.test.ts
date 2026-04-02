@@ -6,6 +6,7 @@ vi.mock('../http-client.js', () => ({
   listAnnotations: vi.fn(),
   createAnnotation: vi.fn(),
   resolveAnnotation: vi.fn(),
+  deleteAnnotation: vi.fn(),
   submitReview: vi.fn(),
 }));
 
@@ -13,12 +14,14 @@ import {
   listAnnotations,
   createAnnotation,
   resolveAnnotation,
+  deleteAnnotation,
   submitReview,
 } from '../http-client.js';
 
 const mockListAnnotations = vi.mocked(listAnnotations);
 const mockCreateAnnotation = vi.mocked(createAnnotation);
 const mockResolveAnnotation = vi.mocked(resolveAnnotation);
+const mockDeleteAnnotation = vi.mocked(deleteAnnotation);
 const mockSubmitReview = vi.mocked(submitReview);
 
 function makeAnnotation(overrides: Partial<Annotation> = {}): Annotation {
@@ -206,5 +209,25 @@ describe('submitReview', () => {
     const result = await submitReview('test-doc.md', ['ann-1']);
 
     expect((result as any).status).toBe('review_submitted');
+  });
+});
+
+describe('deleteAnnotation', () => {
+  it('should delete an existing annotation', async () => {
+    mockDeleteAnnotation.mockResolvedValue({ status: 'deleted' });
+
+    const result = await deleteAnnotation('test-id-1');
+
+    expect(result.status).toBe('deleted');
+    expect(mockDeleteAnnotation).toHaveBeenCalledWith('test-id-1');
+  });
+
+  it('should return error for non-existent annotation', async () => {
+    mockDeleteAnnotation.mockResolvedValue({ status: 'error', message: 'Annotation not found' });
+
+    const result = await deleteAnnotation('non-existent-id');
+
+    expect(result.status).toBe('error');
+    expect(result.message).toBe('Annotation not found');
   });
 });
