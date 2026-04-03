@@ -120,17 +120,6 @@ async function startServer(): Promise<void> {
     // Initialize Anvil (dynamic import — handles missing package gracefully)
     const anvil = await loadAnvil(docsPath);
 
-    // Run initial Anvil index (model is loaded but content not yet indexed)
-    if (anvil) {
-      console.log("📇 Running initial Anvil index...");
-      try {
-        const result = await anvil.index();
-        console.log(`✅ Anvil index complete:`, result);
-      } catch (error) {
-        console.error("⚠️ Initial Anvil index failed:", error);
-      }
-    }
-
     // Generate and load access map
     console.log('📋 Generating access map from config...');
     try {
@@ -295,6 +284,15 @@ async function startServer(): Promise<void> {
       console.log(`📨 MCP message endpoint: http://localhost:${PORT}/mcp/message`);
       console.log(`🌐 CORS enabled for GitHub Pages and localhost`);
       logAuthStatus();
+
+      // Run initial Anvil index AFTER server is listening (non-blocking)
+      // This ensures the health check passes while indexing happens in the background
+      if (anvil) {
+        console.log('📇 Running initial Anvil index (background)...');
+        anvil.index()
+          .then((result: any) => console.log('✅ Anvil index complete:', result))
+          .catch((error: any) => console.error('⚠️ Initial Anvil index failed:', error));
+      }
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
