@@ -6,7 +6,9 @@ import path from 'node:path';
 import fs from 'node:fs';
 
 const slug = Astro.params.slug;
-const contentDir = path.resolve(process.cwd(), 'content');
+const contentDir = process.env.CONTENT_DIR
+  ? path.resolve(process.env.CONTENT_DIR)
+  : path.resolve(process.cwd(), 'content');
 const filePath = path.join(contentDir, `${slug}.md`);
 
 // Check if file exists, return 404 if not

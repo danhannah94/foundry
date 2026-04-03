@@ -47,19 +47,23 @@ function processItems(items: RawNavItem[]): NavItem[] {
 type AccessMap = Record<string, string>;
 
 function resolveContentDir(): string {
-  // Try Astro SSR context first (cwd is packages/site)
+  // CONTENT_DIR env var takes priority (canonical path in Docker)
+  if (process.env.CONTENT_DIR) {
+    const envDir = path.resolve(process.env.CONTENT_DIR);
+    if (fs.existsSync(envDir)) return envDir;
+  }
+
+  // Fallback: try relative paths for local dev
   const fromCwd = path.resolve(process.cwd(), 'content');
   if (fs.existsSync(fromCwd)) return fromCwd;
 
-  // Try relative path for build script context
   const fromRelative = path.resolve(process.cwd(), '../../content');
   if (fs.existsSync(fromRelative)) return fromRelative;
 
-  // Fallback: packages/site/content from the site package dir
   const fromSitePackage = path.resolve(__dirname, '../../content');
   if (fs.existsSync(fromSitePackage)) return fromSitePackage;
 
-  throw new Error('Could not locate content/ directory');
+  throw new Error('Could not locate content/ directory. Set CONTENT_DIR env var or ensure content/ exists.');
 }
 
 function loadAccessMap(contentDir: string): AccessMap {
