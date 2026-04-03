@@ -16,13 +16,13 @@ ASTRO_NODE_AUTOSTART=disabled node packages/api/dist/index.js &
 
 # Wait for API to become healthy before starting proxy
 echo "Waiting for API server..."
-for i in $(seq 1 60); do
+for i in $(seq 1 90); do
   if curl -sf http://localhost:3001/api/content/status > /dev/null 2>&1; then
     echo "API server ready after ${i}s"
     break
   fi
-  if [ "$i" -eq 60 ]; then
-    echo "ERROR: API server failed to start within 60s"
+  if [ "$i" -eq 90 ]; then
+    echo "ERROR: API server failed to start within 90s"
     exit 1
   fi
   sleep 1
