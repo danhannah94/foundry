@@ -2,7 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { loadAnvil } from './anvil-loader.js';
+import { AnvilHolder } from './anvil-holder.js';
 import { ContentFetcher } from './content-fetcher.js';
 import { getDocsPath, getCloneDir } from './config.js';
 import { createHealthRouter } from './routes/health.js';
@@ -29,12 +29,23 @@ const STATIC_PATH = process.env.FOUNDRY_STATIC_PATH || join(__dirname, '../../si
 // Content fetcher singleton (initialized if CONTENT_REPO is set)
 let contentFetcher: ContentFetcher | null = null;
 
+// Anvil holder — lazy container, available after background init
+const anvilHolder = new AnvilHolder();
+
 /**
  * Returns the ContentFetcher instance, or null if not configured.
  * Used by webhook endpoint (F3-S2) to trigger pulls.
  */
 export function getContentFetcher(): ContentFetcher | null {
   return contentFetcher;
+}
+
+/**
+ * Returns the AnvilHolder instance.
+ * Used by webhook router to check Anvil availability.
+ */
+export function getAnvilHolder(): AnvilHolder {
+  return anvilHolder;
 }
 
 interface ErrorWithStatus extends Error {
@@ -117,9 +128,6 @@ async function startServer(): Promise<void> {
       console.log('📦 Content fetcher disabled (no CONTENT_REPO set)');
     }
 
-    // Initialize Anvil (dynamic import — handles missing package gracefully)
-    const anvil = await loadAnvil(docsPath);
-
     // Generate and load access map
     console.log('📋 Generating access map from config...');
     try {
@@ -140,7 +148,6 @@ async function startServer(): Promise<void> {
     // Store active SSE transports
     const transports = new Map<string, SSEServerTransport>();
 
-    // MCP SSE endpoints (only if mcpServer is available)
     // MCP SSE endpoints (always available — MCP uses HTTP API, not Anvil)
     app.get('/mcp/sse', async (req, res) => {
       try {
@@ -177,7 +184,7 @@ async function startServer(): Promise<void> {
     });
 
     // Webhook content update callback
-    // Defined here so it can capture `anvil` from the closure
+    // Uses anvilHolder to get current Anvil instance (may be null during init)
     async function onContentUpdated(changedFiles: string[], isInitialClone: boolean) {
       const mdFiles = changedFiles.filter(f => f.endsWith('.md'));
 
@@ -193,6 +200,7 @@ async function startServer(): Promise<void> {
       }
 
       // Anvil reindex (if available)
+      const anvil = anvilHolder.get();
       if (anvil) {
         try {
           if (isInitialClone || mdFiles.length === 0) {
@@ -208,6 +216,8 @@ async function startServer(): Promise<void> {
         } catch (error) {
           console.error('[webhook] Anvil reindex failed:', error);
         }
+      } else {
+        console.log('[webhook] Anvil not ready, skipping reindex (will be indexed on init)');
       }
     }
 
@@ -220,24 +230,11 @@ async function startServer(): Promise<void> {
     // Mount pages router (no auth middleware — route handles auth internally)
     app.use('/api', createPagesRouter());
 
-    // Mount routers only when anvil is available
-    if (anvil) {
-      app.use('/api', createHealthRouter(anvil));
-      app.use('/api', createDocsRouter(anvil));
-      app.use('/api', createSearchRouter(anvil));
-      app.use('/api', createReindexRouter(anvil));
-    } else {
-      // Basic health endpoint when Anvil unavailable
-      app.get('/api/health', (req, res) => res.json({
-        status: 'ok',
-        version: '0.2.0',
-        anvil: null
-      }));
-      
-      // Disabled endpoints when Anvil unavailable
-      app.get('/api/docs', (req, res) => res.status(503).json({ error: 'Documentation service unavailable (Anvil disabled)' }));
-      app.get('/api/search', (req, res) => res.status(503).json({ error: 'Search service unavailable (Anvil disabled)' }));
-    }
+    // Mount Anvil-dependent routers — always mounted, holder provides lazy access
+    app.use('/api', createHealthRouter(anvilHolder));
+    app.use('/api', createDocsRouter(anvilHolder));
+    app.use('/api', createSearchRouter(anvilHolder));
+    app.use('/api', createReindexRouter(anvilHolder));
 
     // Create protected routers by wrapping with auth middleware
     const protectedAnnotationsRouter = express.Router();
@@ -285,21 +282,29 @@ async function startServer(): Promise<void> {
       console.log(`🌐 CORS enabled for GitHub Pages and localhost`);
       logAuthStatus();
 
-      // Run initial Anvil index AFTER server is listening (non-blocking)
-      // This ensures the health check passes while indexing happens in the background
-      if (anvil) {
-        console.log('📇 Running initial Anvil index (background)...');
-        anvil.index()
-          .then((result: any) => console.log('✅ Anvil index complete:', result))
-          .catch((error: any) => console.error('⚠️ Initial Anvil index failed:', error));
-      }
+      // Kick off Anvil init in the background (non-blocking)
+      console.log('🔧 Starting deferred Anvil initialization...');
+      anvilHolder.init(docsPath)
+        .then(() => {
+          const anvil = anvilHolder.get();
+          if (anvil) {
+            console.log('📇 Running initial Anvil index (background)...');
+            return anvil.index()
+              .then((result: any) => {
+                console.log('✅ Anvil index complete:', result);
 
-      // In dev mode, watch content directory for .md changes and auto-reindex
-      if (process.env.NODE_ENV !== "production" && anvil) {
-        import("./file-watcher.js")
-          .then(({ startFileWatcher }) => startFileWatcher(docsPath, anvil!))
-          .catch((err: any) => console.warn('⚠️ File watcher failed to start:', err));
-      }
+                // Start file watcher after index completes (dev mode only)
+                if (process.env.NODE_ENV !== 'production') {
+                  import('./file-watcher.js')
+                    .then(({ startFileWatcher }) => startFileWatcher(docsPath, anvil))
+                    .catch((err: any) => console.warn('⚠️ File watcher failed to start:', err));
+                }
+              });
+          } else {
+            console.warn('⚠️ Anvil not available:', anvilHolder.error);
+          }
+        })
+        .catch((error: any) => console.error('⚠️ Anvil background init failed:', error));
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
