@@ -38,6 +38,9 @@ COPY --from=api-builder /app/packages/api/dist packages/api/dist
 COPY --from=api-builder /app/packages/api/node_modules packages/api/node_modules
 COPY --from=api-builder /app/packages/api/package.json packages/api/
 
+# Copy config (injected by CI, or committed fallback for local deploys)
+COPY foundry.config.yaml foundry.config.yaml
+
 # Copy entrypoint script
 COPY scripts/start.sh scripts/start.sh
 RUN chmod +x scripts/start.sh
