@@ -6,7 +6,16 @@
  * - Routes everything else through the Astro SSR handler
  */
 import http from 'node:http';
-import { handler } from '../packages/site/dist/server/entry.mjs';
+import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
+
+// Polyfill __dirname and __filename for ESM (Astro's handler may reference them)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+globalThis.__dirname = dirname(fileURLToPath(new URL('../packages/site/dist/server/entry.mjs', import.meta.url)));
+globalThis.__filename = fileURLToPath(new URL('../packages/site/dist/server/entry.mjs', import.meta.url));
+
+const { handler } = await import('../packages/site/dist/server/entry.mjs');
 
 const PORT = parseInt(process.env.PORT || '4321', 10);
 const API_PORT = 3001;

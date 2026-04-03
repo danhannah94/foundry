@@ -14,8 +14,8 @@ fi
 echo "Starting API server on port 3001..."
 ASTRO_NODE_AUTOSTART=disabled node packages/api/dist/index.js &
 
-# Give the API a moment to start
-sleep 2
+# Give the API time to start (Anvil model loading takes ~8s)
+sleep 10
 
 # Start proxy as main process (port 4321)
 # Routes /api/* and /mcp/* to Express API, everything else to Astro SSR
