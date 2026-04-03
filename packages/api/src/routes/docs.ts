@@ -14,6 +14,7 @@ interface DocumentSection {
   heading: string;
   level: number;
   charCount: number;
+  content: string;
 }
 
 interface DocumentDetail {
@@ -93,20 +94,26 @@ export function createDocsRouter(anvil: Anvil): Router {
         } as any);
       }
 
-      // Extract sections from chunks, deduplicating headings
-      const seenHeadings = new Set<string>();
-      const sections: DocumentSection[] = [];
+      // Extract sections from chunks, aggregating content by heading
+      const sectionMap = new Map<string, DocumentSection>();
+      const sortedChunks = [...page.chunks].sort((a, b) => a.ordinal - b.ordinal);
 
-      for (const chunk of page.chunks) {
-        if (chunk.heading_path && !seenHeadings.has(chunk.heading_path)) {
-          seenHeadings.add(chunk.heading_path);
-          sections.push({
+      for (const chunk of sortedChunks) {
+        if (!chunk.heading_path) continue;
+        const existing = sectionMap.get(chunk.heading_path);
+        if (existing) {
+          existing.content += '\n' + chunk.content;
+          existing.charCount += chunk.char_count;
+        } else {
+          sectionMap.set(chunk.heading_path, {
             heading: chunk.heading_path,
             level: chunk.heading_level,
             charCount: chunk.char_count,
+            content: chunk.content,
           });
         }
       }
+      const sections = Array.from(sectionMap.values());
 
       const document: DocumentDetail = {
         path: page.file_path,

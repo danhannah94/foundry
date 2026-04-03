@@ -115,17 +115,71 @@ describe('Docs Router', () => {
         {
           heading: 'Purpose',
           level: 2,
-          charCount: 400,
+          charCount: 700,
+          content: 'This document describes the process...\nMore content under purpose...',
         },
         {
           heading: 'Overview',
           level: 2,
           charCount: 350,
+          content: 'The overview section covers...',
         },
       ],
     });
 
     expect(mockAnvil.getPage).toHaveBeenCalledWith('methodology/process.md');
+  });
+
+  it('should concatenate chunks with the same heading in ordinal order', async () => {
+    const mockAnvil = createMockAnvil();
+
+    vi.mocked(mockAnvil.getPage).mockResolvedValue({
+      file_path: 'guide.md',
+      title: 'Guide',
+      last_modified: '2024-01-01T00:00:00Z',
+      total_chars: 600,
+      chunks: [
+        // Out of ordinal order to verify sorting
+        {
+          content: 'Third part.',
+          heading_path: 'Setup',
+          heading_level: 2,
+          char_count: 100,
+          ordinal: 2,
+        },
+        {
+          content: 'First part.',
+          heading_path: 'Setup',
+          heading_level: 2,
+          char_count: 200,
+          ordinal: 0,
+        },
+        {
+          content: 'Second part.',
+          heading_path: 'Setup',
+          heading_level: 2,
+          char_count: 300,
+          ordinal: 1,
+        },
+      ],
+    });
+
+    const app = express();
+    app.use(express.json());
+    app.use('/api', createDocsRouter(mockAnvil));
+
+    const response = await request(app)
+      .get('/api/docs/guide.md')
+      .expect(200);
+
+    expect(response.body.sections).toEqual([
+      {
+        heading: 'Setup',
+        level: 2,
+        charCount: 600,
+        content: 'First part.\nSecond part.\nThird part.',
+      },
+    ]);
   });
 
   it('should return 404 for non-existent document', async () => {
