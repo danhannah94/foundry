@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     git \
     openssh-client \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy built artifacts
