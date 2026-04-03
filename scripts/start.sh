@@ -1,6 +1,6 @@
 #!/bin/sh
 # Foundry SSR Entrypoint
-# Starts both the Express API server and the Astro SSR server
+# Starts the Express API server, then the proxy (which handles Astro SSR + API routing)
 
 # Decode deploy key from environment (if provided as base64)
 if [ -n "$DEPLOY_KEY_B64" ] && [ -n "$DEPLOY_KEY_PATH" ]; then
@@ -12,8 +12,12 @@ fi
 
 # Start API server in background (port 3001)
 echo "Starting API server on port 3001..."
-node packages/api/dist/index.js &
+ASTRO_NODE_AUTOSTART=disabled node packages/api/dist/index.js &
 
-# Start Astro SSR server as main process (port 4321)
-echo "Starting Astro SSR server on port ${PORT:-4321}..."
-HOST=0.0.0.0 PORT=${PORT:-4321} exec node packages/site/dist/server/entry.mjs
+# Give the API a moment to start
+sleep 2
+
+# Start proxy as main process (port 4321)
+# Routes /api/* and /mcp/* to Express API, everything else to Astro SSR
+echo "Starting Foundry proxy on port ${PORT:-4321}..."
+ASTRO_NODE_AUTOSTART=disabled exec node scripts/proxy.mjs

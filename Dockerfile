@@ -41,8 +41,9 @@ COPY --from=api-builder /app/packages/api/package.json packages/api/
 # Copy config (injected by CI, or committed fallback for local deploys)
 COPY foundry.config.yaml foundry.config.yaml
 
-# Copy entrypoint script
+# Copy entrypoint scripts
 COPY scripts/start.sh scripts/start.sh
+COPY scripts/proxy.mjs scripts/proxy.mjs
 RUN chmod +x scripts/start.sh
 
 # Fix cross-platform native modules (Alpine build → Debian runtime)
