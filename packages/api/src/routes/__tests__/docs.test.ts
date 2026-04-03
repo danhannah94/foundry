@@ -2,13 +2,24 @@ import { describe, it, expect, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import type { Anvil } from '@claymore-dev/anvil';
+import { AnvilHolder } from '../../anvil-holder.js';
 import { createDocsRouter } from '../docs.js';
+
+// Create an AnvilHolder with a mock Anvil pre-loaded
+function createReadyHolder(mockAnvil: Anvil): AnvilHolder {
+  const holder = new AnvilHolder();
+  // Manually set internal state to simulate ready
+  (holder as any).anvil = mockAnvil;
+  (holder as any)._status = 'ready';
+  return holder;
+}
 
 // Mock Anvil instance
 const createMockAnvil = (): Anvil => ({
   listPages: vi.fn(),
   getPage: vi.fn(),
   getStatus: vi.fn(),
+  getSection: vi.fn(),
   // Add any other Anvil methods as needed
 } as any);
 
@@ -41,7 +52,7 @@ describe('Docs Router', () => {
 
     const app = express();
     app.use(express.json());
-    app.use('/api', createDocsRouter(mockAnvil));
+    app.use('/api', createDocsRouter(createReadyHolder(mockAnvil)));
 
     const response = await request(app)
       .get('/api/docs')
@@ -101,7 +112,7 @@ describe('Docs Router', () => {
 
     const app = express();
     app.use(express.json());
-    app.use('/api', createDocsRouter(mockAnvil));
+    app.use('/api', createDocsRouter(createReadyHolder(mockAnvil)));
 
     const response = await request(app)
       .get('/api/docs/methodology/process.md')
@@ -166,7 +177,7 @@ describe('Docs Router', () => {
 
     const app = express();
     app.use(express.json());
-    app.use('/api', createDocsRouter(mockAnvil));
+    app.use('/api', createDocsRouter(createReadyHolder(mockAnvil)));
 
     const response = await request(app)
       .get('/api/docs/guide.md')
@@ -190,7 +201,7 @@ describe('Docs Router', () => {
 
     const app = express();
     app.use(express.json());
-    app.use('/api', createDocsRouter(mockAnvil));
+    app.use('/api', createDocsRouter(createReadyHolder(mockAnvil)));
 
     const response = await request(app)
       .get('/api/docs/non-existent.md')
@@ -211,7 +222,7 @@ describe('Docs Router', () => {
 
     const app = express();
     app.use(express.json());
-    app.use('/api', createDocsRouter(mockAnvil));
+    app.use('/api', createDocsRouter(createReadyHolder(mockAnvil)));
 
     const response = await request(app)
       .get('/api/docs')
@@ -230,7 +241,7 @@ describe('Docs Router', () => {
 
     const app = express();
     app.use(express.json());
-    app.use('/api', createDocsRouter(mockAnvil));
+    app.use('/api', createDocsRouter(createReadyHolder(mockAnvil)));
 
     const response = await request(app)
       .get('/api/docs/some-file.md')
@@ -239,5 +250,40 @@ describe('Docs Router', () => {
     expect(response.body).toEqual({
       error: 'Failed to fetch document',
     });
+  });
+
+  it('should return 503 with Retry-After when Anvil is initializing', async () => {
+    const holder = new AnvilHolder();
+    (holder as any)._status = 'initializing';
+
+    const app = express();
+    app.use(express.json());
+    app.use('/api', createDocsRouter(holder));
+
+    const response = await request(app)
+      .get('/api/docs')
+      .expect(503);
+
+    expect(response.headers['retry-after']).toBe('5');
+    expect(response.body).toEqual({
+      status: 'initializing',
+      message: 'Search index is loading, please retry',
+      retryAfter: 5,
+    });
+  });
+
+  it('should return 503 when Anvil is unavailable (error state)', async () => {
+    const holder = new AnvilHolder();
+    (holder as any)._status = 'error';
+
+    const app = express();
+    app.use(express.json());
+    app.use('/api', createDocsRouter(holder));
+
+    const response = await request(app)
+      .get('/api/docs')
+      .expect(503);
+
+    expect(response.body).toEqual({ error: 'Service unavailable' });
   });
 });

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import type { Anvil } from '@claymore-dev/anvil';
+import type { AnvilHolder } from '../anvil-holder.js';
 import { getAccessLevel } from '../access.js';
 
 interface SearchRequest {
@@ -34,10 +34,24 @@ function isRequestAuthenticated(req: Request): boolean {
 /**
  * Creates the search router
  */
-export function createSearchRouter(anvil: Anvil): Router {
+export function createSearchRouter(holder: AnvilHolder): Router {
   const router = Router();
 
   router.post('/search', async (req: Request<{}, SearchResponse, SearchRequest>, res: Response<SearchResponse>) => {
+    const anvil = holder.get();
+
+    if (!anvil) {
+      if (holder.isInitializing()) {
+        res.set('Retry-After', '5');
+        return res.status(503).json({
+          status: 'initializing',
+          message: 'Search index is loading, please retry',
+          retryAfter: 5,
+        } as any);
+      }
+      return res.status(503).json({ error: 'Service unavailable' } as any);
+    }
+
     try {
       const { query, topK = 10 } = req.body;
 

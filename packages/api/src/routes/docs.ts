@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import type { Anvil } from '@claymore-dev/anvil';
+import type { AnvilHolder } from '../anvil-holder.js';
 import { getAccessLevel } from '../access.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -25,13 +25,36 @@ interface DocumentDetail {
 }
 
 /**
+ * Returns a 503 response if Anvil is not ready.
+ * Returns true if response was sent, false if Anvil is available.
+ */
+function guardAnvil(holder: AnvilHolder, res: Response): boolean {
+  if (holder.get()) return false;
+
+  if (holder.isInitializing()) {
+    res.set('Retry-After', '5');
+    res.status(503).json({
+      status: 'initializing',
+      message: 'Search index is loading, please retry',
+      retryAfter: 5,
+    });
+  } else {
+    res.status(503).json({ error: 'Service unavailable' });
+  }
+  return true;
+}
+
+/**
  * Creates the docs router
  */
-export function createDocsRouter(anvil: Anvil): Router {
+export function createDocsRouter(holder: AnvilHolder): Router {
   const router = Router();
 
   // GET /docs - List all indexed documents
   router.get('/docs', async (req: Request, res: Response<DocumentListItem[]>) => {
+    if (guardAnvil(holder, res)) return;
+    const anvil = holder.get()!;
+
     try {
       const { pages } = await anvil.listPages();
 
@@ -53,6 +76,9 @@ export function createDocsRouter(anvil: Anvil): Router {
 
   // GET /docs/:path(*)/sections/:heading(*) - Get a specific section from a document
   router.get('/docs/:path(*)/sections/:heading(*)', async (req, res) => {
+    if (guardAnvil(holder, res)) return;
+    const anvil = holder.get()!;
+
     try {
       const section = await anvil.getSection(req.params.path, req.params.heading);
       if (!section) return res.status(404).json({ error: 'Section not found' });
@@ -65,6 +91,9 @@ export function createDocsRouter(anvil: Anvil): Router {
 
   // GET /docs/:path(*) - Get single document with section structure
   router.get('/docs/:path(*)', async (req: Request, res: Response<DocumentDetail>) => {
+    if (guardAnvil(holder, res)) return;
+    const anvil = holder.get()!;
+
     try {
       const path = req.params.path;
 

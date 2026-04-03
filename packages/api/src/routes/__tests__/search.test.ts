@@ -2,8 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import type { Anvil } from '@claymore-dev/anvil';
+import { AnvilHolder } from '../../anvil-holder.js';
 import { createSearchRouter } from '../search.js';
 import * as access from '../../access.js';
+
+// Create an AnvilHolder with a mock Anvil pre-loaded
+function createReadyHolder(mockAnvil: Anvil): AnvilHolder {
+  const holder = new AnvilHolder();
+  (holder as any).anvil = mockAnvil;
+  (holder as any)._status = 'ready';
+  return holder;
+}
 
 // Mock Anvil instance
 const mockAnvil = {
@@ -14,7 +23,7 @@ const mockAnvil = {
 // Create test app
 const app = express();
 app.use(express.json());
-app.use('/api', createSearchRouter(mockAnvil));
+app.use('/api', createSearchRouter(createReadyHolder(mockAnvil)));
 
 describe('POST /search', () => {
   beforeEach(() => {
@@ -275,7 +284,7 @@ describe('POST /search', () => {
 
       // Should return both public and private results
       expect(response.body.results).toHaveLength(2);
-      expect(response.body.results.map(r => r.path)).toEqual([
+      expect(response.body.results.map((r: any) => r.path)).toEqual([
         'methodology/process.md',
         'projects/secret/design.md',
       ]);
@@ -364,6 +373,45 @@ describe('POST /search', () => {
 
       // Restore the env var for other tests
       process.env.FOUNDRY_WRITE_TOKEN = 'test-token';
+    });
+  });
+
+  describe('503 during initialization', () => {
+    it('should return 503 with Retry-After when Anvil is initializing', async () => {
+      const initHolder = new AnvilHolder();
+      (initHolder as any)._status = 'initializing';
+
+      const initApp = express();
+      initApp.use(express.json());
+      initApp.use('/api', createSearchRouter(initHolder));
+
+      const response = await request(initApp)
+        .post('/api/search')
+        .send({ query: 'test' })
+        .expect(503);
+
+      expect(response.headers['retry-after']).toBe('5');
+      expect(response.body).toEqual({
+        status: 'initializing',
+        message: 'Search index is loading, please retry',
+        retryAfter: 5,
+      });
+    });
+
+    it('should return 503 when Anvil is unavailable', async () => {
+      const errorHolder = new AnvilHolder();
+      (errorHolder as any)._status = 'error';
+
+      const errorApp = express();
+      errorApp.use(express.json());
+      errorApp.use('/api', createSearchRouter(errorHolder));
+
+      const response = await request(errorApp)
+        .post('/api/search')
+        .send({ query: 'test' })
+        .expect(503);
+
+      expect(response.body).toEqual({ error: 'Service unavailable' });
     });
   });
 });
