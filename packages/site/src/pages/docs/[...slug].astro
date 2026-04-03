@@ -16,6 +16,50 @@ if (!fs.existsSync(filePath)) {
   return Astro.redirect('/404');
 }
 
+// Access control — check if page is private
+const accessJsonPath = path.join(contentDir, '.access.json');
+let accessMap: Record<string, string> = {};
+try {
+  if (fs.existsSync(accessJsonPath)) {
+    accessMap = JSON.parse(fs.readFileSync(accessJsonPath, 'utf-8'));
+  }
+} catch { /* no access map = all public */ }
+
+// Check if this slug matches a private prefix
+const isPrivate = Object.entries(accessMap).some(([prefix, level]) => {
+  return level === 'private' && slug!.startsWith(prefix.replace(/\/$/, ''));
+});
+
+if (isPrivate) {
+  // Check for read token in cookie, query param, or header
+  const readToken = process.env.FOUNDRY_READ_TOKEN;
+  if (readToken) {
+    const cookieToken = Astro.cookies.get('foundry_token')?.value;
+    const queryToken = Astro.url.searchParams.get('token');
+    const headerToken = Astro.request.headers.get('x-foundry-token');
+
+    const providedToken = cookieToken || queryToken || headerToken;
+    if (providedToken !== readToken) {
+      return new Response('Access denied — this content requires authentication.', {
+        status: 403,
+        headers: { 'Content-Type': 'text/plain' },
+      });
+    }
+
+    // If token came via query param, set a cookie so they dont need it on every request
+    if (queryToken && queryToken === readToken && !cookieToken) {
+      Astro.cookies.set('foundry_token', readToken, {
+        path: '/',
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 30, // 30 days
+      });
+    }
+  }
+  // If FOUNDRY_READ_TOKEN is not set, allow all (dev mode)
+}
+
 // Check cache first, render on miss
 let html: string;
 let frontmatter: Record<string, any>;

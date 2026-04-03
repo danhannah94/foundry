@@ -71,6 +71,7 @@ ENV WEBHOOK_SECRET=""
 ENV CONTENT_CLONE_DIR=/app/content-repo
 # Content root — the docs subdirectory within the clone (what Astro + Anvil read)
 ENV CONTENT_DIR=/app/content-repo/docs
+ENV FOUNDRY_READ_TOKEN=""
 
 EXPOSE 4321
 VOLUME ["/data"]

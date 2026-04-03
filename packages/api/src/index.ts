@@ -16,6 +16,7 @@ import { createWebhookRouter } from './routes/webhook.js';
 import { createPagesRouter } from './routes/pages.js';
 import { requireAuth, logAuthStatus } from './middleware/auth.js';
 import { loadAccessMap, getAccessLevel } from './access.js';
+import { generateAccessMap } from './access-map-generator.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { createMcpServer } from './mcp/server.js';
 
@@ -119,10 +120,17 @@ async function startServer(): Promise<void> {
     // Initialize Anvil (dynamic import — handles missing package gracefully)
     const anvil = await loadAnvil(docsPath);
 
-    // Load access map from the static build directory
-    console.log('📋 Loading access map...');
-    loadAccessMap(STATIC_PATH);
-    console.log('✅ Access map loaded successfully');
+    // Generate and load access map
+    console.log('📋 Generating access map from config...');
+    try {
+      const configPath = join(process.cwd(), 'foundry.config.yaml');
+      generateAccessMap(configPath, docsPath);
+      loadAccessMap(docsPath);
+      console.log('✅ Access map generated and loaded');
+    } catch (error) {
+      console.warn('⚠️ Could not generate access map:', error);
+      loadAccessMap(docsPath); // Try loading existing .access.json as fallback
+    }
 
     // Create MCP server (uses HTTP API, no Anvil dependency)
     console.log('🔧 Initializing MCP server...');
