@@ -120,6 +120,17 @@ async function startServer(): Promise<void> {
     // Initialize Anvil (dynamic import — handles missing package gracefully)
     const anvil = await loadAnvil(docsPath);
 
+    // Run initial Anvil index (model is loaded but content not yet indexed)
+    if (anvil) {
+      console.log("📇 Running initial Anvil index...");
+      try {
+        const result = await anvil.index();
+        console.log(`✅ Anvil index complete:`, result);
+      } catch (error) {
+        console.error("⚠️ Initial Anvil index failed:", error);
+      }
+    }
+
     // Generate and load access map
     console.log('📋 Generating access map from config...');
     try {
@@ -198,9 +209,12 @@ async function startServer(): Promise<void> {
           if (isInitialClone || mdFiles.length === 0) {
             console.log('[webhook] Triggering full Anvil reindex');
             await anvil.index();
-          } else {
-            console.log(`[webhook] Reindexing ${mdFiles.length} changed files`);
+          } else if (typeof anvil.reindexFiles === "function") {
+            console.log(`[webhook] Delta reindexing ${mdFiles.length} changed files`);
             await anvil.reindexFiles(mdFiles);
+          } else {
+            console.log("[webhook] reindexFiles not available, falling back to full reindex");
+            await anvil.index();
           }
         } catch (error) {
           console.error('[webhook] Anvil reindex failed:', error);
