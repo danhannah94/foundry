@@ -293,6 +293,12 @@ async function startServer(): Promise<void> {
           .then((result: any) => console.log('✅ Anvil index complete:', result))
           .catch((error: any) => console.error('⚠️ Initial Anvil index failed:', error));
       }
+
+      // In dev mode, watch content directory for .md changes and auto-reindex
+      if (process.env.NODE_ENV !== "production" && anvil) {
+        const { startFileWatcher } = await import("./file-watcher.js");
+        startFileWatcher(docsPath, anvil);
+      }
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
