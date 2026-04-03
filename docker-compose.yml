@@ -2,16 +2,23 @@ services:
   foundry:
     build:
       context: .
-      args:
-        GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     ports:
-      - "${PORT:-3001}:3001"
+      - "${PORT:-4321}:4321"
     volumes:
       - foundry-data:/data
     environment:
-      - PORT=3001
+      # Proxy serves on 4321 (Astro SSR + API routing)
+      - PORT=4321
       - FOUNDRY_DB_PATH=/data/foundry.db
       - NODE_ENV=production
+      # Runtime content fetching from GitHub
+      - CONTENT_REPO=${CONTENT_REPO:-}
+      - CONTENT_BRANCH=${CONTENT_BRANCH:-main}
+      # Deploy key for private repo access (base64-encoded)
+      - DEPLOY_KEY_B64=${DEPLOY_KEY_B64:-}
+      - DEPLOY_KEY_PATH=/root/.ssh/deploy_key
+      # GitHub webhook secret for content updates
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-}
       # Bearer token for API write protection (annotations/reviews)
       # If unset, auth is disabled (dev mode)
       - FOUNDRY_WRITE_TOKEN=${FOUNDRY_WRITE_TOKEN:-}
