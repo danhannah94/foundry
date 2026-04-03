@@ -5,6 +5,7 @@ import rehypeSlug from 'rehype-slug';
 import rehypeAutolinkHeadings from 'rehype-autolink-headings';
 import remarkAdmonitions from './src/plugins/remark-admonitions.ts';
 import remarkMermaid from './src/plugins/remark-mermaid.ts';
+import remarkGfm from 'remark-gfm';
 
 export default defineConfig({
   output: 'server',
@@ -12,7 +13,7 @@ export default defineConfig({
   integrations: [react()],
 
   markdown: {
-    remarkPlugins: [remarkMermaid, remarkAdmonitions],
+    remarkPlugins: [remarkGfm, remarkMermaid, remarkAdmonitions],
     rehypePlugins: [
       rehypeSlug,
       [

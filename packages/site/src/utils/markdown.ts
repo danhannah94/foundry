@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
+import remarkGfm from 'remark-gfm';
 import remarkRehype from 'remark-rehype';
 import rehypeStringify from 'rehype-stringify';
 import rehypeRaw from 'rehype-raw';
@@ -18,6 +19,7 @@ async function getProcessor() {
 
   processor = unified()
     .use(remarkParse)
+    .use(remarkGfm)
     .use(remarkMermaid)
     .use(remarkAdmonitions)
     .use(remarkRehype, { allowDangerousHtml: true })
