@@ -14,8 +14,19 @@ fi
 echo "Starting API server on port 3001..."
 ASTRO_NODE_AUTOSTART=disabled node packages/api/dist/index.js &
 
-# Give the API time to start (Anvil model loading takes ~8s)
-sleep 10
+# Wait for API to become healthy before starting proxy
+echo "Waiting for API server..."
+for i in $(seq 1 30); do
+  if curl -sf http://localhost:3001/api/content/status > /dev/null 2>&1; then
+    echo "API server ready after ${i}s"
+    break
+  fi
+  if [ "$i" -eq 30 ]; then
+    echo "ERROR: API server failed to start within 30s"
+    exit 1
+  fi
+  sleep 1
+done
 
 # Start proxy as main process (port 4321)
 # Routes /api/* and /mcp/* to Express API, everything else to Astro SSR
