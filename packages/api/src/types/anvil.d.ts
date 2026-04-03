@@ -14,5 +14,5 @@ declare module '@claymore-dev/anvil' {
     reindexFiles(files: string[]): Promise<any>;
   }
   
-  export function createAnvil(options: { docsPath: string }): Promise<Anvil>;
+  export function createAnvil(options: { docsPath: string; embedding?: Record<string, string | undefined> }): Promise<Anvil>;
 }
