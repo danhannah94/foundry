@@ -296,8 +296,9 @@ async function startServer(): Promise<void> {
 
       // In dev mode, watch content directory for .md changes and auto-reindex
       if (process.env.NODE_ENV !== "production" && anvil) {
-        const { startFileWatcher } = await import("./file-watcher.js");
-        startFileWatcher(docsPath, anvil);
+        import("./file-watcher.js")
+          .then(({ startFileWatcher }) => startFileWatcher(docsPath, anvil!))
+          .catch((err: any) => console.warn('⚠️ File watcher failed to start:', err));
       }
     });
   } catch (error) {
