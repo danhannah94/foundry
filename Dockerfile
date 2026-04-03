@@ -56,9 +56,7 @@ RUN cd packages/api/node_modules/sqlite-vss-linux-x64/lib && \
 
 # Create data directory for SQLite and content directory for runtime fetching
 RUN mkdir -p /data
-RUN mkdir -p packages/site/content
-# Symlink content/ at app root for SSR page resolution (process.cwd() + 'content')
-RUN ln -s /app/packages/site/content/docs /app/content
+RUN mkdir -p /app/content
 
 # Environment
 ENV PORT=4321
@@ -69,6 +67,7 @@ ENV CONTENT_REPO=""
 ENV CONTENT_BRANCH=main
 ENV DEPLOY_KEY_PATH=""
 ENV WEBHOOK_SECRET=""
+ENV CONTENT_DIR=/app/content
 
 EXPOSE 4321
 VOLUME ["/data"]

@@ -56,14 +56,16 @@ function readFoundryConfig(): FoundryConfig {
  * Gets the docs path from config or returns the default path
  */
 export function getDocsPath(): string {
-  const config = readFoundryConfig();
+  // CONTENT_DIR env var takes priority (canonical path in Docker)
+  if (process.env.CONTENT_DIR) {
+    return process.env.CONTENT_DIR;
+  }
 
-  // If docsPath is explicitly configured, use it
+  const config = readFoundryConfig();
   if (config.docsPath) {
     return config.docsPath;
   }
 
-  // Default to the site content directory
   const projectRoot = findProjectRoot(__dirname);
   return join(projectRoot, 'packages/site/content/');
 }
