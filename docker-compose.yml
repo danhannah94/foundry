@@ -24,6 +24,7 @@ services:
       # Bearer token for API write protection (annotations/reviews)
       # If unset, auth is disabled (dev mode)
       - FOUNDRY_WRITE_TOKEN=${FOUNDRY_WRITE_TOKEN:-}
+      - FOUNDRY_READ_TOKEN=${FOUNDRY_READ_TOKEN:-}
     restart: unless-stopped
 
 volumes:
