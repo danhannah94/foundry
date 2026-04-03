@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { loadAnvil } from './anvil-loader.js';
 import { ContentFetcher } from './content-fetcher.js';
-import { getDocsPath } from './config.js';
+import { getDocsPath, getCloneDir } from './config.js';
 import { createHealthRouter } from './routes/health.js';
 import { createDocsRouter } from './routes/docs.js';
 import { createSearchRouter } from './routes/search.js';
@@ -95,8 +95,10 @@ async function startServer(): Promise<void> {
     if (contentRepo) {
       const contentBranch = process.env.CONTENT_BRANCH || 'main';
       const deployKeyPath = process.env.DEPLOY_KEY_PATH;
+      const cloneDir = getCloneDir();
+      console.log(`📂 Clone target: ${cloneDir}`);
       contentFetcher = new ContentFetcher({
-        contentDir: docsPath,
+        contentDir: cloneDir,
         repoUrl: contentRepo,
         branch: contentBranch,
         deployKeyPath: deployKeyPath,

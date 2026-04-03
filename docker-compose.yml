@@ -19,7 +19,8 @@ services:
       - DEPLOY_KEY_PATH=/root/.ssh/deploy_key
       # GitHub webhook secret for content updates
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-}
-      - CONTENT_DIR=/app/content
+      - CONTENT_CLONE_DIR=/app/content-repo
+      - CONTENT_DIR=/app/content-repo/docs
       # Bearer token for API write protection (annotations/reviews)
       # If unset, auth is disabled (dev mode)
       - FOUNDRY_WRITE_TOKEN=${FOUNDRY_WRITE_TOKEN:-}

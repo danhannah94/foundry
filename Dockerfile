@@ -56,7 +56,7 @@ RUN cd packages/api/node_modules/sqlite-vss-linux-x64/lib && \
 
 # Create data directory for SQLite and content directory for runtime fetching
 RUN mkdir -p /data
-RUN mkdir -p /app/content
+RUN mkdir -p /app/content-repo
 
 # Environment
 ENV PORT=4321
@@ -67,7 +67,10 @@ ENV CONTENT_REPO=""
 ENV CONTENT_BRANCH=main
 ENV DEPLOY_KEY_PATH=""
 ENV WEBHOOK_SECRET=""
-ENV CONTENT_DIR=/app/content
+# Clone target — full repo lands here
+ENV CONTENT_CLONE_DIR=/app/content-repo
+# Content root — the docs subdirectory within the clone (what Astro + Anvil read)
+ENV CONTENT_DIR=/app/content-repo/docs
 
 EXPOSE 4321
 VOLUME ["/data"]
