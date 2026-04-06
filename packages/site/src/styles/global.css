@@ -340,6 +340,10 @@ h6:hover .heading-anchor {
   color: var(--color-heading);
 }
 
+.header-title img {
+  flex-shrink: 0;
+}
+
 .header-right {
   margin-left: auto;
   display: flex;

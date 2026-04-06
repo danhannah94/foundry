@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Anvil base -->
+  <path d="M6 20h20l2 6H4l2-6z" fill="#ea580c"/>
+  <!-- Anvil top surface -->
+  <path d="M8 20V16h16v4" fill="#ea580c"/>
+  <!-- Anvil horn -->
+  <rect x="10" y="14" width="12" height="2" rx="1" fill="#ea580c"/>
+  <!-- Spark/flame -->
+  <path d="M16 4c-2 4-4 6-3 10h6c1-4-1-6-3-10z" fill="#ea580c" opacity="0.8"/>
+  <!-- Additional spark detail -->
+  <circle cx="14" cy="8" r="1" fill="#ea580c" opacity="0.6"/>
+  <circle cx="18" cy="6" r="0.5" fill="#ea580c" opacity="0.7"/>
+</svg>
