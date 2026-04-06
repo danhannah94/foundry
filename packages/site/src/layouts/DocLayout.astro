@@ -31,6 +31,16 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
   <meta name="description" content={description} />
   <title>{pageTitle}</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" href="/logo.svg" />
+  
+  <!-- Open Graph meta tags -->
+  <meta property="og:title" content={pageTitle} />
+  <meta property="og:description" content={description} />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="/og-image.png" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content={pageTitle} />
+  <meta name="twitter:description" content={description} />
 
   {/* Prevent flash of wrong theme */}
   <script is:inline>
@@ -53,7 +63,10 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
         <line x1="2" y1="12" x2="14" y2="12" />
       </svg>
     </button>
-    <a href="/" class="header-title" style="text-decoration: none;">🏭 Foundry</a>
+    <a href="/" class="header-title" style="text-decoration: none; display: flex; align-items: center; gap: 8px;">
+      <img src="/logo.svg" alt="Foundry" width="24" height="24" style="display: block;" />
+      <span>Foundry</span>
+    </a>
     <div class="header-right">
       {/* Sidebar slot — nav goes here (S2) */}
       <AuthIndicator client:load />

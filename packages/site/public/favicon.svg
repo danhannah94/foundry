@@ -1,1 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36"><text y="32" font-size="32">🏭</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Simplified anvil for favicon -->
+  <path d="M6 20h20l2 6H4l2-6z" fill="#ea580c"/>
+  <path d="M8 20V16h16v4" fill="#ea580c"/>
+  <rect x="10" y="14" width="12" height="2" rx="1" fill="#ea580c"/>
+  <!-- Single spark -->
+  <path d="M16 4c-1 2-2 4-1.5 8h3c0.5-4-0.5-6-1.5-8z" fill="#ea580c" opacity="0.8"/>
+</svg>
