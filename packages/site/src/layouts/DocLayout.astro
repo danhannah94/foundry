@@ -1,6 +1,6 @@
 ---
 import '../styles/global.css';
-import ThemeToggle from '../components/ThemeToggle.tsx';
+import SettingsModal from '../components/SettingsModal.tsx';
 import TtsSectionManager from '../components/TtsSectionManager.tsx';
 import Sidebar from '../components/Sidebar.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
@@ -11,7 +11,6 @@ import CommentDraft from '../components/CommentDraft.tsx';
 import ContentStatusBanner from '../components/ContentStatusBanner.tsx';
 
 import TokenModal from '../components/TokenModal.tsx';
-import AuthIndicator from '../components/AuthIndicator.tsx';
 
 interface Props {
   title?: string;
@@ -43,6 +42,13 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
       }
     })();
   </script>
+  <script is:inline>
+    (function() {
+      if (localStorage.getItem('foundry-tts-enabled') === 'false') {
+        document.body.classList.add('tts-disabled');
+      }
+    })();
+  </script>
 </head>
 <body>
   <header class="header">
@@ -55,9 +61,7 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
     </button>
     <a href="/" class="header-title" style="text-decoration: none;">🏭 Foundry</a>
     <div class="header-right">
-      {/* Sidebar slot — nav goes here (S2) */}
-      <AuthIndicator client:load />
-      <ThemeToggle client:load />
+      <SettingsModal client:load />
       <slot name="header-actions" />
     </div>
   </header>
