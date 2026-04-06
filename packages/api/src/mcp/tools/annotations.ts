@@ -91,6 +91,10 @@ export function registerAnnotationTools(server: Server): void {
                 type: 'string',
                 description: 'Optional author type (human or ai), defaults to ai for MCP callers'
               },
+              quoted_text: {
+                type: 'string',
+                description: 'Optional highlighted text that the annotation refers to'
+              },
               auth_token: {
                 type: 'string',
                 description: 'Authentication token (kept for backward compatibility)'
@@ -222,7 +226,8 @@ export function registerAnnotationTools(server: Server): void {
           section: args.section as string,
           content: args.content as string,
           parent_id: args.parent_id as string | undefined,
-          author_type: args.author_type as string | undefined
+          author_type: args.author_type as string | undefined,
+          quoted_text: args.quoted_text as string | undefined
         });
         return { content: [{ type: "text", text: JSON.stringify({ status: "created", annotation: result }) }] };
       }

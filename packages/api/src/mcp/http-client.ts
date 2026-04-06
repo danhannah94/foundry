@@ -62,6 +62,7 @@ export async function createAnnotation(params: {
   content: string;
   parent_id?: string;
   author_type?: string;
+  quoted_text?: string;
 }): Promise<Annotation> {
   return apiFetch<Annotation>('/api/annotations', {
     method: 'POST',
@@ -71,6 +72,7 @@ export async function createAnnotation(params: {
       content: params.content,
       parent_id: params.parent_id || undefined,
       author_type: params.author_type || 'ai',
+      quoted_text: params.quoted_text || undefined,
       user_id: process.env.FOUNDRY_MCP_USER || 'clay',
       status: params.parent_id ? 'replied' : 'submitted',
     }),
