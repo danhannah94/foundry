@@ -71,6 +71,7 @@ export async function createAnnotation(params: {
       heading_path: params.section,
       content: params.content,
       parent_id: params.parent_id || undefined,
+      quoted_text: params.quoted_text || undefined,
       author_type: params.author_type || 'ai',
       quoted_text: params.quoted_text || undefined,
       user_id: process.env.FOUNDRY_MCP_USER || 'clay',
