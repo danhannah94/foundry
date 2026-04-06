@@ -300,11 +300,11 @@ h6:hover .heading-anchor {
   padding: var(--spacing-xl);
   padding-top: calc(var(--header-height) + var(--spacing-xl));
   min-width: 0; /* prevent wide content from blowing out the grid */
-  overflow-x: hidden; /* contain wide tables/code — safe here because this column isn't sticky */
+  overflow-x: clip; /* contain wide tables/code — safe here because this column isn't sticky */
 }
 
 .content {
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 .content table {
@@ -2432,6 +2432,26 @@ body.tts-disabled .tts-controls-bar {
   color: var(--color-text-secondary);
   box-shadow: 0 1px 0 var(--color-border);
   margin: 0 2px;
+}
+
+/* --- Sticky Section Headings --- */
+.content h2 {
+  position: sticky;
+  top: var(--header-height);
+  z-index: 5;
+  background: var(--color-bg);
+  padding-top: 0.5em;
+  margin-top: 0;
+  transition: box-shadow var(--transition-fast);
+}
+
+/* Shadow when stuck — uses IntersectionObserver sentinel pattern */
+.content h2.is-stuck {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .content h2.is-stuck {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 /* Animations */
