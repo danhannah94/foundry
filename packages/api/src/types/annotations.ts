@@ -38,8 +38,10 @@ export interface CreateAnnotationBody {
   parent_id?: string;
   review_id?: string;
   author_type?: AuthorType;
+  user_id?: string;
 }
 
 export interface CreateReviewBody {
   doc_path: string;
+  user_id?: string;
 }

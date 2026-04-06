@@ -71,7 +71,7 @@ export async function createAnnotation(params: {
       content: params.content,
       parent_id: params.parent_id || undefined,
       author_type: params.author_type || 'ai',
-      user_id: 'clay',
+      user_id: process.env.FOUNDRY_MCP_USER || 'clay',
       status: params.parent_id ? 'replied' : 'submitted',
     }),
   });

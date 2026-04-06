@@ -33,7 +33,7 @@ function createTables(database: Database.Database): void {
     CREATE TABLE IF NOT EXISTS reviews (
       id TEXT PRIMARY KEY,
       doc_path TEXT NOT NULL,
-      user_id TEXT DEFAULT "dan",
+      user_id TEXT DEFAULT "anonymous",
       status TEXT NOT NULL DEFAULT "draft",
       submitted_at TEXT,
       completed_at TEXT,
@@ -53,7 +53,7 @@ function createTables(database: Database.Database): void {
       content TEXT NOT NULL,
       parent_id TEXT,
       review_id TEXT,
-      user_id TEXT DEFAULT "dan",
+      user_id TEXT DEFAULT "anonymous",
       author_type TEXT NOT NULL DEFAULT "human",
       status TEXT NOT NULL DEFAULT "draft",
       created_at TEXT NOT NULL,

@@ -84,7 +84,7 @@ describe('Reviews Router', () => {
 
       expect(res.body.id).toMatch(CUID2_REGEX);
       expect(res.body.doc_path).toBe('docs/process.md');
-      expect(res.body.user_id).toBe('dan');
+      expect(res.body.user_id).toBe('anonymous');
       expect(res.body.status).toBe('draft');
       expect(res.body.submitted_at).toBeNull();
       expect(res.body.completed_at).toBeNull();
