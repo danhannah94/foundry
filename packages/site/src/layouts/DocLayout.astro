@@ -177,12 +177,9 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
     (function() {
       var headings = document.querySelectorAll('.content h2');
       if (!headings.length) return;
-      
       var headerHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--header-height')) || 56;
-      
       var observer = new IntersectionObserver(function(entries) {
         entries.forEach(function(entry) {
-          // When the sentinel (1px above sticky position) goes out of view, heading is stuck
           if (!entry.isIntersecting) {
             entry.target.nextElementSibling && entry.target.nextElementSibling.classList.add('is-stuck');
           } else {
@@ -190,8 +187,6 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
           }
         });
       }, { rootMargin: '-' + headerHeight + 'px 0px 0px 0px', threshold: 0 });
-      
-      // Insert sentinel divs before each h2 for intersection detection
       headings.forEach(function(h2) {
         var sentinel = document.createElement('div');
         sentinel.style.height = '1px';
@@ -199,6 +194,33 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
         sentinel.setAttribute('aria-hidden', 'true');
         h2.parentNode.insertBefore(sentinel, h2);
         observer.observe(sentinel);
+      });
+    })();
+  </script>
+
+  {/* Code copy buttons */}
+  <script is:inline>
+    (function() {
+      document.querySelectorAll('pre > code').forEach(function(codeBlock) {
+        var pre = codeBlock.parentElement;
+        if (!pre || pre.classList.contains('mermaid')) return;
+        pre.style.position = 'relative';
+        var btn = document.createElement('button');
+        btn.className = 'code-copy-btn';
+        btn.setAttribute('aria-label', 'Copy code');
+        btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+        btn.addEventListener('click', function() {
+          var text = codeBlock.textContent || '';
+          navigator.clipboard.writeText(text).then(function() {
+            btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+            btn.classList.add('code-copy-btn--copied');
+            setTimeout(function() {
+              btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+              btn.classList.remove('code-copy-btn--copied');
+            }, 2000);
+          });
+        });
+        pre.appendChild(btn);
       });
     })();
   </script>
