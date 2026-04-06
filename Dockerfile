@@ -41,6 +41,7 @@ COPY --from=api-builder /app/packages/api/package.json packages/api/
 
 # Copy config (injected by CI, or committed fallback for local deploys)
 COPY foundry.config.yaml foundry.config.yaml
+COPY nav.yaml nav.yaml
 
 # Copy entrypoint scripts
 COPY scripts/start.sh scripts/start.sh
