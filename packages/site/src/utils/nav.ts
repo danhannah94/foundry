@@ -139,8 +139,8 @@ function sortEntries(entries: FileEntry[]): FileEntry[] {
     if (a.order !== null && b.order !== null) return a.order - b.order;
     if (a.order !== null) return -1;
     if (b.order !== null) return 1;
-    // Then alphabetical by title
-    return a.title.localeCompare(b.title);
+    // Then alphabetical by title with natural numeric sorting
+    return a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' });
   });
 }
 

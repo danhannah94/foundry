@@ -7,7 +7,7 @@ import Breadcrumbs from '../components/Breadcrumbs.astro';
 import PlayAllManager from '../components/PlayAllManager.tsx';
 import TtsControlsBar from '../components/TtsControlsBar.tsx';
 import AnnotationThread from '../components/AnnotationThread.tsx';
-import CommentDraft from '../components/CommentDraft.tsx';
+
 import ContentStatusBanner from '../components/ContentStatusBanner.tsx';
 
 import TokenModal from '../components/TokenModal.tsx';
@@ -93,7 +93,7 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
         <slot />
         <TtsSectionManager client:load />
         <PlayAllManager client:load />
-        <CommentDraft docPath={currentPath} client:load />
+
       </article>
       <TableOfContents client:load />
     </main>
