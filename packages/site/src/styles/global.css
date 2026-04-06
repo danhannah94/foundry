@@ -1567,8 +1567,8 @@ mark.annotation-highlight--flash {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   backdrop-filter: blur(8px);
   animation: slideIn 0.3s ease-out;
-  min-width: 400px;
-  max-width: 90vw;
+  width: 480px;
+  max-width: 95vw;
 }
 
 .comment-editor::backdrop {
@@ -1599,6 +1599,8 @@ mark.annotation-highlight--flash {
   border-radius: 0 4px 4px 0;
   font-style: italic;
   color: var(--color-text-secondary);
+  max-height: 120px;
+  overflow-y: auto;
 }
 
 .comment-editor__textarea {
@@ -3698,5 +3700,53 @@ body.tts-bar-active .back-to-top {
   body.tts-bar-active .back-to-top {
     bottom: calc(1rem + 56px);
   }
+}
+
+/* ============================================
+   Draft Action Buttons
+   ============================================ */
+
+.thread-draft-content {
+  flex: 1;
+}
+
+.thread-draft-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+}
+
+.thread-draft-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.thread-draft-item:hover .thread-draft-actions {
+  opacity: 1;
+}
+
+.thread-draft-action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  transition: all var(--transition-fast);
+}
+
+.thread-draft-action-btn:hover {
+  color: var(--color-text);
+  background: var(--color-bg-secondary);
+}
+
+.thread-draft-action-btn--delete:hover {
+  color: var(--color-danger-border);
 }
 
