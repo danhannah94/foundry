@@ -23,6 +23,12 @@ const API_PORT = 3001;
 const server = http.createServer((req, res) => {
   const url = req.url || '/';
 
+  // Route cache invalidation to Astro SSR (it owns the caches)
+  if (url.startsWith('/api/invalidate-cache')) {
+    handler(req, res);
+    return;
+  }
+
   // Route API and MCP requests to the Express backend
   if (url.startsWith('/api/') || url.startsWith('/mcp/')) {
     const proxyReq = http.request(

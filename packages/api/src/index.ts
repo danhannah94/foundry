@@ -188,13 +188,28 @@ async function startServer(): Promise<void> {
     async function onContentUpdated(changedFiles: string[], isInitialClone: boolean) {
       const mdFiles = changedFiles.filter(f => f.endsWith('.md'));
 
-      // TODO: Cache invalidation (invalidateAll/invalidateRoute) requires IPC to the Astro SSR process.
-      // The page cache lives in packages/site, not packages/api.
-      // For now, we log what would be invalidated. The page cache has a TTL
-      // or can be manually cleared via /api/cache-stats endpoint.
-      // TODO: Nav invalidation (invalidateNav) also lives in packages/site — same IPC needed.
+      // Invalidate Astro SSR caches (page cache + nav cache)
+      // The proxy routes /api/invalidate-cache to Astro SSR directly
+      try {
+        const proxyPort = process.env.PORT || '4321';
+        const invalidateRes = await fetch(`http://127.0.0.1:${proxyPort}/api/invalidate-cache.json`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-internal-secret': process.env.CACHE_INVALIDATION_SECRET || 'foundry-internal',
+          },
+        });
+        if (invalidateRes.ok) {
+          console.log('[webhook] Astro page cache + nav cache invalidated');
+        } else {
+          console.warn(`[webhook] Cache invalidation returned ${invalidateRes.status}`);
+        }
+      } catch (error) {
+        console.error('[webhook] Failed to invalidate Astro caches:', error);
+      }
+
       if (isInitialClone || changedFiles.length === 0) {
-        console.log('[webhook] Full content refresh — all caches need invalidation');
+        console.log('[webhook] Full content refresh');
       } else {
         console.log(`[webhook] Changed files: ${mdFiles.join(', ')}`);
       }
