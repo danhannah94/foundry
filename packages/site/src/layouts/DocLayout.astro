@@ -224,5 +224,27 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
       });
     })();
   </script>
+
+  {/* Back to top button */}
+  <script is:inline>
+    (function() {
+      var btn = document.createElement('button');
+      btn.className = 'back-to-top';
+      btn.setAttribute('aria-label', 'Scroll to top');
+      btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>';
+      document.body.appendChild(btn);
+      btn.addEventListener('click', function() {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+      var visible = false;
+      window.addEventListener('scroll', function() {
+        var shouldShow = window.scrollY > 500;
+        if (shouldShow !== visible) {
+          visible = shouldShow;
+          btn.classList.toggle('back-to-top--visible', visible);
+        }
+      }, { passive: true });
+    })();
+  </script>
 </body>
 </html>
