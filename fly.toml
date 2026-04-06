@@ -19,7 +19,7 @@ primary_region = 'iad'
   timeout = "15s"
   grace_period = "120s"
   method = "GET"
-  path = "/api/content/status"
+  path = "/healthz"
 
 [mounts]
   source = 'foundry_data'

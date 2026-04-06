@@ -23,6 +23,13 @@ const API_PORT = 3001;
 const server = http.createServer((req, res) => {
   const url = req.url || '/';
 
+  // Lightweight health check — responds directly from proxy, never touches Express/Anvil
+  if (url === '/healthz') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', proxy: true }));
+    return;
+  }
+
   // Route cache invalidation to Astro SSR (it owns the caches)
   if (url.startsWith('/api/invalidate-cache')) {
     handler(req, res);
