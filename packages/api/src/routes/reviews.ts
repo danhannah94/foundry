@@ -82,7 +82,7 @@ export function createReviewsRouter(): Router {
   // POST /reviews - Create new review
   router.post('/reviews', async (req: Request<{}, Review, CreateReviewBody>, res: Response<Review>) => {
     try {
-      const { doc_path } = req.body;
+      const { doc_path, user_id } = req.body;
 
       // Validate required fields
       if (!doc_path) {
@@ -98,7 +98,7 @@ export function createReviewsRouter(): Router {
       const review: Review = {
         id,
         doc_path,
-        user_id: 'dan',
+        user_id: user_id || process.env.FOUNDRY_DEFAULT_USER || 'anonymous',
         status: 'draft',
         submitted_at: null,
         completed_at: null,

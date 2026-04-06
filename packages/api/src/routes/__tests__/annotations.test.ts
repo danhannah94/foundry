@@ -128,7 +128,7 @@ describe('Annotations Router', () => {
       expect(res.body.quoted_text).toBeNull();
       expect(res.body.parent_id).toBeNull();
       expect(res.body.review_id).toBeNull();
-      expect(res.body.user_id).toBe('dan');
+      expect(res.body.user_id).toBe('anonymous');
       expect(res.body.author_type).toBe('human');
       expect(res.body.status).toBe('draft');
       expect(res.body.created_at).toMatch(ISO_8601_REGEX);

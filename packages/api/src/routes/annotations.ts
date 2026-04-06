@@ -104,7 +104,8 @@ export function createAnnotationsRouter(): Router {
         content,
         parent_id,
         review_id,
-        author_type = 'human'
+        author_type = 'human',
+        user_id
       } = req.body;
 
       // Validate required fields (content_hash is optional — used for drift detection)
@@ -151,7 +152,7 @@ export function createAnnotationsRouter(): Router {
         content,
         parent_id: parent_id || null,
         review_id: effectiveReviewId || null,
-        user_id: 'dan',
+        user_id: user_id || process.env.FOUNDRY_DEFAULT_USER || 'anonymous',
         author_type,
         status: 'draft',
         created_at: now,
