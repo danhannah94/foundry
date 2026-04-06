@@ -76,6 +76,7 @@ export function createMcpServer(): Server {
             content: { type: 'string', description: 'Annotation content' },
             parent_id: { type: 'string', description: 'Optional parent annotation ID for threading' },
             author_type: { type: 'string', description: 'Optional author type (human or ai), defaults to ai' },
+            quoted_text: { type: 'string', description: 'Optional highlighted text that the annotation refers to' },
           },
           required: ['doc_path', 'section', 'content'],
         },
@@ -261,6 +262,7 @@ export function createMcpServer(): Server {
           content: args.content as string,
           parent_id: args.parent_id as string | undefined,
           author_type: args.author_type as string | undefined,
+          quoted_text: args.quoted_text as string | undefined,
         });
         return json({ status: 'created', annotation: result });
       }
