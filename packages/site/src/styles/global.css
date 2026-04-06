@@ -2498,3 +2498,81 @@ body.tts-disabled .tts-controls-bar {
   }
 }
 
+
+/* --- Table of Contents --- */
+.toc {
+  position: fixed;
+  top: calc(var(--header-height) + 1rem);
+  right: 1rem;
+  width: 200px;
+  max-height: calc(100vh - var(--header-height) - 2rem);
+  overflow-y: auto;
+  padding: var(--spacing-sm);
+  font-size: 0.8rem;
+  z-index: 4;
+}
+
+.toc--hidden {
+  display: none;
+}
+
+.toc__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.toc__item {
+  border-left: 2px solid transparent;
+  transition: all var(--transition-fast);
+}
+
+.toc__item--active {
+  border-left-color: var(--color-accent);
+}
+
+.toc__item--active .toc__link {
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+.toc__item--h3 {
+  padding-left: var(--spacing-md);
+}
+
+.toc__link {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  color: var(--color-text-secondary);
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  line-height: 1.4;
+  transition: color var(--transition-fast);
+}
+
+.toc__link:hover {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+/* Hide TOC on mobile */
+@media (max-width: 1024px) {
+  .toc {
+    display: none;
+  }
+}
+
+/* Scrollbar styling for long TOCs */
+.toc::-webkit-scrollbar {
+  width: 3px;
+}
+.toc::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
