@@ -11,6 +11,7 @@ import CommentDraft from '../components/CommentDraft.tsx';
 import ContentStatusBanner from '../components/ContentStatusBanner.tsx';
 
 import TokenModal from '../components/TokenModal.tsx';
+import TableOfContents from '../components/TableOfContents.tsx';
 import SearchModal from '../components/SearchModal.tsx';
 
 interface Props {
@@ -94,6 +95,7 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
         <PlayAllManager client:load />
         <CommentDraft docPath={currentPath} client:load />
       </article>
+      <TableOfContents client:load />
     </main>
 
 
