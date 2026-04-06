@@ -105,6 +105,10 @@
               path: projects/foundry/epics/e8-live-content-pipeline.md
             - title: "E9: MCP Agent Surface"
               path: projects/foundry/epics/e9-mcp-agent-surface.md
+            - title: "E10: UI/UX Polish Part 2"
+              path: projects/foundry/epics/e10-ui-ux-part2.md
+            - title: "E11: Native Platform"
+              path: projects/foundry/epics/e11-native-platform.md
     - title: Forge
       children:
         - title: Design
