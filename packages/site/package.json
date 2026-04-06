@@ -15,6 +15,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@astrojs/check": "^0.9.8",
     "@astrojs/node": "^10.0.4",
     "@astrojs/react": "^4.2.1",
     "@shikijs/rehype": "^4.0.2",
@@ -31,6 +32,7 @@
     "remark-gfm": "^4.0.0",
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.2",
+    "typescript": "^5.9.3",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.1.0"
   },
