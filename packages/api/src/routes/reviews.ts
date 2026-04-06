@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { createId } from '@paralleldrive/cuid2';
 import { getDb } from '../db.js';
+import { docPathVariants } from '../utils/normalize-doc-path.js';
 import {
   Annotation,
   Review,
@@ -31,8 +32,10 @@ export function createReviewsRouter(): Router {
 
       const db = getDb();
 
-      let query = 'SELECT * FROM reviews WHERE doc_path = ?';
-      const params: any[] = [doc_path];
+      const variants = docPathVariants(doc_path);
+      const placeholders = variants.map(() => '?').join(' OR doc_path = ');
+      let query = `SELECT * FROM reviews WHERE doc_path = ${placeholders}`;
+      const params: any[] = [...variants];
 
       if (status) {
         query += ' AND status = ?';
