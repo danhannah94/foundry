@@ -12,6 +12,7 @@ import ContentStatusBanner from '../components/ContentStatusBanner.tsx';
 
 import TokenModal from '../components/TokenModal.tsx';
 import AuthIndicator from '../components/AuthIndicator.tsx';
+import SearchModal from '../components/SearchModal.tsx';
 
 interface Props {
   title?: string;
@@ -56,6 +57,7 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
     <a href="/" class="header-title" style="text-decoration: none;">🏭 Foundry</a>
     <div class="header-right">
       {/* Sidebar slot — nav goes here (S2) */}
+      <SearchModal client:load />
       <AuthIndicator client:load />
       <ThemeToggle client:load />
       <slot name="header-actions" />
