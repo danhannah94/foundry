@@ -3700,3 +3700,83 @@ body.tts-bar-active .back-to-top {
   }
 }
 
+/* --- Loading Skeletons --- */
+.skeleton {
+  background: linear-gradient(90deg,
+    var(--color-bg-secondary) 25%,
+    var(--color-bg-code) 50%,
+    var(--color-bg-secondary) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-text {
+  height: 1em;
+  margin-bottom: 0.5em;
+}
+
+.skeleton-heading {
+  height: 1.5em;
+  width: 60%;
+  margin-bottom: 1em;
+}
+
+.skeleton-comment {
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
+}
+
+.skeleton-comment__header {
+  height: 0.8em;
+  width: 40%;
+  margin-bottom: var(--spacing-sm);
+}
+
+.skeleton-comment__body {
+  height: 0.7em;
+  margin-bottom: 4px;
+}
+
+.skeleton-comment__body:nth-child(2) {
+  width: 90%;
+}
+
+.skeleton-comment__body:nth-child(3) {
+  width: 70%;
+}
+
+/* --- Mobile Touch Target Fixes --- */
+@media (max-width: 768px) {
+  /* Ensure all interactive elements meet 44px minimum */
+  .sidebar-toggle,
+  .settings-gear-btn,
+  .search-modal__icon-button,
+  .thread-toggle,
+  .thread-refresh-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  /* Sidebar overlay backdrop */
+  .sidebar.open::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: -1;
+  }
+  
+  /* Comment modal responsive */
+  .comment-editor {
+    width: 95vw;
+    max-width: 95vw;
+  }
+}
+

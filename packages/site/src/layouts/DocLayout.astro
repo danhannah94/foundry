@@ -132,6 +132,15 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
           localStorage.setItem('foundry-sidebar', isHidden ? 'hidden' : 'visible');
         }
       });
+
+      // Mobile: close sidebar when clicking outside (on the backdrop)
+      document.addEventListener('click', function(e) {
+        if (window.innerWidth <= 768 && sidebar && sidebar.classList.contains('open')) {
+          if (!sidebar.contains(e.target) && e.target !== toggleBtn && !toggleBtn.contains(e.target)) {
+            sidebar.classList.remove('open');
+          }
+        }
+      });
     }
   </script>
 
