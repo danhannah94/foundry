@@ -1111,7 +1111,16 @@ export default function AnnotationThread({ docPath }: Props) {
         {!authenticated ? (
           renderAuthPrompt()
         ) : loading ? (
-          <div className="thread-loading">Loading comments...</div>
+          <div className="thread-loading">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="skeleton-comment">
+                <div className="skeleton skeleton-comment__header" />
+                <div className="skeleton skeleton-comment__body" />
+                <div className="skeleton skeleton-comment__body" />
+                <div className="skeleton skeleton-comment__body" />
+              </div>
+            ))}
+          </div>
         ) : error ? (
           <div className="thread-error">{error}</div>
         ) : (
