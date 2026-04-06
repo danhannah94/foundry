@@ -2498,3 +2498,45 @@ body.tts-disabled .tts-controls-bar {
   }
 }
 
+/* --- Code Block Copy Button --- */
+.code-copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: all var(--transition-fast);
+}
+
+pre:hover .code-copy-btn {
+  opacity: 1;
+}
+
+.code-copy-btn:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+
+.code-copy-btn--copied {
+  color: #22c55e;
+  border-color: #22c55e;
+  opacity: 1;
+}
+
+/* Mobile: always show copy button */
+@media (max-width: 768px) {
+  .code-copy-btn {
+    opacity: 0.7;
+  }
+}
+
