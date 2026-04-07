@@ -82,6 +82,8 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
     <main class="content-area">
       <Breadcrumbs currentPath={currentPath} />
 
+      <div class="sticky-heading-bar" id="sticky-heading-bar" aria-hidden="true"></div>
+
       <article class="content">
         <ContentStatusBanner client:load />
         <slot />
@@ -181,23 +183,46 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
     (function() {
       var headings = document.querySelectorAll('.content h2, .content h3');
       if (!headings.length) return;
+      var bar = document.getElementById('sticky-heading-bar');
+      if (!bar) return;
       var headerHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--header-height')) || 56;
+      var currentHeading = null;
+
       var observer = new IntersectionObserver(function(entries) {
         entries.forEach(function(entry) {
           if (!entry.isIntersecting) {
-            entry.target.nextElementSibling && entry.target.nextElementSibling.classList.add('is-stuck');
-          } else {
-            entry.target.nextElementSibling && entry.target.nextElementSibling.classList.remove('is-stuck');
+            // Heading has scrolled past the top — it's the current section
+            currentHeading = entry.target;
           }
         });
+        // Update the sticky bar with the most recent heading that scrolled past
+        if (currentHeading) {
+          var clone = currentHeading.cloneNode(true);
+          var anchor = clone.querySelector('.heading-anchor');
+          if (anchor) anchor.remove();
+          var text = clone.textContent.trim();
+          var isH3 = currentHeading.tagName.toLowerCase() === 'h3';
+          bar.textContent = text;
+          bar.className = 'sticky-heading-bar visible' + (isH3 ? ' sticky-heading-h3' : '');
+        }
       }, { rootMargin: '-' + headerHeight + 'px 0px 0px 0px', threshold: 0 });
-      headings.forEach(function(h2) {
-        var sentinel = document.createElement('div');
-        sentinel.style.height = '1px';
-        sentinel.style.marginBottom = '-1px';
-        sentinel.setAttribute('aria-hidden', 'true');
-        h2.parentNode.insertBefore(sentinel, h2);
-        observer.observe(sentinel);
+
+      // Also observe when headings come back into view (scrolling up)
+      var resetObserver = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+          if (entry.isIntersecting && entry.boundingClientRect.top > headerHeight) {
+            // First heading is back in view — hide the bar
+            if (entry.target === headings[0]) {
+              bar.className = 'sticky-heading-bar';
+              currentHeading = null;
+            }
+          }
+        });
+      }, { rootMargin: '0px 0px 0px 0px', threshold: 0 });
+
+      headings.forEach(function(h) {
+        observer.observe(h);
+        resetObserver.observe(h);
       });
     })();
   </script>

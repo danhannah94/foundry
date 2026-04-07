@@ -66,22 +66,22 @@
 
 /* --- Dark Theme --- */
 [data-theme="dark"] {
-  --color-bg: hsl(220, 20%, 10%);
-  --color-bg-secondary: hsl(220, 18%, 13%);
-  --color-bg-code: hsl(220, 16%, 14%);
+  --color-bg: hsl(205, 22%, 10%);
+  --color-bg-secondary: hsl(205, 20%, 13%);
+  --color-bg-code: hsl(205, 18%, 14%);
   --color-text: hsl(35, 15%, 88%);
   --color-text-secondary: hsl(35, 10%, 62%);
   --color-text-muted: hsl(30, 8%, 42%);
   --color-heading: hsl(35, 20%, 95%);
   --color-link: #60a5fa;
   --color-link-hover: #93bbfd;
-  --color-border: hsl(220, 16%, 18%);
-  --color-border-light: hsl(220, 16%, 14%);
+  --color-border: hsl(205, 16%, 18%);
+  --color-border-light: hsl(205, 16%, 14%);
 
-  --color-sidebar-bg: hsl(220, 20%, 10%);
+  --color-sidebar-bg: hsl(205, 22%, 10%);
   --color-sidebar-active: rgba(249, 115, 22, 0.1);
   --color-sidebar-active-text: #f97316;
-  --color-sidebar-hover: hsl(220, 16%, 14%);
+  --color-sidebar-hover: hsl(205, 18%, 14%);
 
   --color-accent: #f97316;
   --color-accent-hover: #fb923c;
@@ -307,6 +307,7 @@ h6:hover .heading-anchor {
 
 .content {
   max-width: var(--content-max-width);
+  margin: 0 auto;
   overflow-x: clip;
 }
 
@@ -2502,29 +2503,41 @@ body.tts-disabled .tts-controls-bar {
   margin: 0 2px;
 }
 
-/* --- Sticky Section Headings --- */
+/* --- Sticky Section Heading Bar --- */
 .content h2,
 .content h3 {
+  scroll-margin-top: calc(var(--header-height) + 3rem);
+}
+
+.sticky-heading-bar {
   position: sticky;
   top: var(--header-height);
   z-index: 5;
   background: var(--color-bg);
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
-  margin-top: 0;
-  scroll-margin-top: calc(var(--header-height) + 1rem);
-  transition: box-shadow var(--transition-fast), opacity 0.2s ease, transform 0.2s ease;
-}
-
-/* Shadow when stuck — uses IntersectionObserver sentinel pattern */
-.content h2.is-stuck,
-.content h3.is-stuck {
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  padding: 0.4rem 0;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
   border-bottom: 1px solid var(--color-border);
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
 }
 
-[data-theme="dark"] .content h2.is-stuck,
-[data-theme="dark"] .content h3.is-stuck {
+.sticky-heading-bar.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.sticky-heading-bar.sticky-heading-h3 {
+  padding-left: 1rem;
+  font-size: var(--font-size-xs);
+}
+
+[data-theme="dark"] .sticky-heading-bar {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
