@@ -14,6 +14,7 @@ import { createAccessRouter } from './routes/access.js';
 import { createWebhookRouter } from './routes/webhook.js';
 import { createPagesRouter } from './routes/pages.js';
 import { createImportRouter } from './routes/import.js';
+import { createDocCrudRouter } from './routes/doc-crud.js';
 import { requireAuth, logAuthStatus } from './middleware/auth.js';
 import { loadAccessMap, getAccessLevel } from './access.js';
 import { generateAccessMap } from './access-map-generator.js';
@@ -226,6 +227,9 @@ async function startServer(): Promise<void> {
 
     // Mount import router (auth-protected internally via requireAuth in route)
     app.use('/api', createImportRouter());
+
+    // Mount doc CRUD router (auth-protected internally via requireAuth on each route)
+    app.use('/api', createDocCrudRouter());
 
     // Access control for docs:
     // - Static HTML pages: client-side nav filtering hides private docs (no server gate)

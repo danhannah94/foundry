@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import { join } from 'path';
+import { migrateDocPaths } from './migrations/normalize-paths.js';
 
 let db: Database.Database | null = null;
 
@@ -16,6 +17,9 @@ export function getDb(): Database.Database {
 
   // Create tables
   createTables(db);
+
+  // Normalize any legacy doc_path values
+  migrateDocPaths(db);
 
   return db;
 }

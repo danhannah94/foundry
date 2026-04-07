@@ -18,6 +18,10 @@ import {
   getStatus,
   reindex,
   importRepo,
+  createDoc,
+  updateSection,
+  insertSection,
+  deleteSection,
 } from './http-client.js';
 
 /**
@@ -243,6 +247,60 @@ export function createMcpServer(): Server {
           required: ['repo'],
         },
       },
+      // Doc CRUD tools
+      {
+        name: 'create_doc',
+        description: 'Create a new document from a template.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'Document path relative to content root, no .md extension' },
+            template: { type: 'string', description: 'Template name — epic, subsystem, project, workflow, or blank' },
+            title: { type: 'string', description: 'Document title (defaults to template default or path-derived)' },
+          },
+          required: ['path', 'template'],
+        },
+      },
+      {
+        name: 'update_section',
+        description: 'Update a section\'s body content by heading path. The heading itself is the address — only the body content is replaced.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'Document path' },
+            heading: { type: 'string', description: 'Heading path in Anvil format, e.g. "## Overview" or "## Architecture > ### Tech Stack"' },
+            content: { type: 'string', description: 'New body content (markdown, NOT including the heading)' },
+          },
+          required: ['path', 'heading', 'content'],
+        },
+      },
+      {
+        name: 'insert_section',
+        description: 'Insert a new section after an existing heading.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'Document path' },
+            after_heading: { type: 'string', description: 'Heading path to insert after' },
+            heading: { type: 'string', description: 'New section heading text (without # prefix)' },
+            level: { type: 'number', description: 'Heading level (2 for ##, 3 for ###, etc.)' },
+            content: { type: 'string', description: 'Section body content' },
+          },
+          required: ['path', 'after_heading', 'heading', 'level', 'content'],
+        },
+      },
+      {
+        name: 'delete_section',
+        description: 'Delete a section by heading path (removes heading and all body content).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'Document path' },
+            heading: { type: 'string', description: 'Heading path to delete' },
+          },
+          required: ['path', 'heading'],
+        },
+      },
     ],
   }));
 
@@ -359,6 +417,40 @@ export function createMcpServer(): Server {
           args.prefix as string | undefined,
         );
         return json(result);
+      }
+      // ── Doc CRUD ────────────────────────────────────────────
+      case 'create_doc': {
+        const result = await createDoc(
+          args.path as string,
+          args.template as string,
+          args.title as string | undefined,
+        );
+        return json({ status: 'created', doc: result });
+      }
+      case 'update_section': {
+        const result = await updateSection(
+          args.path as string,
+          args.heading as string,
+          args.content as string,
+        );
+        return json({ status: 'updated', section: result });
+      }
+      case 'insert_section': {
+        const result = await insertSection(
+          args.path as string,
+          args.after_heading as string,
+          args.heading as string,
+          args.level as number,
+          args.content as string,
+        );
+        return json({ status: 'inserted', section: result });
+      }
+      case 'delete_section': {
+        const result = await deleteSection(
+          args.path as string,
+          args.heading as string,
+        );
+        return json({ status: 'deleted', result });
       }
       default:
         throw new Error(`Unknown tool: ${name}`);
