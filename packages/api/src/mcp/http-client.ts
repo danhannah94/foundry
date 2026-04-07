@@ -324,6 +324,71 @@ export async function importRepo(
 }
 
 /**
+ * Create a new document from a template.
+ */
+export async function createDoc(
+  path: string,
+  template: string,
+  title?: string,
+): Promise<object> {
+  return apiFetch<object>('/api/docs', {
+    method: 'POST',
+    body: JSON.stringify({ path, template, title }),
+  });
+}
+
+/**
+ * Update a section's body content by heading path.
+ */
+export async function updateSection(
+  docPath: string,
+  headingPath: string,
+  content: string,
+): Promise<object> {
+  return apiFetch<object>(
+    `/api/docs/${encodeURIComponent(docPath)}/sections/${encodeURIComponent(headingPath)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ content }),
+    },
+  );
+}
+
+/**
+ * Insert a new section after an existing heading.
+ */
+export async function insertSection(
+  docPath: string,
+  afterHeading: string,
+  heading: string,
+  level: number,
+  content: string,
+): Promise<object> {
+  return apiFetch<object>(
+    `/api/docs/${encodeURIComponent(docPath)}/sections`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ after_heading: afterHeading, heading, level, content }),
+    },
+  );
+}
+
+/**
+ * Delete a section by heading path.
+ */
+export async function deleteSection(
+  docPath: string,
+  headingPath: string,
+): Promise<object> {
+  return apiFetch<object>(
+    `/api/docs/${encodeURIComponent(docPath)}/sections/${encodeURIComponent(headingPath)}`,
+    {
+      method: 'DELETE',
+    },
+  );
+}
+
+/**
  * Semantic search via HTTP API.
  */
 export async function searchDocs(

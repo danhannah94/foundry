@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { createId } from '@paralleldrive/cuid2';
 import { getDb } from '../db.js';
-import { docPathVariants } from '../utils/normalize-doc-path.js';
+import { normalizeDocPath } from '../utils/normalize-doc-path.js';
 import {
   Annotation,
   CreateAnnotationBody,
@@ -35,11 +35,9 @@ export function createAnnotationsRouter(): Router {
 
       const db = getDb();
 
-      // Match annotations regardless of how doc_path was stored (URL-style or file-path)
-      const variants = docPathVariants(doc_path);
-      const placeholders = variants.map(() => '?').join(' OR doc_path = ');
-      let query = `SELECT * FROM annotations WHERE doc_path = ${placeholders}`;
-      const params: any[] = [...variants];
+      const normalized = normalizeDocPath(doc_path);
+      let query = `SELECT * FROM annotations WHERE doc_path = ?`;
+      const params: any[] = [normalized];
 
       if (section) {
         query += ' AND heading_path LIKE ?';
@@ -143,9 +141,11 @@ export function createAnnotationsRouter(): Router {
         }
       }
 
+      const normalizedDocPath = normalizeDocPath(doc_path);
+
       const annotation: Annotation = {
         id,
-        doc_path,
+        doc_path: normalizedDocPath,
         heading_path,
         content_hash: content_hash || '',
         quoted_text: quoted_text || null,

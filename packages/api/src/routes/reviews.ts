@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { createId } from '@paralleldrive/cuid2';
 import { getDb } from '../db.js';
-import { docPathVariants } from '../utils/normalize-doc-path.js';
+import { normalizeDocPath } from '../utils/normalize-doc-path.js';
 import {
   Annotation,
   Review,
@@ -32,10 +32,9 @@ export function createReviewsRouter(): Router {
 
       const db = getDb();
 
-      const variants = docPathVariants(doc_path);
-      const placeholders = variants.map(() => '?').join(' OR doc_path = ');
-      let query = `SELECT * FROM reviews WHERE doc_path = ${placeholders}`;
-      const params: any[] = [...variants];
+      const normalized = normalizeDocPath(doc_path);
+      let query = `SELECT * FROM reviews WHERE doc_path = ?`;
+      const params: any[] = [normalized];
 
       if (status) {
         query += ' AND status = ?';
@@ -95,9 +94,11 @@ export function createReviewsRouter(): Router {
       const id = createId();
       const now = new Date().toISOString();
 
+      const normalizedDocPath = normalizeDocPath(doc_path);
+
       const review: Review = {
         id,
-        doc_path,
+        doc_path: normalizedDocPath,
         user_id: user_id || process.env.FOUNDRY_DEFAULT_USER || 'anonymous',
         status: 'draft',
         submitted_at: null,

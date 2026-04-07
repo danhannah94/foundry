@@ -16,17 +16,3 @@ export function normalizeDocPath(raw: string): string {
   return p;
 }
 
-/**
- * Build an array of doc_path variants to match against the DB,
- * covering both URL-style and file-path storage formats.
- */
-export function docPathVariants(raw: string): string[] {
-  const normalized = normalizeDocPath(raw);
-  const encodedPerSegment = normalized.split('/').map(s => encodeURIComponent(s)).join('/');
-  return [
-    raw,                                    // exact as provided
-    normalized,                             // canonical form
-    `/docs/${encodedPerSegment}/`,           // URL-encoded frontend form
-    `${normalized}.md`,                      // with .md extension
-  ];
-}
