@@ -42,6 +42,19 @@ function createTables(database: Database.Database): void {
     );
   `);
 
+  // Create docs_meta table for native content storage
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS docs_meta (
+      path TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      access TEXT DEFAULT 'public',
+      content_hash TEXT NOT NULL,
+      modified_at TEXT NOT NULL,
+      modified_by TEXT DEFAULT 'system',
+      created_at TEXT NOT NULL
+    );
+  `);
+
   // Create annotations table
   database.exec(`
     CREATE TABLE IF NOT EXISTS annotations (

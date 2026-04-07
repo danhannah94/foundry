@@ -17,6 +17,7 @@ import {
   getSection,
   getStatus,
   reindex,
+  importRepo,
 } from './http-client.js';
 
 /**
@@ -228,6 +229,20 @@ export function createMcpServer(): Server {
           properties: {},
         },
       },
+      // Import tools
+      {
+        name: 'import_repo',
+        description: 'Import documentation from a GitHub repository into Foundry. Clones the repo, copies markdown files to the content directory, and populates docs_meta. Requires authentication.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            repo: { type: 'string', description: 'Repository URL (e.g., https://github.com/org/repo)' },
+            branch: { type: 'string', description: 'Git branch to import from (default: main)' },
+            prefix: { type: 'string', description: 'Path prefix within repo to import from, stripped from output paths (default: docs/)' },
+          },
+          required: ['repo'],
+        },
+      },
     ],
   }));
 
@@ -334,6 +349,15 @@ export function createMcpServer(): Server {
       }
       case 'reindex': {
         const result = await reindex();
+        return json(result);
+      }
+      // ── Import ─────────────────────────────────────────────
+      case 'import_repo': {
+        const result = await importRepo(
+          args.repo as string,
+          args.branch as string | undefined,
+          args.prefix as string | undefined,
+        );
         return json(result);
       }
       default:

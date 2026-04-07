@@ -310,6 +310,20 @@ export async function reindex(): Promise<object> {
 }
 
 /**
+ * Import a repo into the Foundry content directory.
+ */
+export async function importRepo(
+  repo: string,
+  branch?: string,
+  prefix?: string,
+): Promise<{ filesImported: number; docsMetaUpdated: number; duration_ms: number }> {
+  return apiFetch<{ filesImported: number; docsMetaUpdated: number; duration_ms: number }>('/api/import', {
+    method: 'POST',
+    body: JSON.stringify({ repo, branch, prefix }),
+  });
+}
+
+/**
  * Semantic search via HTTP API.
  */
 export async function searchDocs(

@@ -1,29 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { readFileSync } from 'fs';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
-import { parseNavPages } from '../utils/nav-parser.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-/**
- * Walks up the directory tree to find the project root containing foundry.config.yaml.
- */
-function findProjectRoot(startDir: string): string {
-  let current = startDir;
-
-  while (current !== dirname(current)) {
-    try {
-      readFileSync(join(current, 'foundry.config.yaml'), 'utf8');
-      return current;
-    } catch {
-      current = dirname(current);
-    }
-  }
-
-  throw new Error('Could not find foundry.config.yaml in any parent directory');
-}
+import { getDocsPath } from '../config.js';
+import { generateNavPages } from '../utils/nav-generator.js';
 
 /**
  * Check if the request has a valid auth token.
@@ -43,9 +20,8 @@ export function createPagesRouter(): Router {
 
   router.get('/pages', (req: Request, res: Response) => {
     try {
-      const projectRoot = findProjectRoot(__dirname);
-      const navYamlPath = join(projectRoot, 'nav.yaml');
-      const allPages = parseNavPages(navYamlPath);
+      const docsPath = getDocsPath();
+      const allPages = generateNavPages(docsPath);
 
       const includePrivate = req.query.include_private === 'true';
 

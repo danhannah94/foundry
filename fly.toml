@@ -21,6 +21,9 @@ primary_region = 'iad'
   method = "GET"
   path = "/healthz"
 
+[env]
+  FOUNDRY_DB_PATH = "/data/foundry.db"
+
 [mounts]
   source = 'foundry_data'
   destination = '/data'

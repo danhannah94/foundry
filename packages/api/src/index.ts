@@ -3,8 +3,7 @@ import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { AnvilHolder } from './anvil-holder.js';
-import { ContentFetcher } from './content-fetcher.js';
-import { getDocsPath, getCloneDir } from './config.js';
+import { getDocsPath } from './config.js';
 import { createHealthRouter } from './routes/health.js';
 import { createDocsRouter } from './routes/docs.js';
 import { createSearchRouter } from './routes/search.js';
@@ -14,12 +13,14 @@ import { createReviewsRouter } from './routes/reviews.js';
 import { createAccessRouter } from './routes/access.js';
 import { createWebhookRouter } from './routes/webhook.js';
 import { createPagesRouter } from './routes/pages.js';
+import { createImportRouter } from './routes/import.js';
 import { requireAuth, logAuthStatus } from './middleware/auth.js';
 import { loadAccessMap, getAccessLevel } from './access.js';
 import { generateAccessMap } from './access-map-generator.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { createMcpServer } from './mcp/server.js';
+import { invalidateNavCache } from './utils/nav-generator.js';
 
 // Environment configuration
 const __filename = fileURLToPath(import.meta.url);
@@ -27,19 +28,8 @@ const __dirname = dirname(__filename);
 const PORT = process.env.FOUNDRY_PORT ? parseInt(process.env.FOUNDRY_PORT, 10) : 3001;
 const STATIC_PATH = process.env.FOUNDRY_STATIC_PATH || join(__dirname, '../../site/dist');
 
-// Content fetcher singleton (initialized if CONTENT_REPO is set)
-let contentFetcher: ContentFetcher | null = null;
-
 // Anvil holder — lazy container, available after background init
 const anvilHolder = new AnvilHolder();
-
-/**
- * Returns the ContentFetcher instance, or null if not configured.
- * Used by webhook endpoint (F3-S2) to trigger pulls.
- */
-export function getContentFetcher(): ContentFetcher | null {
-  return contentFetcher;
-}
 
 /**
  * Returns the AnvilHolder instance.
@@ -47,6 +37,54 @@ export function getContentFetcher(): ContentFetcher | null {
  */
 export function getAnvilHolder(): AnvilHolder {
   return anvilHolder;
+}
+
+/**
+ * Invalidate caches and reindex Anvil after content changes.
+ * Called by future CRUD routes (S5a) and any content mutation path.
+ */
+export async function invalidateContent(changedFiles?: string[]): Promise<void> {
+  const mdFiles = changedFiles?.filter(f => f.endsWith('.md')) ?? [];
+
+  // Invalidate API-side nav cache
+  invalidateNavCache();
+
+  // Invalidate Astro SSR caches (page cache + nav cache)
+  try {
+    const proxyPort = process.env.PORT || '4321';
+    const invalidateRes = await fetch(`http://127.0.0.1:${proxyPort}/api/invalidate-cache.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-secret': process.env.CACHE_INVALIDATION_SECRET || 'foundry-internal',
+      },
+    });
+    if (invalidateRes.ok) {
+      console.log('[content] Astro page cache + nav cache invalidated');
+    } else {
+      console.warn(`[content] Cache invalidation returned ${invalidateRes.status}`);
+    }
+  } catch (error) {
+    console.error('[content] Failed to invalidate Astro caches:', error);
+  }
+
+  // Anvil reindex (if available)
+  const anvil = anvilHolder.get();
+  if (anvil) {
+    try {
+      if (changedFiles && mdFiles.length > 0 && typeof anvil.reindexFiles === 'function') {
+        console.log(`[content] Delta reindexing ${mdFiles.length} changed files`);
+        await anvil.reindexFiles(mdFiles);
+      } else {
+        console.log('[content] Triggering full Anvil reindex');
+        await anvil.index();
+      }
+    } catch (error) {
+      console.error('[content] Anvil reindex failed:', error);
+    }
+  } else {
+    console.log('[content] Anvil not ready, skipping reindex (will be indexed on init)');
+  }
 }
 
 interface ErrorWithStatus extends Error {
@@ -102,32 +140,7 @@ async function startServer(): Promise<void> {
     // Get docs path from configuration
     const docsPath = getDocsPath();
     console.log(`📁 Using docs path: ${docsPath}`);
-
-    // Initialize content fetcher (runtime git clone/pull)
-    const contentRepo = process.env.CONTENT_REPO;
-    if (contentRepo) {
-      const contentBranch = process.env.CONTENT_BRANCH || 'main';
-      const deployKeyPath = process.env.DEPLOY_KEY_PATH;
-      const cloneDir = getCloneDir();
-      console.log(`📂 Clone target: ${cloneDir}`);
-      contentFetcher = new ContentFetcher({
-        contentDir: cloneDir,
-        repoUrl: contentRepo,
-        branch: contentBranch,
-        deployKeyPath: deployKeyPath,
-      });
-      console.log(`📦 Content fetcher enabled: ${contentRepo} (branch: ${contentBranch})`);
-      try {
-        const result = await contentFetcher.pull();
-        if (result) {
-          console.log(`✅ Content ${result.isInitialClone ? 'cloned' : 'updated'}: ${result.ref.substring(0, 8)}`);
-        }
-      } catch (error) {
-        console.error('⚠️ Initial content fetch failed (continuing without content):', error);
-      }
-    } else {
-      console.log('📦 Content fetcher disabled (no CONTENT_REPO set)');
-    }
+    console.log('📦 Native content mode — no GitHub fetch required');
 
     // Generate and load access map
     console.log('📋 Generating access map from config...');
@@ -185,61 +198,8 @@ async function startServer(): Promise<void> {
       }
     });
 
-    // Webhook content update callback
-    // Uses anvilHolder to get current Anvil instance (may be null during init)
-    async function onContentUpdated(changedFiles: string[], isInitialClone: boolean) {
-      const mdFiles = changedFiles.filter(f => f.endsWith('.md'));
-
-      // Invalidate Astro SSR caches (page cache + nav cache)
-      // The proxy routes /api/invalidate-cache to Astro SSR directly
-      try {
-        const proxyPort = process.env.PORT || '4321';
-        const invalidateRes = await fetch(`http://127.0.0.1:${proxyPort}/api/invalidate-cache.json`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-internal-secret': process.env.CACHE_INVALIDATION_SECRET || 'foundry-internal',
-          },
-        });
-        if (invalidateRes.ok) {
-          console.log('[webhook] Astro page cache + nav cache invalidated');
-        } else {
-          console.warn(`[webhook] Cache invalidation returned ${invalidateRes.status}`);
-        }
-      } catch (error) {
-        console.error('[webhook] Failed to invalidate Astro caches:', error);
-      }
-
-      if (isInitialClone || changedFiles.length === 0) {
-        console.log('[webhook] Full content refresh');
-      } else {
-        console.log(`[webhook] Changed files: ${mdFiles.join(', ')}`);
-      }
-
-      // Anvil reindex (if available)
-      const anvil = anvilHolder.get();
-      if (anvil) {
-        try {
-          if (isInitialClone || mdFiles.length === 0) {
-            console.log('[webhook] Triggering full Anvil reindex');
-            await anvil.index();
-          } else if (typeof anvil.reindexFiles === "function") {
-            console.log(`[webhook] Delta reindexing ${mdFiles.length} changed files`);
-            await anvil.reindexFiles(mdFiles);
-          } else {
-            console.log("[webhook] reindexFiles not available, falling back to full reindex");
-            await anvil.index();
-          }
-        } catch (error) {
-          console.error('[webhook] Anvil reindex failed:', error);
-        }
-      } else {
-        console.log('[webhook] Anvil not ready, skipping reindex (will be indexed on init)');
-      }
-    }
-
-    // Mount webhook router (works with or without Anvil)
-    app.use('/api', createWebhookRouter({ onContentUpdated }));
+    // Mount webhook router (legacy — returns 410 Gone for POST)
+    app.use('/api', createWebhookRouter());
 
     // Mount access router (always available, no anvil dependency)
     app.use('/api', createAccessRouter());
@@ -263,6 +223,9 @@ async function startServer(): Promise<void> {
     protectedReviewsRouter.use('/reviews', requireAuth);
     protectedReviewsRouter.use(createReviewsRouter());
     app.use('/api', protectedReviewsRouter);
+
+    // Mount import router (auth-protected internally via requireAuth in route)
+    app.use('/api', createImportRouter());
 
     // Access control for docs:
     // - Static HTML pages: client-side nav filtering hides private docs (no server gate)

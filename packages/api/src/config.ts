@@ -54,7 +54,7 @@ function readFoundryConfig(): FoundryConfig {
 
 /**
  * Gets the docs/content reading path (where Astro + Anvil look for markdown).
- * In Docker: CONTENT_DIR points to the docs subdirectory within the cloned repo.
+ * In Docker: CONTENT_DIR points to /data/docs on the Fly persistent volume.
  */
 export function getDocsPath(): string {
   // CONTENT_DIR env var takes priority (canonical path in Docker)
@@ -69,19 +69,6 @@ export function getDocsPath(): string {
 
   const projectRoot = findProjectRoot(__dirname);
   return join(projectRoot, 'packages/site/content/');
-}
-
-/**
- * Gets the clone target path (where ContentFetcher clones the repo).
- * In Docker: CONTENT_CLONE_DIR is the repo root; CONTENT_DIR is the docs subdir within it.
- * Locally: falls back to getDocsPath() (clone and read from same place).
- */
-export function getCloneDir(): string {
-  if (process.env.CONTENT_CLONE_DIR) {
-    return process.env.CONTENT_CLONE_DIR;
-  }
-  // Local dev: clone and read from same directory
-  return getDocsPath();
 }
 
 /**
