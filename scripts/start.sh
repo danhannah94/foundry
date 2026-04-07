@@ -2,7 +2,7 @@
 # Foundry SSR Entrypoint
 # Starts the Express API server, then the proxy (which handles Astro SSR + API routing)
 
-# Decode deploy key from environment (if provided as base64)
+# Decode deploy key from environment (if provided as base64) — needed for S8 GitHub sync
 if [ -n "$DEPLOY_KEY_B64" ] && [ -n "$DEPLOY_KEY_PATH" ]; then
   mkdir -p "$(dirname "$DEPLOY_KEY_PATH")"
   echo "$DEPLOY_KEY_B64" | base64 -d > "$DEPLOY_KEY_PATH"
@@ -17,7 +17,7 @@ ASTRO_NODE_AUTOSTART=disabled node packages/api/dist/index.js &
 # Wait for API to become healthy before starting proxy
 echo "Waiting for API server..."
 for i in $(seq 1 90); do
-  if curl -sf http://localhost:3001/api/content/status > /dev/null 2>&1; then
+  if curl -sf http://localhost:3001/api/health > /dev/null 2>&1; then
     echo "API server ready after ${i}s"
     break
   fi

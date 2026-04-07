@@ -6,7 +6,7 @@
 FROM node:22-alpine AS site-builder
 WORKDIR /app
 COPY packages/site/ packages/site/
-# Create empty content directory — content is fetched at runtime
+# Create empty content directory — content lives on Fly volume at /data/docs
 RUN mkdir -p packages/site/content
 RUN cd packages/site && npm install && npm run build
 
@@ -22,7 +22,7 @@ RUN npm run build
 FROM node:22-slim
 WORKDIR /app
 
-# Install native dependencies required by sqlite-vss + git for runtime content fetching
+# Install native dependencies required by sqlite-vss + git/ssh for GitHub sync (S8)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libopenblas0 \
     libgomp1 \
@@ -55,23 +55,17 @@ RUN cd packages/api/node_modules/sqlite-vss-linux-x64/lib && \
     ln -sf vss0.so vss0.so.so && \
     ln -sf vector0.so vector0.so.so
 
-# Create data directory for SQLite and content directory for runtime fetching
-RUN mkdir -p /data
-RUN mkdir -p /app/content-repo
+# Create data directory for SQLite and native content
+RUN mkdir -p /data/docs
 
 # Environment
 ENV PORT=4321
 ENV FOUNDRY_DB_PATH=/data/foundry.db
 ENV FOUNDRY_STATIC_PATH=/app/packages/site/dist
 ENV NODE_ENV=production
-ENV CONTENT_REPO=""
-ENV CONTENT_BRANCH=main
 ENV DEPLOY_KEY_PATH=""
-ENV WEBHOOK_SECRET=""
-# Clone target — full repo lands here
-ENV CONTENT_CLONE_DIR=/app/content-repo
-# Content root — the docs subdirectory within the clone (what Astro + Anvil read)
-ENV CONTENT_DIR=/app/content-repo/docs
+# Content root — native content on Fly volume
+ENV CONTENT_DIR=/data/docs
 ENV FOUNDRY_READ_TOKEN=""
 
 EXPOSE 4321
