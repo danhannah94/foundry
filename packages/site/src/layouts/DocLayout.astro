@@ -211,17 +211,9 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
           var isH3 = currentHeading.tagName.toLowerCase() === 'h3';
           var levelClass = isH3 ? 'sticky-heading-h3' : 'sticky-heading-h2';
 
-          if (text !== displayedText) {
-            // Crossfade: fade out, swap text, fade in
-            bar.classList.remove('visible');
-            setTimeout(function() {
-              bar.textContent = text;
-              bar.className = 'sticky-heading-bar visible ' + levelClass;
-              displayedText = text;
-            }, 150);
-          } else {
-            bar.className = 'sticky-heading-bar visible ' + levelClass;
-          }
+          bar.textContent = text;
+          bar.className = 'sticky-heading-bar visible ' + levelClass;
+          displayedText = text;
         }
       }, { rootMargin: '-' + headerHeight + 'px 0px 0px 0px', threshold: 0 });
 
