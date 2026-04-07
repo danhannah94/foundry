@@ -10,6 +10,9 @@ if [ -n "$DEPLOY_KEY_B64" ] && [ -n "$DEPLOY_KEY_PATH" ]; then
   echo "Deploy key written to $DEPLOY_KEY_PATH"
 fi
 
+# Ensure content directory exists on Fly volume (volume mount replaces image layer)
+mkdir -p "${CONTENT_DIR:-/data/docs}"
+
 # Start API server in background (port 3001)
 echo "Starting API server on port 3001..."
 ASTRO_NODE_AUTOSTART=disabled node packages/api/dist/index.js &
