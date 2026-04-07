@@ -289,10 +289,12 @@ h6:hover .heading-anchor {
   height: calc(100vh - var(--header-height));
   background: var(--color-bg);
   border-right: none;
-  overflow-y: auto;
+  overflow: hidden;
   padding: var(--spacing-sm) var(--spacing-md);
   z-index: 10;
   transition: transform var(--transition-normal);
+  display: flex;
+  flex-direction: column;
 }
 
 .content-area {
@@ -356,23 +358,33 @@ h6:hover .heading-anchor {
   gap: var(--spacing-md);
 }
 
-/* --- Sidebar Toggle (header) --- */
+/* --- Sidebar Toggle (inside sidebar) --- */
 .sidebar-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
+  align-self: flex-end;
   background: none;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   padding: 6px;
   color: var(--color-text-secondary);
-  margin-right: var(--spacing-sm);
   transition: color var(--transition-fast), background-color var(--transition-fast);
+  flex-shrink: 0;
 }
 .sidebar-toggle:hover {
   background: var(--color-bg-secondary);
   color: var(--color-text);
+}
+
+/* Desktop: show collapse arrow, hide hamburger */
+.sidebar-toggle-hamburger { display: none; }
+.sidebar-toggle-arrow { display: block; }
+
+/* When sidebar is collapsed, flip arrow to point right (expand) */
+.layout.sidebar-hidden .sidebar-toggle-arrow {
+  transform: scaleX(-1);
 }
 
 /* Collapsed sidebar state */
@@ -381,6 +393,18 @@ h6:hover .heading-anchor {
 }
 .layout.sidebar-hidden .sidebar {
   transform: translateX(-100%);
+  overflow: visible; /* allow toggle button to remain visible */
+}
+.layout.sidebar-hidden .sidebar .nav-list {
+  visibility: hidden;
+}
+.layout.sidebar-hidden .sidebar .sidebar-toggle {
+  /* Keep toggle visible when sidebar is collapsed — position it just outside the hidden sidebar */
+  position: absolute;
+  top: var(--spacing-sm);
+  right: calc(-1 * (30px + var(--spacing-sm)));
+  transform: translateX(0);
+  z-index: 11;
 }
 
 
@@ -398,9 +422,25 @@ h6:hover .heading-anchor {
     width: var(--sidebar-width);
     transform: translateX(-100%);
     z-index: 20;
+    overflow: visible;
   }
   .sidebar.open {
     transform: translateX(0);
+    overflow-y: auto;
+  }
+  /* Mobile: show hamburger, hide arrow */
+  .sidebar-toggle-hamburger { display: block; }
+  .sidebar-toggle-arrow { display: none; }
+  /* Fixed position toggle so it's accessible when sidebar is off-screen */
+  .sidebar .sidebar-toggle {
+    position: fixed;
+    top: calc(var(--header-height) + var(--spacing-sm));
+    left: var(--spacing-sm);
+    z-index: 21;
+  }
+  .sidebar.open .sidebar-toggle {
+    position: static;
+    align-self: flex-end;
   }
   .content-area {
     grid-column: 1;
@@ -414,6 +454,8 @@ h6:hover .heading-anchor {
   list-style: none;
   padding: 0;
   margin: 0;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .nav-children {
