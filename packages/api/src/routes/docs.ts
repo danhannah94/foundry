@@ -80,7 +80,8 @@ export function createDocsRouter(holder: AnvilHolder): Router {
     const anvil = holder.get()!;
 
     try {
-      const section = await anvil.getSection(req.params.path, req.params.heading);
+      const docPath = req.params.path.endsWith('.md') ? req.params.path : `${req.params.path}.md`;
+      const section = await anvil.getSection(docPath, req.params.heading);
       if (!section) return res.status(404).json({ error: 'Section not found' });
       res.json(section);
     } catch (error) {
@@ -95,7 +96,9 @@ export function createDocsRouter(holder: AnvilHolder): Router {
     const anvil = holder.get()!;
 
     try {
-      const path = req.params.path;
+      const rawPath = req.params.path;
+      // Normalize: Anvil indexes with .md extension, clients may omit it
+      const path = rawPath.endsWith('.md') ? rawPath : `${rawPath}.md`;
 
       // Check access level for this document path
       const level = getAccessLevel(path);
