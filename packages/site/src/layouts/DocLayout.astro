@@ -84,14 +84,16 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
 
       <div class="sticky-heading-bar" id="sticky-heading-bar" aria-hidden="true"></div>
 
-      <article class="content">
-        <ContentStatusBanner client:load />
-        <slot />
-        <TtsSectionManager client:load />
-        <PlayAllManager client:load />
+      <div class="content-row">
+        <article class="content">
+          <ContentStatusBanner client:load />
+          <slot />
+          <TtsSectionManager client:load />
+          <PlayAllManager client:load />
 
-      </article>
-      <TableOfContents client:load />
+        </article>
+        <TableOfContents client:load />
+      </div>
     </main>
 
 
@@ -185,36 +187,52 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
       if (!headings.length) return;
       var bar = document.getElementById('sticky-heading-bar');
       if (!bar) return;
-      var headerHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--header-height')) || 56;
+      var headerHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--header-height')) || 48;
       var currentHeading = null;
+      var displayedText = '';
+
+      // Extract only direct text nodes from a heading (skips anchors and other elements)
+      function getHeadingText(el) {
+        var text = '';
+        el.childNodes.forEach(function(node) {
+          if (node.nodeType === 3) text += node.textContent;
+        });
+        return text.trim();
+      }
 
       var observer = new IntersectionObserver(function(entries) {
         entries.forEach(function(entry) {
           if (!entry.isIntersecting) {
-            // Heading has scrolled past the top — it's the current section
             currentHeading = entry.target;
           }
         });
-        // Update the sticky bar with the most recent heading that scrolled past
         if (currentHeading) {
-          var clone = currentHeading.cloneNode(true);
-          var anchor = clone.querySelector('.heading-anchor');
-          if (anchor) anchor.remove();
-          var text = clone.textContent.trim();
+          var text = getHeadingText(currentHeading);
           var isH3 = currentHeading.tagName.toLowerCase() === 'h3';
-          bar.textContent = text;
-          bar.className = 'sticky-heading-bar visible' + (isH3 ? ' sticky-heading-h3' : '');
+          var levelClass = isH3 ? 'sticky-heading-h3' : 'sticky-heading-h2';
+
+          if (text !== displayedText) {
+            // Crossfade: fade out, swap text, fade in
+            bar.classList.remove('visible');
+            setTimeout(function() {
+              bar.textContent = text;
+              bar.className = 'sticky-heading-bar visible ' + levelClass;
+              displayedText = text;
+            }, 150);
+          } else {
+            bar.className = 'sticky-heading-bar visible ' + levelClass;
+          }
         }
       }, { rootMargin: '-' + headerHeight + 'px 0px 0px 0px', threshold: 0 });
 
-      // Also observe when headings come back into view (scrolling up)
+      // Hide the bar when scrolled back to the top
       var resetObserver = new IntersectionObserver(function(entries) {
         entries.forEach(function(entry) {
           if (entry.isIntersecting && entry.boundingClientRect.top > headerHeight) {
-            // First heading is back in view — hide the bar
             if (entry.target === headings[0]) {
               bar.className = 'sticky-heading-bar';
               currentHeading = null;
+              displayedText = '';
             }
           }
         });

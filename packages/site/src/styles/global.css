@@ -43,8 +43,7 @@
   /* Layout */
   --sidebar-width: 280px;
   --thread-panel-width: 320px;
-  --content-max-width: 52rem;
-  --header-height: 56px;
+  --header-height: 48px;
   --spacing-xs: 0.25rem;
   --spacing-sm: 0.5rem;
   --spacing-md: 1rem;
@@ -299,22 +298,21 @@ h6:hover .heading-anchor {
 
 .content-area {
   grid-column: 2;
-  padding: var(--spacing-xl);
-  padding-top: calc(var(--header-height) + var(--spacing-xl));
-  min-width: 0; /* prevent wide content from blowing out the grid */
-  overflow-x: clip; /* contain wide tables/code — safe here because this column isn't sticky */
+  padding: var(--spacing-lg);
+  padding-top: calc(var(--header-height) + var(--spacing-lg));
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.content-row {
+  display: flex;
+  gap: var(--spacing-lg);
 }
 
 .content {
-  max-width: var(--content-max-width);
-  margin: 0 auto;
+  flex: 1;
+  min-width: 0;
   overflow-x: clip;
-  /* Right padding to account for fixed-position TOC when thread panel is hidden */
-}
-
-/* When TOC is visible (thread panel hidden), offset content-area for the TOC */
-.layout:has(.thread-panel--hidden) .content-area {
-  padding-right: calc(200px + 2rem);
 }
 
 .content table {
@@ -2521,26 +2519,26 @@ body.tts-disabled .tts-controls-bar {
   z-index: 5;
   background: var(--color-bg);
   padding: 0.5rem 0;
-  font-size: var(--font-size-xl);
   font-weight: 700;
   color: var(--color-heading);
   border-bottom: 1px solid var(--color-border);
   opacity: 0;
-  transform: translateY(-4px);
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: opacity 0.15s ease;
   pointer-events: none;
-  max-width: var(--content-max-width);
-  margin: 0 auto;
 }
 
 .sticky-heading-bar.visible {
   opacity: 1;
-  transform: translateY(0);
 }
 
+/* Match h2 style */
+.sticky-heading-bar.sticky-heading-h2 {
+  font-size: 1.5em;
+}
+
+/* Match h3 style — indented, smaller */
 .sticky-heading-bar.sticky-heading-h3 {
-  padding-left: 1rem;
-  font-size: var(--font-size-lg);
+  font-size: 1.25em;
 }
 
 [data-theme="dark"] .sticky-heading-bar {
@@ -2614,15 +2612,16 @@ body.tts-disabled .tts-controls-bar {
 
 /* --- Table of Contents --- */
 .toc {
-  position: fixed;
-  top: calc(var(--header-height) + 1rem);
-  right: 1rem;
+  position: sticky;
+  top: calc(var(--header-height) + var(--spacing-lg));
   width: 200px;
+  flex-shrink: 0;
   max-height: calc(100vh - var(--header-height) - 2rem);
   overflow-y: auto;
   padding: var(--spacing-sm);
   font-size: 0.8rem;
   z-index: 4;
+  align-self: flex-start;
 }
 
 .toc--hidden {
