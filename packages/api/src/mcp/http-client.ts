@@ -389,6 +389,19 @@ export async function deleteSection(
 }
 
 /**
+ * Push content to a configured GitHub repo as a backup.
+ */
+export async function syncToGithub(
+  remote?: string,
+  branch?: string,
+): Promise<{ filesSync: number; commitHash: string; duration_ms: number }> {
+  return apiFetch<{ filesSync: number; commitHash: string; duration_ms: number }>('/api/sync', {
+    method: 'POST',
+    body: JSON.stringify({ remote, branch }),
+  });
+}
+
+/**
  * Semantic search via HTTP API.
  */
 export async function searchDocs(

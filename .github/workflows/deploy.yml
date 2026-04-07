@@ -22,11 +22,6 @@ jobs:
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Deploy to Fly.io
-        run: |
-          flyctl deploy --remote-only \
-            --build-arg GITHUB_TOKEN=${{ secrets.GH_CONTENT_TOKEN }} \
-            --build-arg CACHE_BUST=${{ github.run_id }} \
-            -a foundry-claymore
+        run: flyctl deploy --remote-only -a foundry-claymore
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-          FOUNDRY_WRITE_TOKEN: ${{ secrets.FOUNDRY_WRITE_TOKEN }}

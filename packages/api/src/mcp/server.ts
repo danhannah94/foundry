@@ -22,6 +22,7 @@ import {
   updateSection,
   insertSection,
   deleteSection,
+  syncToGithub,
 } from './http-client.js';
 
 /**
@@ -301,6 +302,18 @@ export function createMcpServer(): Server {
           required: ['path', 'heading'],
         },
       },
+      // Sync tools
+      {
+        name: 'sync_to_github',
+        description: 'Push content to a configured GitHub repository as a backup. Force-pushes — Foundry always wins on conflict.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            remote: { type: 'string', description: 'Git remote URL (overrides SYNC_REMOTE_URL env var)' },
+            branch: { type: 'string', description: 'Target branch (default: main)' },
+          },
+        },
+      },
     ],
   }));
 
@@ -451,6 +464,14 @@ export function createMcpServer(): Server {
           args.heading as string,
         );
         return json({ status: 'deleted', result });
+      }
+      // ── Sync ─────────────────────────────────────────────
+      case 'sync_to_github': {
+        const result = await syncToGithub(
+          args.remote as string | undefined,
+          args.branch as string | undefined,
+        );
+        return json(result);
       }
       default:
         throw new Error(`Unknown tool: ${name}`);
