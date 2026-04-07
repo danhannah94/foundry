@@ -282,7 +282,7 @@ interface SearchResponse {
 export async function getPage(
   path: string,
 ): Promise<object> {
-  return apiFetch<object>(`/api/docs/${encodeURIComponent(path)}`);
+  return apiFetch<object>(`/api/docs/${path}`);
 }
 
 /**
@@ -292,7 +292,7 @@ export async function getSection(
   path: string,
   headingPath: string,
 ): Promise<object> {
-  return apiFetch<object>(`/api/docs/${encodeURIComponent(path)}/sections/${encodeURIComponent(headingPath)}`);
+  return apiFetch<object>(`/api/docs/${path}/sections/${encodeURIComponent(headingPath)}`);
 }
 
 /**
@@ -346,7 +346,7 @@ export async function updateSection(
   content: string,
 ): Promise<object> {
   return apiFetch<object>(
-    `/api/docs/${encodeURIComponent(docPath)}/sections/${encodeURIComponent(headingPath)}`,
+    `/api/docs/${docPath}/sections/${encodeURIComponent(headingPath)}`,
     {
       method: 'PUT',
       body: JSON.stringify({ content }),
@@ -365,7 +365,7 @@ export async function insertSection(
   content: string,
 ): Promise<object> {
   return apiFetch<object>(
-    `/api/docs/${encodeURIComponent(docPath)}/sections`,
+    `/api/docs/${docPath}/sections`,
     {
       method: 'POST',
       body: JSON.stringify({ after_heading: afterHeading, heading, level, content }),
@@ -381,7 +381,7 @@ export async function deleteSection(
   headingPath: string,
 ): Promise<object> {
   return apiFetch<object>(
-    `/api/docs/${encodeURIComponent(docPath)}/sections/${encodeURIComponent(headingPath)}`,
+    `/api/docs/${docPath}/sections/${encodeURIComponent(headingPath)}`,
     {
       method: 'DELETE',
     },
