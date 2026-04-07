@@ -11,6 +11,7 @@ import AnnotationThread from '../components/AnnotationThread.tsx';
 import ContentStatusBanner from '../components/ContentStatusBanner.tsx';
 
 import TokenModal from '../components/TokenModal.tsx';
+import CommentDraft from '../components/CommentDraft.tsx';
 import TableOfContents from '../components/TableOfContents.tsx';
 import SearchModal from '../components/SearchModal.tsx';
 
@@ -108,6 +109,7 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
 
   <TtsControlsBar client:load />
   <TokenModal client:load />
+  <CommentDraft client:load />
 
   <script is:inline>
     // Unified sidebar toggle (works on both desktop and mobile)
@@ -184,7 +186,7 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
 
   <script is:inline>
     (function() {
-      var headings = document.querySelectorAll('.content h2');
+      var headings = document.querySelectorAll('.content h2, .content h3');
       if (!headings.length) return;
       var headerHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--header-height')) || 56;
       var observer = new IntersectionObserver(function(entries) {

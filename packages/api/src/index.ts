@@ -18,6 +18,7 @@ import { requireAuth, logAuthStatus } from './middleware/auth.js';
 import { loadAccessMap, getAccessLevel } from './access.js';
 import { generateAccessMap } from './access-map-generator.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { createMcpServer } from './mcp/server.js';
 
 // Environment configuration
@@ -140,23 +141,24 @@ async function startServer(): Promise<void> {
       loadAccessMap(docsPath); // Try loading existing .access.json as fallback
     }
 
-    // Create MCP server (uses HTTP API, no Anvil dependency)
-    console.log('🔧 Initializing MCP server...');
-    const mcpServer = createMcpServer();
-    console.log('✅ MCP server initialized successfully');
-
-    // Store active SSE transports
+    // Store active SSE transports and their MCP server instances
     const transports = new Map<string, SSEServerTransport>();
+    const mcpServers = new Map<string, Server>();
 
     // MCP SSE endpoints (always available — MCP uses HTTP API, not Anvil)
+    // Each connection gets its own Server instance (MCP SDK requirement)
     app.get('/mcp/sse', async (req, res) => {
       try {
+        const mcpServer = createMcpServer();
         const transport = new SSEServerTransport('/mcp/message', res);
         transports.set(transport.sessionId, transport);
+        mcpServers.set(transport.sessionId, mcpServer);
 
-        // Clean up transport when connection closes
+        // Clean up transport and server when connection closes
         res.on('close', () => {
           transports.delete(transport.sessionId);
+          mcpServers.delete(transport.sessionId);
+          mcpServer.close();
         });
 
         await mcpServer.connect(transport);
