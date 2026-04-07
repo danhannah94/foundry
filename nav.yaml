@@ -107,6 +107,8 @@
               path: projects/foundry/epics/e9-mcp-agent-surface.md
             - title: "E10: UI/UX Polish Part 2"
               path: projects/foundry/epics/e10-ui-ux-part2.md
+            - title: "E10.5: UI Bugfixes & Polish"
+              path: projects/foundry/epics/e10.5-ui-bugfixes.md
             - title: "E11: Native Platform"
               path: projects/foundry/epics/e11-native-platform.md
     - title: Forge
