@@ -110,7 +110,7 @@
   z-index: 1;
   transform-origin: left;
   transform: scaleX(var(--scroll-progress, 0));
-  transition: transform 50ms linear;
+  will-change: transform;
 }
 
 /* --- Reset & Base --- */
