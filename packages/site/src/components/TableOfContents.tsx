@@ -40,9 +40,14 @@ export default function TableOfContents() {
         htmlElement.id = id;
       }
       
+      // Get text without the heading anchor '#'
+      const clone = htmlElement.cloneNode(true) as HTMLElement;
+      const anchor = clone.querySelector('.heading-anchor');
+      if (anchor) anchor.remove();
+
       return {
         id,
-        text: htmlElement.textContent || '',
+        text: clone.textContent?.trim() || '',
         level: htmlElement.tagName.toLowerCase() === 'h2' ? 2 : 3,
         element: htmlElement
       };
