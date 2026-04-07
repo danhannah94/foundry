@@ -66,22 +66,22 @@
 
 /* --- Dark Theme --- */
 [data-theme="dark"] {
-  --color-bg: hsl(205, 22%, 10%);
-  --color-bg-secondary: hsl(205, 20%, 13%);
-  --color-bg-code: hsl(205, 18%, 14%);
-  --color-text: hsl(35, 15%, 88%);
-  --color-text-secondary: hsl(35, 10%, 62%);
-  --color-text-muted: hsl(30, 8%, 42%);
-  --color-heading: hsl(35, 20%, 95%);
+  --color-bg: #111318;
+  --color-bg-secondary: #1a1d24;
+  --color-bg-code: #1e2028;
+  --color-text: #e8e4df;
+  --color-text-secondary: #9e9a95;
+  --color-text-muted: #6b6862;
+  --color-heading: #f5f0eb;
   --color-link: #60a5fa;
   --color-link-hover: #93bbfd;
-  --color-border: hsl(205, 16%, 18%);
-  --color-border-light: hsl(205, 16%, 14%);
+  --color-border: #2a2d35;
+  --color-border-light: #1e2028;
 
-  --color-sidebar-bg: hsl(205, 22%, 10%);
+  --color-sidebar-bg: #111318;
   --color-sidebar-active: rgba(249, 115, 22, 0.1);
   --color-sidebar-active-text: #f97316;
-  --color-sidebar-hover: hsl(205, 18%, 14%);
+  --color-sidebar-hover: #1e2028;
 
   --color-accent: #f97316;
   --color-accent-hover: #fb923c;
@@ -309,6 +309,12 @@ h6:hover .heading-anchor {
   max-width: var(--content-max-width);
   margin: 0 auto;
   overflow-x: clip;
+  /* Right padding to account for fixed-position TOC when thread panel is hidden */
+}
+
+/* When TOC is visible (thread panel hidden), offset content-area for the TOC */
+.layout:has(.thread-panel--hidden) .content-area {
+  padding-right: calc(200px + 2rem);
 }
 
 .content table {
@@ -2514,10 +2520,10 @@ body.tts-disabled .tts-controls-bar {
   top: var(--header-height);
   z-index: 5;
   background: var(--color-bg);
-  padding: 0.4rem 0;
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--color-text-secondary);
+  padding: 0.5rem 0;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--color-heading);
   border-bottom: 1px solid var(--color-border);
   opacity: 0;
   transform: translateY(-4px);
@@ -2534,7 +2540,7 @@ body.tts-disabled .tts-controls-bar {
 
 .sticky-heading-bar.sticky-heading-h3 {
   padding-left: 1rem;
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-lg);
 }
 
 [data-theme="dark"] .sticky-heading-bar {
