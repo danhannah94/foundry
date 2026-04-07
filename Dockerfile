@@ -64,6 +64,7 @@ ENV FOUNDRY_DB_PATH=/data/foundry.db
 ENV FOUNDRY_STATIC_PATH=/app/packages/site/dist
 ENV NODE_ENV=production
 ENV DEPLOY_KEY_PATH=""
+ENV SYNC_REMOTE_URL=""
 # Content root — native content on Fly volume
 ENV CONTENT_DIR=/data/docs
 ENV FOUNDRY_READ_TOKEN=""

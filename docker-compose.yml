@@ -16,6 +16,8 @@ services:
       # Deploy key for GitHub sync (S8) — base64-encoded
       - DEPLOY_KEY_B64=${DEPLOY_KEY_B64:-}
       - DEPLOY_KEY_PATH=/root/.ssh/deploy_key
+      # GitHub remote URL for sync (git@github.com:user/repo.git or https URL)
+      - SYNC_REMOTE_URL=${SYNC_REMOTE_URL:-}
       # Bearer token for API write protection (annotations/reviews)
       # If unset, auth is disabled (dev mode)
       - FOUNDRY_WRITE_TOKEN=${FOUNDRY_WRITE_TOKEN:-}
