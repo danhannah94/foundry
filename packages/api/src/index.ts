@@ -162,7 +162,17 @@ async function startServer(): Promise<void> {
 
     // MCP SSE endpoints (always available — MCP uses HTTP API, not Anvil)
     // Each connection gets its own Server instance (MCP SDK requirement)
-    app.get('/mcp/sse', async (req, res) => {
+    //
+    // Auth note (issue #105): Both /mcp/sse and /mcp/message are gated by
+    // requireAuth (Bearer token against FOUNDRY_WRITE_TOKEN). SSE is just a
+    // long-lived HTTP GET, so Express middleware runs on the initial request
+    // before the response stream is upgraded — req.headers.authorization works
+    // normally. The browser EventSource API can't set custom headers, but our
+    // MCP clients (stdio bridge, official @modelcontextprotocol/sdk
+    // SSEClientTransport, Cowork) all use fetch-based transports that DO
+    // support the Authorization header. This is the minimal unblocker for
+    // #105; the full per-identity auth model is tracked in #99/#100 (E12).
+    app.get('/mcp/sse', requireAuth, async (req, res) => {
       try {
         const mcpServer = createMcpServer();
         const transport = new SSEServerTransport('/mcp/message', res);
@@ -183,7 +193,7 @@ async function startServer(): Promise<void> {
       }
     });
 
-    app.post('/mcp/message', async (req, res) => {
+    app.post('/mcp/message', requireAuth, async (req, res) => {
       try {
         const sessionId = req.query.sessionId as string;
         const transport = transports.get(sessionId);
