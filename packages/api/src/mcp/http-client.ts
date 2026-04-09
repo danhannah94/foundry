@@ -9,6 +9,23 @@ function authHeaders(): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
 
+/**
+ * Error thrown when an API call fails. Preserves the parsed JSON body so
+ * callers can access structured fields like `available_headings` on 404s.
+ */
+export class ApiError extends Error {
+  status: number;
+  payload: any;
+  constructor(status: number, method: string, path: string, payload: any) {
+    const payloadStr =
+      typeof payload === 'string' ? payload : JSON.stringify(payload);
+    super(`API ${method} ${path} failed (${status}): ${payloadStr}`);
+    this.name = 'ApiError';
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${BASE_URL}${path}`;
   const res = await fetch(url, {
@@ -21,8 +38,14 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   });
 
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`API ${options.method || 'GET'} ${path} failed (${res.status}): ${body}`);
+    const raw = await res.text();
+    let parsed: any = raw;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      // not JSON — keep as string
+    }
+    throw new ApiError(res.status, options.method || 'GET', path, parsed);
   }
 
   return res.json() as Promise<T>;
@@ -110,10 +133,13 @@ export async function submitReview(
   docPath: string,
   annotationIds?: string[],
 ): Promise<object> {
-  // 1. Create review
+  // 1. Create review (attribute to configured MCP user instead of "anonymous")
   const review = await apiFetch<{ id: string; doc_path: string }>('/api/reviews', {
     method: 'POST',
-    body: JSON.stringify({ doc_path: docPath }),
+    body: JSON.stringify({
+      doc_path: docPath,
+      user_id: process.env.FOUNDRY_MCP_USER || 'clay',
+    }),
   });
 
   // Get annotations to include
@@ -339,6 +365,12 @@ export async function createDoc(
 
 /**
  * Update a section's body content by heading path.
+ *
+ * @param docPath Document path (no .md extension)
+ * @param headingPath Canonical heading path in the form
+ *   "## Parent > ### Child" (`#` prefix on every level, separated by ` > `).
+ * @param content New body content (markdown, NOT including the heading line)
+ * @throws ApiError with status 404 and payload.available_headings on no-match.
  */
 export async function updateSection(
   docPath: string,
@@ -356,10 +388,19 @@ export async function updateSection(
 
 /**
  * Insert a new section after an existing heading.
+ *
+ * @param docPath Document path (no .md extension)
+ * @param afterHeadingPath Canonical heading path of the section to insert
+ *   after, e.g. "## Architecture > ### Tech Stack".
+ * @param heading New section heading text (without `#` prefix — level is
+ *   passed separately).
+ * @param level Heading level (1–6) for the new section.
+ * @param content New section body content.
+ * @throws ApiError with status 404 and payload.available_headings on no-match.
  */
 export async function insertSection(
   docPath: string,
-  afterHeading: string,
+  afterHeadingPath: string,
   heading: string,
   level: number,
   content: string,
@@ -368,13 +409,17 @@ export async function insertSection(
     `/api/docs/${docPath}/sections`,
     {
       method: 'POST',
-      body: JSON.stringify({ after_heading: afterHeading, heading, level, content }),
+      body: JSON.stringify({ after_heading: afterHeadingPath, heading, level, content }),
     },
   );
 }
 
 /**
  * Delete a section by heading path.
+ *
+ * @param docPath Document path (no .md extension)
+ * @param headingPath Canonical heading path of the section to delete.
+ * @throws ApiError with status 404 and payload.available_headings on no-match.
  */
 export async function deleteSection(
   docPath: string,
@@ -386,6 +431,19 @@ export async function deleteSection(
       method: 'DELETE',
     },
   );
+}
+
+/**
+ * Hard-delete an entire document. Removes the file, docs_meta row, and all
+ * annotations for the doc. Not recoverable.
+ *
+ * @param docPath Document path (no .md extension)
+ * @throws ApiError with status 404 if the document does not exist.
+ */
+export async function deleteDoc(docPath: string): Promise<object> {
+  return apiFetch<object>(`/api/docs/${docPath}`, {
+    method: 'DELETE',
+  });
 }
 
 /**

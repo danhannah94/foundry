@@ -22,6 +22,7 @@ import {
   updateSection,
   insertSection,
   deleteSection,
+  deleteDoc,
   syncToGithub,
 } from './http-client.js';
 
@@ -264,42 +265,53 @@ export function createMcpServer(): Server {
       },
       {
         name: 'update_section',
-        description: 'Update a section\'s body content by heading path. The heading itself is the address — only the body content is replaced.',
+        description: 'Update a section\'s body content by heading path. The heading itself is the address — only the body content is replaced. Throws 404 with available_headings on no-match — NEVER silently appends.',
         inputSchema: {
           type: 'object',
           properties: {
             path: { type: 'string', description: 'Document path' },
-            heading: { type: 'string', description: 'Heading path in Anvil format, e.g. "## Overview" or "## Architecture > ### Tech Stack"' },
+            heading_path: { type: 'string', description: 'Canonical heading path: `#` prefix on every level, separated by ` > `. e.g. "## Overview" or "## Architecture > ### Tech Stack".' },
             content: { type: 'string', description: 'New body content (markdown, NOT including the heading)' },
           },
-          required: ['path', 'heading', 'content'],
+          required: ['path', 'heading_path', 'content'],
         },
       },
       {
         name: 'insert_section',
-        description: 'Insert a new section after an existing heading.',
+        description: 'Insert a new section after an existing heading. Throws 404 with available_headings on no-match — NEVER silently appends.',
         inputSchema: {
           type: 'object',
           properties: {
             path: { type: 'string', description: 'Document path' },
-            after_heading: { type: 'string', description: 'Heading path to insert after' },
-            heading: { type: 'string', description: 'New section heading text (without # prefix)' },
+            after_heading_path: { type: 'string', description: 'Canonical heading path to insert after: `#` prefix on every level, separated by ` > `. e.g. "## Architecture > ### Tech Stack".' },
+            heading: { type: 'string', description: 'New section heading text (without # prefix — this is the content to insert, not an address)' },
             level: { type: 'number', description: 'Heading level (2 for ##, 3 for ###, etc.)' },
             content: { type: 'string', description: 'Section body content' },
           },
-          required: ['path', 'after_heading', 'heading', 'level', 'content'],
+          required: ['path', 'after_heading_path', 'heading', 'level', 'content'],
         },
       },
       {
         name: 'delete_section',
-        description: 'Delete a section by heading path (removes heading and all body content).',
+        description: 'Delete a section by heading path (removes heading and all body content). Throws 404 with available_headings on no-match — NEVER silently mutates.',
         inputSchema: {
           type: 'object',
           properties: {
             path: { type: 'string', description: 'Document path' },
-            heading: { type: 'string', description: 'Heading path to delete' },
+            heading_path: { type: 'string', description: 'Canonical heading path to delete: `#` prefix on every level, separated by ` > `.' },
           },
-          required: ['path', 'heading'],
+          required: ['path', 'heading_path'],
+        },
+      },
+      {
+        name: 'delete_doc',
+        description: 'Delete a document and all its annotations. HARD delete — not recoverable. Use sync_to_github first if you need a backup.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'Document path (no .md extension)' },
+          },
+          required: ['path'],
         },
       },
       // Sync tools
@@ -443,7 +455,7 @@ export function createMcpServer(): Server {
       case 'update_section': {
         const result = await updateSection(
           args.path as string,
-          args.heading as string,
+          args.heading_path as string,
           args.content as string,
         );
         return json({ status: 'updated', section: result });
@@ -451,7 +463,7 @@ export function createMcpServer(): Server {
       case 'insert_section': {
         const result = await insertSection(
           args.path as string,
-          args.after_heading as string,
+          args.after_heading_path as string,
           args.heading as string,
           args.level as number,
           args.content as string,
@@ -461,8 +473,12 @@ export function createMcpServer(): Server {
       case 'delete_section': {
         const result = await deleteSection(
           args.path as string,
-          args.heading as string,
+          args.heading_path as string,
         );
+        return json({ status: 'deleted', result });
+      }
+      case 'delete_doc': {
+        const result = await deleteDoc(args.path as string);
         return json({ status: 'deleted', result });
       }
       // ── Sync ─────────────────────────────────────────────
