@@ -106,7 +106,7 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
 
   <TtsControlsBar client:load />
   <TokenModal client:load />
-  <CommentDraft client:load />
+  <CommentDraft docPath={currentPath} client:load />
 
   <script is:inline>
     // Unified sidebar toggle (works on both desktop and mobile)
