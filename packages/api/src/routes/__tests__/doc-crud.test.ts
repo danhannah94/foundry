@@ -154,6 +154,127 @@ describe('Doc CRUD Router — strict error contract', () => {
       expect(Array.isArray(res.body.available_headings)).toBe(true);
       expect(res.body.available_headings.length).toBeGreaterThan(0);
     });
+
+    it('cascades: removes a parent section and all its descendant sections', async () => {
+      // Seed a doc where ## Architecture has a ### Tech Stack child.
+      // Deleting "## Architecture" should also remove "### Tech Stack".
+      const docPath = 'cascade-test/parent-with-children';
+      const filePath = seedDoc(
+        docPath,
+        [
+          '# Doc',
+          '',
+          '## Overview',
+          'overview prose',
+          '',
+          '## Architecture',
+          'arch prose',
+          '',
+          '### Tech Stack',
+          'tech prose',
+          '',
+          '### Data Flow',
+          'flow prose',
+          '',
+          '## Roadmap',
+          'roadmap prose',
+        ].join('\n'),
+      );
+
+      const headingPath = encodeURIComponent('# Doc > ## Architecture');
+      const res = await request(app)
+        .delete(`/api/docs/${docPath}/sections/${headingPath}`)
+        .set('Authorization', 'Bearer test-token')
+        .expect(200);
+
+      expect(res.body.deleted).toBe(true);
+
+      // Read the file back and confirm Architecture and BOTH children are gone,
+      // while Overview (sibling before) and Roadmap (sibling after) survive.
+      const fs = await import('fs');
+      const updated = fs.readFileSync(filePath, 'utf-8');
+      expect(updated).toContain('## Overview');
+      expect(updated).toContain('## Roadmap');
+      expect(updated).not.toContain('## Architecture');
+      expect(updated).not.toContain('### Tech Stack');
+      expect(updated).not.toContain('### Data Flow');
+      expect(updated).not.toContain('arch prose');
+      expect(updated).not.toContain('tech prose');
+      expect(updated).not.toContain('flow prose');
+      // Sibling prose untouched
+      expect(updated).toContain('overview prose');
+      expect(updated).toContain('roadmap prose');
+    });
+
+    it('cascades: deleting a leaf section (no children) still works', async () => {
+      // Edge case: subtreeEnd should equal bodyEnd when there are no children.
+      const docPath = 'cascade-test/leaf';
+      const filePath = seedDoc(
+        docPath,
+        [
+          '# Doc',
+          '',
+          '## Keep Me',
+          'keep prose',
+          '',
+          '### Sub To Delete',
+          'sub prose',
+          '',
+          '## Also Keep',
+          'also prose',
+        ].join('\n'),
+      );
+
+      const headingPath = encodeURIComponent('# Doc > ## Keep Me > ### Sub To Delete');
+      await request(app)
+        .delete(`/api/docs/${docPath}/sections/${headingPath}`)
+        .set('Authorization', 'Bearer test-token')
+        .expect(200);
+
+      const fs = await import('fs');
+      const updated = fs.readFileSync(filePath, 'utf-8');
+      expect(updated).toContain('## Keep Me');
+      expect(updated).toContain('keep prose');
+      expect(updated).toContain('## Also Keep');
+      expect(updated).not.toContain('### Sub To Delete');
+      expect(updated).not.toContain('sub prose');
+    });
+
+    it('cascades: deleting the last top-level section removes everything to EOF', async () => {
+      // Edge case: subtreeEnd should be lines.length when no following
+      // sibling/parent exists.
+      const docPath = 'cascade-test/last-section';
+      const filePath = seedDoc(
+        docPath,
+        [
+          '# Doc',
+          '',
+          '## First',
+          'first prose',
+          '',
+          '## Last',
+          'last prose',
+          '',
+          '### Last Child',
+          'child prose',
+        ].join('\n'),
+      );
+
+      const headingPath = encodeURIComponent('# Doc > ## Last');
+      await request(app)
+        .delete(`/api/docs/${docPath}/sections/${headingPath}`)
+        .set('Authorization', 'Bearer test-token')
+        .expect(200);
+
+      const fs = await import('fs');
+      const updated = fs.readFileSync(filePath, 'utf-8');
+      expect(updated).toContain('## First');
+      expect(updated).toContain('first prose');
+      expect(updated).not.toContain('## Last');
+      expect(updated).not.toContain('### Last Child');
+      expect(updated).not.toContain('last prose');
+      expect(updated).not.toContain('child prose');
+    });
   });
 });
 

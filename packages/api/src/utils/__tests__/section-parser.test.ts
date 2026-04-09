@@ -102,6 +102,87 @@ describe('parseSections', () => {
   });
 });
 
+describe('parseSections — subtreeEnd', () => {
+  it('subtreeEnd of a section with no children equals bodyEnd', () => {
+    const md = [
+      '# Doc',
+      '',
+      '## A',
+      'a body',
+      '',
+      '## B',
+      'b body',
+    ];
+    const sections = parseSections(md);
+    const a = sections.find(s => s.headingPath === '# Doc > ## A')!;
+    expect(a.subtreeEnd).toBe(a.bodyEnd);
+    expect(a.subtreeEnd).toBe(5); // line of "## B"
+  });
+
+  it('subtreeEnd of a parent walks past all descendants to next sibling', () => {
+    const md = [
+      '# Doc',
+      '',
+      '## A',
+      'a body',
+      '',
+      '### A1',
+      'a1 body',
+      '',
+      '### A2',
+      'a2 body',
+      '',
+      '## B',
+      'b body',
+    ];
+    const sections = parseSections(md);
+    const a = sections.find(s => s.headingPath === '# Doc > ## A')!;
+    // bodyEnd stops at "### A1" (first child)
+    expect(a.bodyEnd).toBe(5);
+    // subtreeEnd walks past A1, A2 and lands at "## B"
+    expect(a.subtreeEnd).toBe(11);
+  });
+
+  it('subtreeEnd of the last top-level section extends to end of file', () => {
+    const md = [
+      '# Doc',
+      '',
+      '## A',
+      'a body',
+      '',
+      '## B',
+      'b body',
+      '',
+      '### B1',
+      'b1 body',
+    ];
+    const sections = parseSections(md);
+    const b = sections.find(s => s.headingPath === '# Doc > ## B')!;
+    expect(b.subtreeEnd).toBe(md.length); // EOF
+  });
+
+  it('subtreeEnd respects level boundaries — H3 only walks past deeper headings', () => {
+    const md = [
+      '# Doc',
+      '',
+      '## Parent',
+      '',
+      '### Target',
+      'target body',
+      '',
+      '#### Deep Child',
+      'deep body',
+      '',
+      '### Sibling',
+      'sibling body',
+    ];
+    const sections = parseSections(md);
+    const target = sections.find(s => s.headingPath === '# Doc > ## Parent > ### Target')!;
+    // Walks past "#### Deep Child" (level 4 > 3), stops at "### Sibling" (level 3 == 3)
+    expect(target.subtreeEnd).toBe(10); // line of "### Sibling"
+  });
+});
+
 describe('findSection', () => {
   it('finds section by path', () => {
     const md = ['# Doc', '## A', 'body', '## B', 'body2'];

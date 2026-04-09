@@ -289,6 +289,11 @@ export function createDocCrudRouter(): Router {
   // ──────────────────────────────────────────────
   // DELETE /api/docs/:path/sections/:heading — Delete section
   //
+  // Cascades: removes the heading line, the section's prose, and ALL
+  // descendant sections (everything until the next heading at level <=
+  // the target's level). Use update_section if you only want to clear
+  // prose without removing children.
+  //
   // On no-match, returns 404 with { error, available_headings }.
   // NEVER silently mutates — write tools throw on missing address.
   // ──────────────────────────────────────────────
@@ -321,10 +326,12 @@ export function createDocCrudRouter(): Router {
         });
       }
 
-      // Remove heading line + body
+      // Remove heading line + prose + entire descendant subtree.
+      // subtreeEnd walks past all child sections, so deleting "## Parent"
+      // also removes "### Child A", "### Child B", etc.
       const updatedLines = [
         ...lines.slice(0, section.headingLine),
-        ...lines.slice(section.bodyEnd),
+        ...lines.slice(section.subtreeEnd),
       ];
 
       writeDocAndUpdateMeta(filePath, updatedLines, docPath);
