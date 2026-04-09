@@ -79,6 +79,34 @@ describe('requireAuth middleware', () => {
     expect(res.body.success).toBe(true);
   });
 
+  it('should read Authorization header on SSE-style GET requests (issue #105)', async () => {
+    // SSE is just a long-lived GET — Express middleware runs on the initial
+    // request before the response is upgraded to a stream. Verify that
+    // req.headers.authorization is readable in that context.
+    process.env.FOUNDRY_WRITE_TOKEN = 'sse-token';
+
+    app.get('/sse', requireAuth, (req, res) => {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.write('data: hello\n\n');
+      res.end();
+    });
+
+    // Without auth — should 401 before the stream starts
+    await request(app)
+      .get('/sse')
+      .expect(401);
+
+    // With valid auth — should get through and receive the stream payload
+    const ok = await request(app)
+      .get('/sse')
+      .set('Authorization', 'Bearer sse-token')
+      .expect(200);
+
+    expect(ok.text).toContain('data: hello');
+  });
+
   it('should return 401 when Authorization header has malformed format', async () => {
     process.env.FOUNDRY_WRITE_TOKEN = 'test-token';
     

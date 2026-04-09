@@ -62,7 +62,10 @@ CONTENT_BRANCH=main
 # GitHub webhook secret (for auto-updates on push)
 WEBHOOK_SECRET=<openssl rand -hex 32>
 
-# API write protection (annotations/reviews)
+# API write protection (annotations/reviews) AND the MCP transport (/mcp/sse,
+# /mcp/message). Required in production — without it, the MCP transport is
+# open and anyone on the internet can call tools like create_doc,
+# update_section, delete_section, etc. In dev mode (unset), auth is bypassed.
 FOUNDRY_WRITE_TOKEN=<openssl rand -hex 32>
 ```
 
@@ -227,8 +230,16 @@ foundry/
 | `PATCH /api/annotations/:id` | Yes | Update annotation status/content |
 | `POST /api/reviews` | Yes | Create review |
 | `PATCH /api/reviews/:id` | Yes | Update review status |
+| `GET /mcp/sse` | Yes | MCP SSE transport (connect) |
+| `POST /mcp/message` | Yes | MCP SSE transport (messages) |
 
 Auth: `Authorization: Bearer <FOUNDRY_WRITE_TOKEN>`
+
+The `/mcp/*` transport endpoints require the same Bearer token as `/api/*`
+writes. MCP SSE clients that use `fetch`-based transports (including the
+official `@modelcontextprotocol/sdk` `SSEClientTransport`) can set the
+`Authorization` header; browser `EventSource` cannot and is not a supported
+client. In dev mode (`FOUNDRY_WRITE_TOKEN` unset), the transport is open.
 
 ## Tech Stack
 
