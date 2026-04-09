@@ -39,6 +39,42 @@ export default function CommentDraft({ docPath }: Props) {
   }>({ show: false, isEditing: false });
   const [editorContent, setEditorContent] = useState('');
 
+  // One-time recovery for #110: prior to the docPath prop fix, all drafts were
+  // saved under localStorage key `foundry-drafts-undefined` regardless of which
+  // doc they belonged to. The orphaned drafts also have `doc_path: undefined`
+  // baked into the object, so we can't auto-route them back to their original
+  // doc. Best we can do: back up the orphan blob to a timestamped key for
+  // manual inspection, log full details to the console, and clear the active
+  // orphan key so the bug doesn't keep accumulating dead drafts.
+  useEffect(() => {
+    try {
+      const orphanKey = 'foundry-drafts-undefined';
+      const orphanRaw = localStorage.getItem(orphanKey);
+      if (!orphanRaw) return;
+
+      const orphans: unknown = JSON.parse(orphanRaw);
+      if (!Array.isArray(orphans) || orphans.length === 0) {
+        localStorage.removeItem(orphanKey);
+        return;
+      }
+
+      const backupKey = `foundry-drafts-orphan-backup-${Date.now()}`;
+      localStorage.setItem(backupKey, orphanRaw);
+
+      console.warn(
+        `[Foundry] Recovered ${orphans.length} stranded draft comment(s) from bug #110.\n` +
+        `Backup saved to localStorage["${backupKey}"]. Inspect via:\n` +
+        `  JSON.parse(localStorage.getItem("${backupKey}"))\n` +
+        `Drafts:`,
+        orphans
+      );
+
+      localStorage.removeItem(orphanKey);
+    } catch (e) {
+      console.error('[Foundry] Error during draft recovery:', e);
+    }
+  }, []);
+
   // Load drafts from localStorage on mount and when docPath changes
   useEffect(() => {
     const loadedDrafts = getDrafts(docPath);
