@@ -163,16 +163,26 @@ async function startServer(): Promise<void> {
     // MCP SSE endpoints (always available — MCP uses HTTP API, not Anvil)
     // Each connection gets its own Server instance (MCP SDK requirement)
     //
-    // Auth note (issue #105): Both /mcp/sse and /mcp/message are gated by
-    // requireAuth (Bearer token against FOUNDRY_WRITE_TOKEN). SSE is just a
-    // long-lived HTTP GET, so Express middleware runs on the initial request
-    // before the response stream is upgraded — req.headers.authorization works
-    // normally. The browser EventSource API can't set custom headers, but our
-    // MCP clients (stdio bridge, official @modelcontextprotocol/sdk
-    // SSEClientTransport, Cowork) all use fetch-based transports that DO
-    // support the Authorization header. This is the minimal unblocker for
-    // #105; the full per-identity auth model is tracked in #99/#100 (E12).
-    app.get('/mcp/sse', requireAuth, async (req, res) => {
+    // Auth note (issue #105): Both /mcp/sse and /mcp/message are normally gated
+    // by requireAuth (Bearer token against FOUNDRY_WRITE_TOKEN). This works for
+    // MCP clients that control their own headers (stdio bridge, fetch-based
+    // SSEClientTransport). However, Claude.ai's hosted connector only supports
+    // OAuth per the MCP Authorization spec (RFC 7591), so Bearer tokens are a
+    // dead end there. The full OAuth fix is tracked in E12 (#99/#100).
+    //
+    // Escape hatch: FOUNDRY_MCP_REQUIRE_AUTH=false disables the middleware on
+    // /mcp/sse and /mcp/message to unblock Claude.ai connector testing. This
+    // should ONLY be set in environments where the MCP endpoints are otherwise
+    // safe to expose publicly. Default is to require auth.
+    const mcpRequireAuth = process.env.FOUNDRY_MCP_REQUIRE_AUTH !== 'false';
+    const mcpAuthMiddleware: express.RequestHandler = mcpRequireAuth
+      ? requireAuth
+      : (_req, _res, next) => next();
+    if (!mcpRequireAuth) {
+      console.warn('⚠️  FOUNDRY_MCP_REQUIRE_AUTH=false — /mcp/sse and /mcp/message are PUBLIC. Temporary unblocker for Claude.ai connector; real fix in E12 (#99).');
+    }
+
+    app.get('/mcp/sse', mcpAuthMiddleware, async (req, res) => {
       try {
         const mcpServer = createMcpServer();
         const transport = new SSEServerTransport('/mcp/message', res);
@@ -193,7 +203,7 @@ async function startServer(): Promise<void> {
       }
     });
 
-    app.post('/mcp/message', requireAuth, async (req, res) => {
+    app.post('/mcp/message', mcpAuthMiddleware, async (req, res) => {
       try {
         const sessionId = req.query.sessionId as string;
         const transport = transports.get(sessionId);
