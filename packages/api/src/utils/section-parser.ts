@@ -11,7 +11,12 @@ export interface ParsedSection {
   headingPath: string;   // Anvil-style path (e.g., "## Architecture > ### Tech Stack")
   level: number;         // heading level (1-6)
   bodyStart: number;     // first line after heading
-  bodyEnd: number;       // line index of next heading (exclusive) or end of file
+  bodyEnd: number;       // line index of next heading of any level (exclusive) or end of file
+                         // — i.e. where this section's PROSE ends, before any descendant headings
+  subtreeEnd: number;    // line index of next heading at level <= this section's level (exclusive),
+                         // or end of file — i.e. where this section's ENTIRE subtree (prose + all
+                         // descendants) ends. Use this for delete/move operations that should
+                         // include children; use bodyEnd for prose-only updates.
 }
 
 const HEADING_RE = /^(#{1,6})\s+(.+)$/;
@@ -81,16 +86,34 @@ export function parseSections(lines: string[]): ParsedSection[] {
       headingPath,
       level,
       bodyStart: i + 1,
-      bodyEnd: lines.length, // will be corrected below
+      bodyEnd: lines.length,    // will be corrected below
+      subtreeEnd: lines.length, // will be corrected below
     });
 
     // Push current heading onto ancestor stack
     ancestors.push({ level, prefix, text });
   }
 
-  // Fix bodyEnd: each section ends where the next section starts
+  // Fix bodyEnd: each section's prose ends where the next heading of ANY
+  // level starts. This is correct for update_section (replace prose only).
   for (let i = 0; i < sections.length - 1; i++) {
     sections[i].bodyEnd = sections[i + 1].headingLine;
+  }
+
+  // Fix subtreeEnd: walk forward until a heading at level <= current level
+  // is found. That's where this section's entire subtree (prose + all
+  // descendants) ends. Used by delete_section so that deleting a parent
+  // section also removes its children, instead of leaving them orphaned.
+  for (let i = 0; i < sections.length; i++) {
+    const target = sections[i];
+    let subtreeEnd = lines.length;
+    for (let j = i + 1; j < sections.length; j++) {
+      if (sections[j].level <= target.level) {
+        subtreeEnd = sections[j].headingLine;
+        break;
+      }
+    }
+    target.subtreeEnd = subtreeEnd;
   }
 
   return sections;
