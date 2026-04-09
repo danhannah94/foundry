@@ -15,6 +15,9 @@ export interface ParsedSection {
 }
 
 const HEADING_RE = /^(#{1,6})\s+(.+)$/;
+// Fenced code block marker — only matches at start of line (no leading whitespace).
+// Accepts optional language/info string after the opening fence.
+const CODE_FENCE_RE = /^```/;
 
 /**
  * Parse a single markdown line as a heading.
@@ -31,6 +34,11 @@ function parseHeadingLine(line: string): { level: number; text: string } | null 
  *
  * Builds Anvil-compatible heading paths where each heading carries its
  * ancestor context: "## Parent > ### Child > #### Grandchild".
+ *
+ * Skips heading parsing inside fenced code blocks (```...```), so `#` comments
+ * in bash/python code are not treated as H1 headings. Only fences at the start
+ * of the line (no leading whitespace) toggle code-block state — indented
+ * backticks inside list items are left alone.
  */
 export function parseSections(lines: string[]): ParsedSection[] {
   const sections: ParsedSection[] = [];
@@ -39,7 +47,18 @@ export function parseSections(lines: string[]): ParsedSection[] {
   // Each entry: { level, prefix } where prefix is the "#" prefix string.
   const ancestors: { level: number; prefix: string; text: string }[] = [];
 
+  let inCodeBlock = false;
+
   for (let i = 0; i < lines.length; i++) {
+    // Toggle fenced code block state BEFORE heading check, so a fence line
+    // itself is never considered a heading.
+    if (CODE_FENCE_RE.test(lines[i])) {
+      inCodeBlock = !inCodeBlock;
+      continue;
+    }
+
+    if (inCodeBlock) continue;
+
     const parsed = parseHeadingLine(lines[i]);
     if (!parsed) continue;
 

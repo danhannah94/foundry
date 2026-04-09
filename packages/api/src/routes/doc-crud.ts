@@ -11,7 +11,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { requireAuth } from '../middleware/auth.js';
 import { getDocsPath } from '../config.js';
@@ -148,6 +148,9 @@ export function createDocCrudRouter(): Router {
 
   // ──────────────────────────────────────────────
   // PUT /api/docs/:path/sections/:heading — Update section body
+  //
+  // On no-match, returns 404 with { error, available_headings }.
+  // NEVER silently appends or mutates — write tools throw on missing address.
   // ──────────────────────────────────────────────
   router.put('/docs/:path(*)/sections/:heading(*)', requireAuth, async (req: Request, res: Response) => {
     try {
@@ -177,7 +180,10 @@ export function createDocCrudRouter(): Router {
 
       const section = findSection(lines, headingPath);
       if (!section) {
-        return res.status(404).json({ error: `Section not found: "${headingPath}"` });
+        return res.status(404).json({
+          error: `Section not found: "${headingPath}"`,
+          available_headings: parseSections(lines).map(s => s.headingPath),
+        });
       }
 
       // Replace body content (keep heading line, replace everything after it until next heading)
@@ -207,6 +213,9 @@ export function createDocCrudRouter(): Router {
 
   // ──────────────────────────────────────────────
   // POST /api/docs/:path/sections — Insert new section
+  //
+  // On no-match for after_heading, returns 404 with { error, available_headings }.
+  // NEVER silently appends — write tools throw on missing address.
   // ──────────────────────────────────────────────
   router.post('/docs/:path(*)/sections', requireAuth, async (req: Request, res: Response) => {
     try {
@@ -245,7 +254,10 @@ export function createDocCrudRouter(): Router {
 
       const afterSection = findSection(lines, after_heading);
       if (!afterSection) {
-        return res.status(404).json({ error: `Section not found: "${after_heading}"` });
+        return res.status(404).json({
+          error: `Section not found: "${after_heading}"`,
+          available_headings: parseSections(lines).map(s => s.headingPath),
+        });
       }
 
       // Insert at the end of the after_heading section
@@ -276,6 +288,9 @@ export function createDocCrudRouter(): Router {
 
   // ──────────────────────────────────────────────
   // DELETE /api/docs/:path/sections/:heading — Delete section
+  //
+  // On no-match, returns 404 with { error, available_headings }.
+  // NEVER silently mutates — write tools throw on missing address.
   // ──────────────────────────────────────────────
   router.delete('/docs/:path(*)/sections/:heading(*)', requireAuth, async (req: Request, res: Response) => {
     try {
@@ -300,7 +315,10 @@ export function createDocCrudRouter(): Router {
 
       const section = findSection(lines, headingPath);
       if (!section) {
-        return res.status(404).json({ error: `Section not found: "${headingPath}"` });
+        return res.status(404).json({
+          error: `Section not found: "${headingPath}"`,
+          available_headings: parseSections(lines).map(s => s.headingPath),
+        });
       }
 
       // Remove heading line + body
@@ -319,6 +337,53 @@ export function createDocCrudRouter(): Router {
       }
       console.error('[doc-crud] Delete section failed:', error);
       res.status(500).json({ error: 'Failed to delete section', message: error.message });
+    }
+  });
+
+  // ──────────────────────────────────────────────
+  // DELETE /api/docs/:path — Hard delete an entire document
+  //
+  // Removes the markdown file, docs_meta row, and all annotations for the doc.
+  // Returns 404 if the file does not exist OR docs_meta has no row.
+  // Not recoverable — callers should sync_to_github first if they want a backup.
+  // ──────────────────────────────────────────────
+  router.delete('/docs/:path(*)', requireAuth, async (req: Request, res: Response) => {
+    try {
+      const docPath = normalizeDocPath(req.params.path);
+      const contentDir = getDocsPath();
+      const filePath = join(contentDir, `${docPath}.md`);
+
+      const db = getDb();
+      const metaRow = db.prepare('SELECT path FROM docs_meta WHERE path = ?').get(docPath);
+
+      if (!existsSync(filePath) || !metaRow) {
+        return res.status(404).json({ error: `Document not found: "${docPath}"` });
+      }
+
+      // Delete annotations tied to this doc, then docs_meta, then the file itself.
+      const deleteAnnotationsStmt = db.prepare('DELETE FROM annotations WHERE doc_path = ?');
+      const annotationsResult = deleteAnnotationsStmt.run(docPath);
+      const annotationsDeleted = annotationsResult.changes;
+
+      db.prepare('DELETE FROM docs_meta WHERE path = ?').run(docPath);
+
+      try {
+        unlinkSync(filePath);
+      } catch (err: any) {
+        console.error('[doc-crud] Failed to unlink file during delete_doc:', err);
+        // File may be gone already — we already removed DB rows, so continue.
+      }
+
+      await invalidateContent([`${docPath}.md`]);
+
+      res.json({
+        path: docPath,
+        deleted: true,
+        annotations_deleted: annotationsDeleted,
+      });
+    } catch (error: any) {
+      console.error('[doc-crud] Delete doc failed:', error);
+      res.status(500).json({ error: 'Failed to delete document', message: error.message });
     }
   });
 
