@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { authFetch, isAuthenticated } from '../utils/api.js';
 import { getCleanHeadingText } from '../utils/heading-text.js';
 import { getDrafts, clearDrafts, deleteDraft, type DraftComment } from '../utils/draft-storage.js';
@@ -231,6 +231,15 @@ export default function AnnotationThread({ docPath }: Props) {
 
   // Drafts state
   const [drafts, setDrafts] = useState<DraftComment[]>([]);
+  // DB-backed drafts: annotations with status='draft' and no review_id.
+  // These come from MCP tools (create_annotation lands them as drafts) and
+  // need to be picked up by the submit flow in addition to localStorage drafts.
+  // Fixes #95 — submit button was only gated on localStorage drafts.
+  const dbDrafts = useMemo(
+    () => annotations.filter(a => a.status === 'draft' && !a.review_id),
+    [annotations]
+  );
+  const totalDraftCount = drafts.length + dbDrafts.length;
   const [showDrafts, setShowDrafts] = useState(true);
   const [submitState, setSubmitState] = useState<{ isSubmitting: boolean; error: string | null; success: boolean }>({
     isSubmitting: false,
@@ -509,10 +518,11 @@ export default function AnnotationThread({ docPath }: Props) {
 
   // Submit drafts as a review
   const handleSubmit = useCallback(async () => {
-    if (drafts.length === 0 || submittingRef.current) return;
+    const totalCount = drafts.length + dbDrafts.length;
+    if (totalCount === 0 || submittingRef.current) return;
     submittingRef.current = true;
 
-    const confirmMessage = `Submit ${drafts.length} comment${drafts.length > 1 ? 's' : ''} for review?`;
+    const confirmMessage = `Submit ${totalCount} comment${totalCount > 1 ? 's' : ''} for review?`;
     if (!window.confirm(confirmMessage)) {
       submittingRef.current = false;
       return;
@@ -572,6 +582,23 @@ export default function AnnotationThread({ docPath }: Props) {
 
       await Promise.all(annotationPromises);
 
+      // Step 2b: Attach existing DB drafts to the review and mark them submitted
+      const dbDraftPromises = dbDrafts.map(async (draft) => {
+        const patchResponse = await authFetch(`/api/annotations/${draft.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'submitted', review_id: reviewId })
+        });
+
+        if (!patchResponse.ok) {
+          throw new Error(`Failed to attach DB draft to review: HTTP ${patchResponse.status}`);
+        }
+
+        return patchResponse.json();
+      });
+
+      await Promise.all(dbDraftPromises);
+
       // Step 3: Update review status to submitted
       const reviewPatchResponse = await authFetch(`/api/reviews/${reviewId}`, {
         method: 'PATCH',
@@ -589,6 +616,8 @@ export default function AnnotationThread({ docPath }: Props) {
 
       setSubmitState({ isSubmitting: false, error: null, success: true });
       window.dispatchEvent(new CustomEvent('foundry-review-submitted'));
+      // Refresh annotations so the newly-submitted DB drafts show up with review_id
+      fetchAnnotations();
 
       setTimeout(() => {
         setSubmitState(prev => ({ ...prev, success: false }));
@@ -603,7 +632,7 @@ export default function AnnotationThread({ docPath }: Props) {
     } finally {
       submittingRef.current = false;
     }
-  }, [drafts, docPath]);
+  }, [drafts, dbDrafts, docPath, fetchAnnotations]);
 
   // Add section margin indicators
   useEffect(() => {
@@ -1106,14 +1135,14 @@ export default function AnnotationThread({ docPath }: Props) {
     <div className={`thread-panel ${!isVisible ? 'thread-panel--hidden' : ''}`}>
       <div className="thread-header">
         <h3>Review</h3>
-        {drafts.length > 0 && (
+        {totalDraftCount > 0 && (
           <button
             className={`thread-submit-btn ${submitState.isSubmitting ? 'thread-submit-btn--loading' : ''}`}
             onClick={handleSubmit}
             disabled={submitState.isSubmitting}
-            title={`Submit ${drafts.length} comment${drafts.length > 1 ? 's' : ''} for review`}
+            title={`Submit ${totalDraftCount} comment${totalDraftCount > 1 ? 's' : ''} for review`}
           >
-            {submitState.isSubmitting ? '🔄' : `📤 Submit (${drafts.length})`}
+            {submitState.isSubmitting ? '🔄' : `📤 Submit (${totalDraftCount})`}
           </button>
         )}
         <button
