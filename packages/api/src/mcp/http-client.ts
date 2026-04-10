@@ -435,6 +435,29 @@ export async function deleteSection(
 }
 
 /**
+ * Move a section to a new position after another heading.
+ * Atomic — moves heading + prose + all descendants.
+ *
+ * @param docPath Document path (no .md extension)
+ * @param headingPath Heading path of the section to move.
+ * @param afterHeadingPath Heading path to position the section after.
+ * @throws ApiError with status 404 and payload.available_headings on no-match.
+ */
+export async function moveSection(
+  docPath: string,
+  headingPath: string,
+  afterHeadingPath: string,
+): Promise<object> {
+  return apiFetch<object>(
+    `/api/docs/${docPath}/sections/move`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ heading: headingPath, after_heading: afterHeadingPath }),
+    },
+  );
+}
+
+/**
  * Hard-delete an entire document. Removes the file, docs_meta row, and all
  * annotations for the doc. Not recoverable.
  *

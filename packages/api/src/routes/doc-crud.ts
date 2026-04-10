@@ -3,6 +3,7 @@
  *
  * POST   /api/docs                              — Create new document
  * PUT    /api/docs/:path(*)/sections/:heading(*) — Update section body
+ * POST   /api/docs/:path(*)/sections/move        — Move section to new position
  * POST   /api/docs/:path(*)/sections             — Insert new section
  * DELETE /api/docs/:path(*)/sections/:heading(*) — Delete section
  *
@@ -210,6 +211,107 @@ export function createDocCrudRouter(): Router {
       }
       console.error('[doc-crud] Update section failed:', error);
       res.status(500).json({ error: 'Failed to update section', message: error.message });
+    }
+  });
+
+  // ──────────────────────────────────────────────
+  // POST /api/docs/:path/sections/move — Move section to new position
+  //
+  // Atomically moves a section (heading + prose + descendants) to the
+  // position after another heading. Either the whole move succeeds or
+  // nothing changes.
+  // ──────────────────────────────────────────────
+  router.post('/docs/:path(*)/sections/move', requireAuth, async (req: Request, res: Response) => {
+    try {
+      const docPath = normalizeDocPath(req.params.path);
+      const { heading, after_heading } = req.body;
+
+      // Validate params
+      if (!heading || typeof heading !== 'string') {
+        return res.status(400).json({ error: 'heading is required and must be a string' });
+      }
+      if (!after_heading || typeof after_heading !== 'string') {
+        return res.status(400).json({ error: 'after_heading is required and must be a string' });
+      }
+
+      const contentDir = getDocsPath();
+      const filePath = join(contentDir, `${docPath}.md`);
+      const lines = readDocLines(filePath);
+
+      if (!lines) {
+        return res.status(404).json({ error: `Document not found: "${docPath}"` });
+      }
+
+      // Check for duplicate headings
+      const dupes = findDuplicateHeadings(lines);
+      if (dupes.has(heading)) {
+        return res.status(400).json({
+          error: `Ambiguous heading path "${heading}" appears ${dupes.get(heading)} times. Cannot determine which section to move.`,
+        });
+      }
+      if (dupes.has(after_heading)) {
+        return res.status(400).json({
+          error: `Ambiguous heading path "${after_heading}" appears ${dupes.get(after_heading)} times. Cannot determine target position.`,
+        });
+      }
+
+      const sourceSection = findSection(lines, heading);
+      if (!sourceSection) {
+        return res.status(404).json({
+          error: `Source section not found: "${heading}"`,
+          available_headings: parseSections(lines).map(s => s.headingPath),
+        });
+      }
+
+      const targetSection = findSection(lines, after_heading);
+      if (!targetSection) {
+        return res.status(404).json({
+          error: `Target section not found: "${after_heading}"`,
+          available_headings: parseSections(lines).map(s => s.headingPath),
+        });
+      }
+
+      // Don't allow moving a section after itself
+      if (sourceSection.headingLine === targetSection.headingLine) {
+        return res.status(400).json({ error: 'Cannot move a section after itself' });
+      }
+
+      // Extract the source section lines (heading + prose + descendants)
+      const sourceLines = lines.slice(sourceSection.headingLine, sourceSection.subtreeEnd);
+
+      // Remove source from document first, then calculate insert position
+      const withoutSource = [
+        ...lines.slice(0, sourceSection.headingLine),
+        ...lines.slice(sourceSection.subtreeEnd),
+      ];
+
+      // Re-parse to find the target in the modified document
+      const targetInModified = findSection(withoutSource, after_heading);
+      if (!targetInModified) {
+        // Target was inside the source section (moving parent after its own child)
+        return res.status(400).json({
+          error: `Target section "${after_heading}" is a descendant of source section "${heading}". Cannot move a section after its own descendant.`,
+        });
+      }
+
+      // Insert after target's subtreeEnd (after all its children)
+      const insertAt = targetInModified.subtreeEnd;
+      const updatedLines = [
+        ...withoutSource.slice(0, insertAt),
+        ...sourceLines,
+        ...withoutSource.slice(insertAt),
+      ];
+
+      writeDocAndUpdateMeta(filePath, updatedLines, docPath);
+      await invalidateContent([`${docPath}.md`]);
+
+      res.json({ path: docPath, heading, after_heading, moved: true });
+    } catch (error: any) {
+      if (error.message?.includes('Ambiguous')) {
+        return res.status(400).json({ error: error.message });
+      }
+      console.error('[doc-crud] Move section failed:', error);
+      res.status(500).json({ error: 'Failed to move section', message: error.message });
     }
   });
 

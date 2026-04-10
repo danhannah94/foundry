@@ -22,6 +22,7 @@ import {
   updateSection,
   insertSection,
   deleteSection,
+  moveSection,
   deleteDoc,
   syncToGithub,
 } from './http-client.js';
@@ -293,6 +294,19 @@ export function createMcpServer(): Server {
         },
       },
       {
+        name: 'move_section',
+        description: 'Move a section (including all descendants) to a new position after another heading. Atomic — either the whole move succeeds or nothing changes.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'Document path' },
+            heading: { type: 'string', description: 'Heading path of the section to move (full or short-form)' },
+            after_heading: { type: 'string', description: 'Heading path to move the section after (full or short-form). Section will be placed after this heading and all its descendants.' },
+          },
+          required: ['path', 'heading', 'after_heading'],
+        },
+      },
+      {
         name: 'delete_section',
         description: 'Delete a section by heading path. Cascades: removes the heading line, its prose, and ALL descendant sections (everything until the next heading at the same or shallower level). Use update_section with empty content if you want to clear prose only without removing children. Throws 404 with available_headings on no-match — NEVER silently mutates.',
         inputSchema: {
@@ -471,6 +485,14 @@ export function createMcpServer(): Server {
           args.content as string,
         );
         return json({ status: 'inserted', section: result });
+      }
+      case 'move_section': {
+        const result = await moveSection(
+          args.path as string,
+          args.heading as string,
+          args.after_heading as string,
+        );
+        return json({ status: 'moved', result });
       }
       case 'delete_section': {
         const result = await deleteSection(
