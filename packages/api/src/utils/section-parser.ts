@@ -127,17 +127,35 @@ export function parseSections(lines: string[]): ParsedSection[] {
  */
 export function findSection(lines: string[], headingPath: string): ParsedSection | null {
   const sections = parseSections(lines);
-  const matches = sections.filter(s => s.headingPath === headingPath);
 
-  if (matches.length === 0) return null;
-  if (matches.length > 1) {
+  // 1. Try exact match first (preserves existing behavior)
+  const exactMatches = sections.filter(s => s.headingPath === headingPath);
+  if (exactMatches.length === 1) return exactMatches[0];
+  if (exactMatches.length > 1) {
     throw new Error(
-      `Ambiguous heading path "${headingPath}" matches ${matches.length} sections. ` +
-      `Duplicate headings at lines: ${matches.map(m => m.headingLine + 1).join(', ')}`
+      `Ambiguous heading path "${headingPath}" matches ${exactMatches.length} sections. ` +
+      `Duplicate headings at lines: ${exactMatches.map(m => m.headingLine + 1).join(', ')}`
     );
   }
 
-  return matches[0];
+  // 2. No exact match — try short-form resolution.
+  //    A short-form path matches if the full heading path ends with the given path.
+  //    Examples:
+  //      "### Tech Stack" matches "## Architecture > ### Tech Stack"
+  //      "## Architecture > ### Tech Stack" matches "# Title > ## Architecture > ### Tech Stack"
+  //    But "Tech Stack" (no # prefix) does NOT match — we require the markdown heading prefix.
+  const shortMatches = sections.filter(s => {
+    return s.headingPath.endsWith(` > ${headingPath}`);
+  });
+
+  if (shortMatches.length === 0) return null;
+  if (shortMatches.length === 1) return shortMatches[0];
+
+  throw new Error(
+    `Ambiguous short-form heading path "${headingPath}" matches ${shortMatches.length} sections: ` +
+    shortMatches.map(m => `"${m.headingPath}" (line ${m.headingLine + 1})`).join(', ') +
+    `. Use the full heading path to disambiguate.`
+  );
 }
 
 /**
