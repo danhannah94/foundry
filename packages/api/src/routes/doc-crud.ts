@@ -261,7 +261,7 @@ export function createDocCrudRouter(): Router {
       }
 
       // Insert at the end of the after_heading section
-      const insertAt = afterSection.bodyEnd;
+      const insertAt = afterSection.subtreeEnd;
       const prefix = '#'.repeat(level);
       const newHeadingLine = `${prefix} ${heading}`;
       const newBodyLines = content.length > 0 ? content.split('\n') : [];
