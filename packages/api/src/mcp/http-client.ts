@@ -234,7 +234,7 @@ export async function editAnnotation(
 }
 
 /**
- * Reopen a previously resolved annotation by setting status back to "submitted".
+ * Reopen a previously resolved annotation by setting status back to "draft".
  */
 export async function reopenAnnotation(
   annotationId: string,
@@ -242,7 +242,7 @@ export async function reopenAnnotation(
   try {
     return await apiFetch<Annotation>(`/api/annotations/${annotationId}`, {
       method: 'PATCH',
-      body: JSON.stringify({ status: 'submitted' }),
+      body: JSON.stringify({ status: 'draft' }),
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
