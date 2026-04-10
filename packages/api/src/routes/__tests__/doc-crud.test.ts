@@ -357,6 +357,244 @@ describe('DELETE /api/docs/:path — delete_doc', () => {
   });
 });
 
+describe('update_section — subtree replacement', () => {
+  it('replaces body AND descendant sections when updating a parent', async () => {
+    const docPath = 'subtree-test/replace-children';
+    const filePath = seedDoc(docPath, [
+      '# Doc',
+      '',
+      '## Parent',
+      'old parent prose',
+      '',
+      '### Child A',
+      'old child a',
+      '',
+      '### Child B',
+      'old child b',
+      '',
+      '## Sibling',
+      'sibling prose',
+    ].join('\n'));
+
+    const headingPath = encodeURIComponent('# Doc > ## Parent');
+    const res = await request(app)
+      .put(`/api/docs/${docPath}/sections/${headingPath}`)
+      .set('Authorization', 'Bearer test-token')
+      .send({ content: 'new parent prose\n\n### New Child\nnew child content' })
+      .expect(200);
+
+    expect(res.body.updated).toBe(true);
+
+    const fs = await import('fs');
+    const updated = fs.readFileSync(filePath, 'utf-8');
+    // New content is present
+    expect(updated).toContain('new parent prose');
+    expect(updated).toContain('### New Child');
+    expect(updated).toContain('new child content');
+    // Old children are gone
+    expect(updated).not.toContain('### Child A');
+    expect(updated).not.toContain('### Child B');
+    expect(updated).not.toContain('old child a');
+    expect(updated).not.toContain('old child b');
+    // Sibling is untouched
+    expect(updated).toContain('## Sibling');
+    expect(updated).toContain('sibling prose');
+  });
+
+  it('replaces H1 body and all children when updating the top-level heading', async () => {
+    const docPath = 'subtree-test/h1-replace';
+    const filePath = seedDoc(docPath, [
+      '# Doc Title',
+      'old intro',
+      '',
+      '## Section A',
+      'section a content',
+      '',
+      '## Section B',
+      'section b content',
+    ].join('\n'));
+
+    const headingPath = encodeURIComponent('# Doc Title');
+    await request(app)
+      .put(`/api/docs/${docPath}/sections/${headingPath}`)
+      .set('Authorization', 'Bearer test-token')
+      .send({ content: 'completely new body\n\n## New Only Section\nnew section content' })
+      .expect(200);
+
+    const fs = await import('fs');
+    const updated = fs.readFileSync(filePath, 'utf-8');
+    expect(updated).toContain('# Doc Title');
+    expect(updated).toContain('completely new body');
+    expect(updated).toContain('## New Only Section');
+    expect(updated).not.toContain('## Section A');
+    expect(updated).not.toContain('## Section B');
+  });
+});
+
+describe('create_doc — content parameter', () => {
+  it('creates a doc with custom content when content param is provided', async () => {
+    const docPath = 'content-test/custom';
+    const customContent = '# Custom Doc\n\n## My Section\nmy content here';
+
+    const res = await request(app)
+      .post('/api/docs')
+      .set('Authorization', 'Bearer test-token')
+      .send({ path: docPath, template: 'blank', title: 'Custom Doc', content: customContent })
+      .expect(201);
+
+    expect(res.body.created).toBe(true);
+
+    const fs = await import('fs');
+    const filePath = join(testContentDir, `${docPath}.md`);
+    const written = fs.readFileSync(filePath, 'utf-8');
+    expect(written).toBe(customContent);
+  });
+
+  it('falls back to template when content is not provided', async () => {
+    const docPath = 'content-test/template-fallback';
+
+    const res = await request(app)
+      .post('/api/docs')
+      .set('Authorization', 'Bearer test-token')
+      .send({ path: docPath, template: 'blank', title: 'Blank Doc' })
+      .expect(201);
+
+    const fs = await import('fs');
+    const filePath = join(testContentDir, `${docPath}.md`);
+    const written = fs.readFileSync(filePath, 'utf-8');
+    expect(written).toBe('# Blank Doc\n');
+  });
+});
+
+describe('insert_section — ordering', () => {
+  it('sequential inserts after the same heading insert at subtreeEnd each time', async () => {
+    const docPath = 'fifo-test/ordering';
+    const filePath = seedDoc(docPath, [
+      '# Doc',
+      '',
+      '## Anchor',
+      'anchor content',
+    ].join('\n'));
+
+    const afterHeading = '# Doc > ## Anchor';
+
+    // Insert First, then Second, both after ## Anchor
+    await request(app)
+      .post(`/api/docs/${docPath}/sections`)
+      .set('Authorization', 'Bearer test-token')
+      .send({ after_heading: afterHeading, heading: 'First', level: 2, content: 'first body' })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/docs/${docPath}/sections`)
+      .set('Authorization', 'Bearer test-token')
+      .send({ after_heading: afterHeading, heading: 'Second', level: 2, content: 'second body' })
+      .expect(201);
+
+    const fs = await import('fs');
+    const updated = fs.readFileSync(filePath, 'utf-8');
+    const firstIdx = updated.indexOf('## First');
+    const secondIdx = updated.indexOf('## Second');
+    // Both inserted; Second appears immediately after Anchor (at subtreeEnd),
+    // pushing First further down
+    expect(secondIdx).toBeLessThan(firstIdx);
+    expect(secondIdx).toBeGreaterThan(-1);
+  });
+});
+
+describe('move_section', () => {
+  it('moves a section after another section', async () => {
+    const docPath = 'move-test/basic';
+    const filePath = seedDoc(docPath, [
+      '# Doc',
+      '',
+      '## A',
+      'a content',
+      '',
+      '## B',
+      'b content',
+      '',
+      '## C',
+      'c content',
+    ].join('\n'));
+
+    // Move A after C
+    const res = await request(app)
+      .post(`/api/docs/${docPath}/sections/move`)
+      .set('Authorization', 'Bearer test-token')
+      .send({ heading: '# Doc > ## A', after_heading: '# Doc > ## C' })
+      .expect(200);
+
+    expect(res.body.moved).toBe(true);
+
+    const fs = await import('fs');
+    const updated = fs.readFileSync(filePath, 'utf-8');
+    const bIdx = updated.indexOf('## B');
+    const cIdx = updated.indexOf('## C');
+    const aIdx = updated.indexOf('## A');
+    // Order should be B, C, A
+    expect(bIdx).toBeLessThan(cIdx);
+    expect(cIdx).toBeLessThan(aIdx);
+  });
+
+  it('moves a section with descendants (entire subtree moves)', async () => {
+    const docPath = 'move-test/with-children';
+    const filePath = seedDoc(docPath, [
+      '# Doc',
+      '',
+      '## Parent',
+      'parent prose',
+      '',
+      '### Child',
+      'child prose',
+      '',
+      '## Target',
+      'target prose',
+    ].join('\n'));
+
+    await request(app)
+      .post(`/api/docs/${docPath}/sections/move`)
+      .set('Authorization', 'Bearer test-token')
+      .send({ heading: '# Doc > ## Parent', after_heading: '# Doc > ## Target' })
+      .expect(200);
+
+    const fs = await import('fs');
+    const updated = fs.readFileSync(filePath, 'utf-8');
+    const targetIdx = updated.indexOf('## Target');
+    const parentIdx = updated.indexOf('## Parent');
+    const childIdx = updated.indexOf('### Child');
+    // Target first, then Parent with its Child
+    expect(targetIdx).toBeLessThan(parentIdx);
+    expect(parentIdx).toBeLessThan(childIdx);
+    expect(updated).toContain('child prose');
+  });
+
+  it('returns 400 when moving a section after itself', async () => {
+    seedDoc('move-test/self', '# Doc\n\n## A\ncontent');
+
+    const res = await request(app)
+      .post('/api/docs/move-test/self/sections/move')
+      .set('Authorization', 'Bearer test-token')
+      .send({ heading: '# Doc > ## A', after_heading: '# Doc > ## A' })
+      .expect(400);
+
+    expect(res.body.error).toMatch(/itself/i);
+  });
+
+  it('returns 404 with available_headings when source not found', async () => {
+    seedDoc('move-test/missing', '# Doc\n\n## A\ncontent');
+
+    const res = await request(app)
+      .post('/api/docs/move-test/missing/sections/move')
+      .set('Authorization', 'Bearer test-token')
+      .send({ heading: '## Nope', after_heading: '# Doc > ## A' })
+      .expect(404);
+
+    expect(res.body.error).toMatch(/not found/i);
+    expect(Array.isArray(res.body.available_headings)).toBe(true);
+  });
+});
+
 describe('submit_review user_id attribution', () => {
   // This test validates that /api/reviews accepts user_id from the body
   // (the submitReview http-client helper now passes it). We test the route

@@ -215,6 +215,41 @@ describe('findSection', () => {
   });
 });
 
+describe('findSection — short-form resolution', () => {
+  it('resolves unambiguous short-form heading path', () => {
+    const md = ['# Title', '## Overview', 'body', '## Architecture', '### Tech Stack', 'tech'];
+    const s = findSection(md, '### Tech Stack');
+    expect(s).not.toBeNull();
+    expect(s!.headingPath).toBe('# Title > ## Architecture > ### Tech Stack');
+  });
+
+  it('resolves partial path (multiple levels)', () => {
+    const md = ['# Title', '## Architecture', '### Tech Stack', 'tech'];
+    const s = findSection(md, '## Architecture > ### Tech Stack');
+    expect(s).not.toBeNull();
+    expect(s!.headingPath).toBe('# Title > ## Architecture > ### Tech Stack');
+  });
+
+  it('throws on ambiguous short-form', () => {
+    const md = ['# Doc', '## A', '### Details', 'x', '## B', '### Details', 'y'];
+    expect(() => findSection(md, '### Details')).toThrow(/Ambiguous short-form/);
+  });
+
+  it('returns null when short-form matches nothing', () => {
+    const md = ['# Doc', '## Overview'];
+    expect(findSection(md, '### Nope')).toBeNull();
+  });
+
+  it('exact match takes priority over short-form', () => {
+    // "## Overview" is both an exact match and a short-form suffix match
+    const md = ['# Title', '## Overview', 'body'];
+    // This should match via exact match path, not short-form
+    const s = findSection(md, '# Title > ## Overview');
+    expect(s).not.toBeNull();
+    expect(s!.headingPath).toBe('# Title > ## Overview');
+  });
+});
+
 describe('findDuplicateHeadings', () => {
   it('detects duplicates', () => {
     const md = ['## A', '## B', '## A'];

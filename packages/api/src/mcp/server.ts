@@ -267,7 +267,7 @@ export function createMcpServer(): Server {
       },
       {
         name: 'update_section',
-        description: 'Update a section\'s body content by heading path. The heading itself is the address — only the body content is replaced. Throws 404 with available_headings on no-match — NEVER silently appends.',
+        description: 'Update a section\'s content by heading path. Replaces the section body AND all descendant sub-sections (the entire subtree under this heading). The heading itself is preserved as the address. Throws 404 with available_headings on no-match — NEVER silently appends.',
         inputSchema: {
           type: 'object',
           properties: {

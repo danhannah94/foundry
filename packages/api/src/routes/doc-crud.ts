@@ -150,7 +150,7 @@ export function createDocCrudRouter(): Router {
   });
 
   // ──────────────────────────────────────────────
-  // PUT /api/docs/:path/sections/:heading — Update section body
+  // PUT /api/docs/:path/sections/:heading — Update section content (prose + descendants)
   //
   // On no-match, returns 404 with { error, available_headings }.
   // NEVER silently appends or mutates — write tools throw on missing address.
@@ -189,12 +189,12 @@ export function createDocCrudRouter(): Router {
         });
       }
 
-      // Replace body content (keep heading line, replace everything after it until next heading)
+      // Replace entire subtree (keep heading line, replace prose + all descendant sections)
       const newBodyLines = content.length > 0 ? content.split('\n') : [];
       const updatedLines = [
         ...lines.slice(0, section.bodyStart),
         ...newBodyLines,
-        ...lines.slice(section.bodyEnd),
+        ...lines.slice(section.subtreeEnd),
       ];
 
       writeDocAndUpdateMeta(filePath, updatedLines, docPath);
