@@ -356,10 +356,11 @@ export async function createDoc(
   path: string,
   template: string,
   title?: string,
+  content?: string,
 ): Promise<object> {
   return apiFetch<object>('/api/docs', {
     method: 'POST',
-    body: JSON.stringify({ path, template, title }),
+    body: JSON.stringify({ path, template, title, content }),
   });
 }
 

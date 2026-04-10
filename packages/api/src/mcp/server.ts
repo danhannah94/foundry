@@ -259,6 +259,7 @@ export function createMcpServer(): Server {
             path: { type: 'string', description: 'Document path relative to content root, no .md extension' },
             template: { type: 'string', description: 'Template name — epic, subsystem, project, workflow, or blank' },
             title: { type: 'string', description: 'Document title (defaults to template default or path-derived)' },
+            content: { type: 'string', description: 'Optional full markdown content. When provided, used instead of template content. Template is still required for validation but only used as fallback.' },
           },
           required: ['path', 'template'],
         },
@@ -449,6 +450,7 @@ export function createMcpServer(): Server {
           args.path as string,
           args.template as string,
           args.title as string | undefined,
+          args.content as string | undefined,
         );
         return json({ status: 'created', doc: result });
       }

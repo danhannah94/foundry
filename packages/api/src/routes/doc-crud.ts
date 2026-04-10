@@ -80,7 +80,7 @@ export function createDocCrudRouter(): Router {
   // ──────────────────────────────────────────────
   router.post('/docs', requireAuth, async (req: Request, res: Response) => {
     try {
-      const { path: rawPath, template, title: userTitle } = req.body;
+      const { path: rawPath, template, title: userTitle, content: userContent } = req.body;
 
       // Validate required params
       if (!rawPath || typeof rawPath !== 'string') {
@@ -109,7 +109,9 @@ export function createDocCrudRouter(): Router {
 
       // Build content
       let content: string;
-      if (template === 'blank') {
+      if (userContent && typeof userContent === 'string') {
+        content = userContent;
+      } else if (template === 'blank') {
         content = `# ${title}\n`;
       } else {
         const templatePath = join(contentDir, TEMPLATE_FILES[template as Exclude<TemplateName, 'blank'>]);
