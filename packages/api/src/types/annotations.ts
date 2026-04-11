@@ -39,6 +39,7 @@ export interface CreateAnnotationBody {
   review_id?: string;
   author_type?: AuthorType;
   user_id?: string;
+  status?: AnnotationStatus;
 }
 
 export interface CreateReviewBody {

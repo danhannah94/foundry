@@ -182,6 +182,44 @@ describe('createAnnotation', () => {
 
     expect(result.author_type).toBe('human');
   });
+
+  it('should pass explicit status through to the API call', async () => {
+    const annotation = makeAnnotation({ status: 'draft' });
+    mockCreateAnnotation.mockResolvedValue(annotation);
+
+    const result = await createAnnotation({
+      doc_path: 'test-doc.md',
+      section: 'intro',
+      content: 'AI annotation forced to draft',
+      author_type: 'ai',
+      status: 'draft',
+    });
+
+    expect(mockCreateAnnotation).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'draft' })
+    );
+    expect(result.status).toBe('draft');
+  });
+
+  it('should produce submitted status for ai annotations via MCP (no explicit status)', async () => {
+    // Verify the mock is called without a status override so the route
+    // applies the ai → submitted defaulting logic
+    const annotation = makeAnnotation({ author_type: 'ai', status: 'submitted' });
+    mockCreateAnnotation.mockResolvedValue(annotation);
+
+    const result = await createAnnotation({
+      doc_path: 'test-doc.md',
+      section: 'intro',
+      content: 'AI reply',
+      author_type: 'ai',
+    });
+
+    // status field not passed — http-client omits it so route defaults to submitted
+    expect(mockCreateAnnotation).toHaveBeenCalledWith(
+      expect.not.objectContaining({ status: expect.anything() })
+    );
+    expect(result.status).toBe('submitted');
+  });
 });
 
 describe('resolveAnnotation', () => {
