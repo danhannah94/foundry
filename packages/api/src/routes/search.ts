@@ -108,7 +108,7 @@ export function createSearchRouter(holder: AnvilHolder): Router {
 
       // Add warning if index appears empty (no results and topK wasn't 0)
       if (filteredResults.length === 0 && topK !== 0) {
-        response.warning = 'No results found. The Anvil index may be empty or the query did not match any content.';
+        response.warning = 'No results matched your query.';
       }
 
       res.json(response);

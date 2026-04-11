@@ -229,6 +229,11 @@ async function startServer(): Promise<void> {
     // Mount pages router (no auth middleware — route handles auth internally)
     app.use('/api', createPagesRouter());
 
+    // Mount doc CRUD router FIRST — its specific routes (GET/PUT/POST/DELETE
+    // /docs/:path/sections/:heading) must register before the docs router's
+    // greedy GET /docs/:path(*) wildcard, which would otherwise swallow them.
+    app.use('/api', createDocCrudRouter());
+
     // Mount Anvil-dependent routers — always mounted, holder provides lazy access
     app.use('/api', createHealthRouter(anvilHolder));
     app.use('/api', createDocsRouter(anvilHolder));
@@ -248,9 +253,6 @@ async function startServer(): Promise<void> {
 
     // Mount import router (auth-protected internally via requireAuth in route)
     app.use('/api', createImportRouter());
-
-    // Mount doc CRUD router (auth-protected internally via requireAuth on each route)
-    app.use('/api', createDocCrudRouter());
 
     // Mount sync router (auth-protected internally via requireAuth in route)
     app.use('/api', createSyncRouter());
