@@ -1,0 +1,36 @@
+# Foundry test environment — Docker Compose override
+#
+# Use via test-env/scripts/up.sh — the wrapper handles COMPOSE_PROJECT_NAME and
+# PORT for parallel-safe multi-instance support. Don't invoke docker compose
+# with this file directly unless you know what you're doing.
+
+services:
+  foundry:
+    # Pin to linux/amd64 so the production Dockerfile's native-module setup
+    # works on Apple Silicon hosts. The Dockerfile hard-codes a
+    # sqlite-vss-linux-x64 path that doesn't exist on arm64 builds; until that
+    # is fixed upstream, we force amd64 here and pay the QEMU emulation tax.
+    platform: linux/amd64
+    environment:
+      - PORT=4321
+      - FOUNDRY_DB_PATH=/data/foundry.db
+      - CONTENT_DIR=/data/docs
+      - NODE_ENV=development
+      # Explicit unsets — prevents GitHub sync attempts and enables dev-mode auth
+      - DEPLOY_KEY_B64=
+      - SYNC_REMOTE_URL=
+      - FOUNDRY_WRITE_TOKEN=
+      - FOUNDRY_READ_TOKEN=
+      # Disable Anvil (semantic search) in the test env. The ONNX embedding
+      # model it loads aborts under QEMU amd64 emulation on arm64 hosts
+      # (std::bad_alloc), killing the API. Visual QA of the review panel
+      # doesn't need semantic search — health, docs, annotations, and
+      # reviews all work without it.
+      - FOUNDRY_DISABLE_ANVIL=1
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4321/api/health || exit 1"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 10s
+    restart: "no"

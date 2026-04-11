@@ -292,29 +292,37 @@ async function startServer(): Promise<void> {
       console.log(`🌐 CORS enabled for GitHub Pages and localhost`);
       logAuthStatus();
 
-      // Kick off Anvil init in the background (non-blocking)
-      console.log('🔧 Starting deferred Anvil initialization...');
-      anvilHolder.init(docsPath)
-        .then(() => {
-          const anvil = anvilHolder.get();
-          if (anvil) {
-            console.log('📇 Running initial Anvil index (background)...');
-            return anvil.index()
-              .then((result: any) => {
-                console.log('✅ Anvil index complete:', result);
+      // Kick off Anvil init in the background (non-blocking).
+      // Opt out with FOUNDRY_DISABLE_ANVIL=1 — useful for constrained
+      // environments (e.g., emulated/QEMU builds that can't load the ONNX
+      // embedding model) where semantic search isn't needed. Anvil-dependent
+      // endpoints (health, search, reindex) already tolerate a null holder.
+      if (process.env.FOUNDRY_DISABLE_ANVIL === '1') {
+        console.log('🔇 Anvil disabled via FOUNDRY_DISABLE_ANVIL=1 (semantic search unavailable)');
+      } else {
+        console.log('🔧 Starting deferred Anvil initialization...');
+        anvilHolder.init(docsPath)
+          .then(() => {
+            const anvil = anvilHolder.get();
+            if (anvil) {
+              console.log('📇 Running initial Anvil index (background)...');
+              return anvil.index()
+                .then((result: any) => {
+                  console.log('✅ Anvil index complete:', result);
 
-                // Start file watcher after index completes (dev mode only)
-                if (process.env.NODE_ENV !== 'production') {
-                  import('./file-watcher.js')
-                    .then(({ startFileWatcher }) => startFileWatcher(docsPath, anvil))
-                    .catch((err: any) => console.warn('⚠️ File watcher failed to start:', err));
-                }
-              });
-          } else {
-            console.warn('⚠️ Anvil not available:', anvilHolder.error);
-          }
-        })
-        .catch((error: any) => console.error('⚠️ Anvil background init failed:', error));
+                  // Start file watcher after index completes (dev mode only)
+                  if (process.env.NODE_ENV !== 'production') {
+                    import('./file-watcher.js')
+                      .then(({ startFileWatcher }) => startFileWatcher(docsPath, anvil))
+                      .catch((err: any) => console.warn('⚠️ File watcher failed to start:', err));
+                  }
+                });
+            } else {
+              console.warn('⚠️ Anvil not available:', anvilHolder.error);
+            }
+          })
+          .catch((error: any) => console.error('⚠️ Anvil background init failed:', error));
+      }
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
