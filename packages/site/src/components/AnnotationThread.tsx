@@ -2,6 +2,29 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { authFetch, isAuthenticated } from '../utils/api.js';
 import { getCleanHeadingText } from '../utils/heading-text.js';
 import { getDrafts, clearDrafts, deleteDraft, type DraftComment } from '../utils/draft-storage.js';
+import { unified } from 'unified';
+import remarkParse from 'remark-parse';
+import remarkGfm from 'remark-gfm';
+import remarkRehype from 'remark-rehype';
+import rehypeStringify from 'rehype-stringify';
+
+const markdownProcessor = unified()
+  .use(remarkParse)
+  .use(remarkGfm)
+  .use(remarkRehype) // IMPORTANT: do NOT pass { allowDangerousHtml: true } — default drops raw HTML nodes, which is our sanitization
+  .use(rehypeStringify);
+
+function renderMarkdown(content: string): string {
+  try {
+    return String(markdownProcessor.processSync(content));
+  } catch {
+    // Fallback to escaped plain text on parse error so we never break the panel
+    return content
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+}
 
 // Types (copied from API package)
 type AnnotationStatus = "draft" | "submitted" | "replied" | "resolved" | "orphaned";
@@ -970,9 +993,10 @@ export default function AnnotationThread({ docPath }: Props) {
               </blockquote>
             )}
 
-            <div className="thread-comment-content">
-              {annotation.content}
-            </div>
+            <div
+              className="thread-comment-content"
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(annotation.content) }}
+            />
 
             {authenticated && !isResolved && !isOrphaned && (
               <button
