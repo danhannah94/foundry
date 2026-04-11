@@ -919,15 +919,6 @@ export default function AnnotationThread({ docPath }: Props) {
                 <span className="thread-comment-time">{relativeTime(annotation.created_at)}</span>
               </div>
               <div className="thread-comment-actions">
-                {authenticated && (
-                  <button
-                    className="thread-reply-btn"
-                    onClick={(e) => { e.stopPropagation(); setReplyingTo(annotation.id); setReplyContent(''); }}
-                    title="Reply"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
-                  </button>
-                )}
                 {authenticated && !isReply && !isResolved && (
                   <button
                     className="thread-resolve-btn"
@@ -982,6 +973,16 @@ export default function AnnotationThread({ docPath }: Props) {
             <div className="thread-comment-content">
               {annotation.content}
             </div>
+
+            {authenticated && !isResolved && !isOrphaned && (
+              <button
+                className="thread-comment-reply-btn"
+                onClick={(e) => { e.stopPropagation(); setReplyingTo(annotation.id); setReplyContent(''); }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+                Reply
+              </button>
+            )}
 
             {/* Reply editor */}
             {replyingTo === annotation.id && (

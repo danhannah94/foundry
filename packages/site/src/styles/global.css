@@ -1318,6 +1318,25 @@ pre.mermaid {
   background: var(--color-bg-secondary);
 }
 
+.thread-comment-reply-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  margin-top: 4px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  border: none;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.thread-comment-reply-btn:hover {
+  color: var(--color-accent);
+  background: var(--color-bg-secondary);
+}
+
 .thread-reply-editor {
   margin-top: var(--spacing-sm);
   padding: var(--spacing-sm);
