@@ -184,7 +184,7 @@ export function createMcpServer(): Server {
       // Search tools
       {
         name: 'search_docs',
-        description: 'Semantic search across Foundry documentation.',
+        description: 'Semantic search across Foundry documentation. Results are filtered to a minimum relevance score of 0.5.',
         inputSchema: {
           type: 'object',
           properties: {

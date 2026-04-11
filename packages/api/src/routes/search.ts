@@ -92,9 +92,13 @@ export function createSearchRouter(holder: AnvilHolder): Router {
       }));
 
       // Filter results based on access level and authentication
-      const filteredResults = isRequestAuthenticated(req)
+      const accessFiltered = isRequestAuthenticated(req)
         ? results
         : results.filter(r => getAccessLevel(r.path) !== "private");
+
+      // Filter out low-relevance results
+      const MIN_RELEVANCE_SCORE = 0.5;
+      const filteredResults = accessFiltered.filter(r => r.score >= MIN_RELEVANCE_SCORE);
 
       const response: SearchResponse = {
         results: filteredResults,
