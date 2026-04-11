@@ -308,7 +308,7 @@ export function createMcpServer(): Server {
       },
       {
         name: 'delete_section',
-        description: 'Delete a section by heading path. Cascades: removes the heading line, its prose, and ALL descendant sections (everything until the next heading at the same or shallower level). Use update_section with empty content if you want to clear prose only without removing children. Throws 404 with available_headings on no-match — NEVER silently mutates.',
+        description: 'Delete a section by heading path. Cascades: removes the heading line, its prose, and ALL descendant sections (everything until the next heading at the same or shallower level). Cannot delete the H1 heading — use delete_doc instead. Throws 404 with available_headings on no-match — NEVER silently mutates.',
         inputSchema: {
           type: 'object',
           properties: {

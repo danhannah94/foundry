@@ -1,6 +1,9 @@
 import { Router, Request, Response } from 'express';
+import { existsSync } from 'fs';
+import { join } from 'path';
 import { createId } from '@paralleldrive/cuid2';
 import { getDb } from '../db.js';
+import { getDocsPath } from '../config.js';
 import { normalizeDocPath } from '../utils/normalize-doc-path.js';
 import {
   Annotation,
@@ -110,6 +113,16 @@ export function createAnnotationsRouter(): Router {
       if (!doc_path || !heading_path || !content) {
         return res.status(400).json({
           error: 'doc_path, heading_path, and content are required',
+        } as any);
+      }
+
+      // Validate that the referenced document exists
+      const normalizedPath = normalizeDocPath(doc_path);
+      const contentDir = getDocsPath();
+      const filePath = join(contentDir, `${normalizedPath}.md`);
+      if (!existsSync(filePath)) {
+        return res.status(404).json({
+          error: `Document not found: "${normalizedPath}". Cannot create annotation on a non-existent document.`,
         } as any);
       }
 
