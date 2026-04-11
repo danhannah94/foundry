@@ -3,7 +3,7 @@ import express from 'express';
 import request from 'supertest';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { unlinkSync } from 'fs';
+import { mkdirSync, writeFileSync, unlinkSync, rmSync } from 'fs';
 import { createAnnotationsRouter } from '../annotations.js';
 import { createReviewsRouter } from '../reviews.js';
 import { requireAuth } from '../../middleware/auth.js';
@@ -14,14 +14,41 @@ const CUID2_REGEX = /^[a-z0-9]{24,}$/;
 
 let app: express.Express;
 const testDbPath = join(tmpdir(), `foundry-test-annotations-${Date.now()}.db`);
+const testContentDir = join(tmpdir(), `foundry-test-content-${Date.now()}`);
+
+/** Create a stub markdown file in the test content directory */
+function seedDoc(docPath: string): void {
+  // docPath may include .md extension already — strip it to build the dir
+  const withoutExt = docPath.replace(/\.md$/, '');
+  const parts = withoutExt.split('/');
+  const dir = join(testContentDir, ...parts.slice(0, -1));
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(testContentDir, `${withoutExt}.md`), `# Test\n`, 'utf-8');
+}
 
 beforeAll(() => {
   process.env.FOUNDRY_DB_PATH = testDbPath;
   process.env.FOUNDRY_WRITE_TOKEN = 'test-token';
+  process.env.CONTENT_DIR = testContentDir;
+
+  // Seed all doc paths used by tests
+  for (const docPath of [
+    'docs/process.md',
+    'get-test/doc.md',
+    'get-test/other.md',
+    'review-filter/doc.md',
+    'getbyid-test/doc.md',
+    'patch-test/doc.md',
+    'delete-test/doc.md',
+    'delete-cascade/doc.md',
+    'delete-review/doc.md',
+  ]) {
+    seedDoc(docPath);
+  }
 
   app = express();
   app.use(express.json());
-  
+
   // Create protected annotations router
   const protectedAnnotationsRouter = express.Router();
   protectedAnnotationsRouter.use('/annotations', requireAuth);
@@ -42,7 +69,13 @@ afterAll(() => {
   } catch {
     // ignore if already removed
   }
+  try {
+    rmSync(testContentDir, { recursive: true, force: true });
+  } catch {
+    // ignore
+  }
   delete process.env.FOUNDRY_DB_PATH;
+  delete process.env.CONTENT_DIR;
 });
 
 // Helper to create a valid annotation body
@@ -153,6 +186,56 @@ describe('Annotations Router', () => {
         .expect(201);
 
       expect(res.body.author_type).toBe('ai');
+    });
+
+    it('should default status to draft when author_type is human', async () => {
+      const res = await request(app)
+        .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
+        .send(validBody({ author_type: 'human' }))
+        .expect(201);
+
+      expect(res.body.status).toBe('draft');
+    });
+
+    it('should default status to submitted when author_type is ai', async () => {
+      const res = await request(app)
+        .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
+        .send(validBody({ author_type: 'ai' }))
+        .expect(201);
+
+      expect(res.body.status).toBe('submitted');
+    });
+
+    it('should use explicit status when provided, regardless of author_type', async () => {
+      const res = await request(app)
+        .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
+        .send(validBody({ author_type: 'ai', status: 'draft' }))
+        .expect(201);
+
+      expect(res.body.status).toBe('draft');
+    });
+
+    it('should use explicit status of replied when provided', async () => {
+      const res = await request(app)
+        .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
+        .send(validBody({ author_type: 'human', status: 'replied' }))
+        .expect(201);
+
+      expect(res.body.status).toBe('replied');
+    });
+
+    it('should return 400 for invalid status value', async () => {
+      const res = await request(app)
+        .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
+        .send(validBody({ status: 'invalid-status' }))
+        .expect(400);
+
+      expect(res.body.error).toContain('Invalid status');
     });
 
     it('should return 400 when doc_path is missing', async () => {

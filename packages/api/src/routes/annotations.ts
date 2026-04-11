@@ -106,13 +106,22 @@ export function createAnnotationsRouter(): Router {
         parent_id,
         review_id,
         author_type = 'human',
-        user_id
+        user_id,
+        status: bodyStatus,
       } = req.body;
 
       // Validate required fields (content_hash is optional — used for drift detection)
       if (!doc_path || !heading_path || !content) {
         return res.status(400).json({
           error: 'doc_path, heading_path, and content are required',
+        } as any);
+      }
+
+      // Validate status if explicitly provided
+      const VALID_STATUSES: AnnotationStatus[] = ['draft', 'submitted', 'replied', 'resolved', 'orphaned'];
+      if (bodyStatus !== undefined && !VALID_STATUSES.includes(bodyStatus)) {
+        return res.status(400).json({
+          error: `Invalid status "${bodyStatus}". Must be one of: ${VALID_STATUSES.join(', ')}`,
         } as any);
       }
 
@@ -156,6 +165,14 @@ export function createAnnotationsRouter(): Router {
 
       const normalizedDocPath = normalizeDocPath(doc_path);
 
+      // Determine status: explicit body value wins; otherwise default by author_type
+      const effectiveStatus: AnnotationStatus =
+        bodyStatus !== undefined
+          ? bodyStatus
+          : author_type === 'ai'
+          ? 'submitted'
+          : 'draft';
+
       const annotation: Annotation = {
         id,
         doc_path: normalizedDocPath,
@@ -167,7 +184,7 @@ export function createAnnotationsRouter(): Router {
         review_id: effectiveReviewId || null,
         user_id: user_id || process.env.FOUNDRY_DEFAULT_USER || 'anonymous',
         author_type,
-        status: 'draft',
+        status: effectiveStatus,
         created_at: now,
         updated_at: now,
       };

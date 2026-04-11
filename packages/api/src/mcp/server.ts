@@ -85,6 +85,7 @@ export function createMcpServer(): Server {
             parent_id: { type: 'string', description: 'Optional parent annotation ID for threading' },
             author_type: { type: 'string', description: 'Optional author type (human or ai), defaults to ai' },
             quoted_text: { type: 'string', description: 'Optional highlighted text that the annotation refers to' },
+            status: { type: 'string', description: 'Optional status override (draft, submitted, replied, resolved, orphaned). When omitted, defaults to submitted for ai and draft for human.' },
           },
           required: ['doc_path', 'section', 'content'],
         },
@@ -376,6 +377,7 @@ export function createMcpServer(): Server {
           parent_id: args.parent_id as string | undefined,
           author_type: args.author_type as string | undefined,
           quoted_text: args.quoted_text as string | undefined,
+          status: args.status as string | undefined,
         });
         return json({ status: 'created', annotation: result });
       }
