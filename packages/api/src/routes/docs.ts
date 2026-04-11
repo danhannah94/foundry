@@ -74,21 +74,8 @@ export function createDocsRouter(holder: AnvilHolder): Router {
     }
   });
 
-  // GET /docs/:path(*)/sections/:heading(*) - Get a specific section from a document
-  router.get('/docs/:path(*)/sections/:heading(*)', async (req, res) => {
-    if (guardAnvil(holder, res)) return;
-    const anvil = holder.get()!;
-
-    try {
-      const docPath = req.params.path.endsWith('.md') ? req.params.path : `${req.params.path}.md`;
-      const section = await anvil.getSection(docPath, req.params.heading);
-      if (!section) return res.status(404).json({ error: 'Section not found' });
-      res.json(section);
-    } catch (error) {
-      console.error('Error fetching section:', error);
-      res.status(500).json({ error: 'Failed to fetch section' });
-    }
-  });
+  // GET /docs/:path(*)/sections/:heading(*) — handled by doc-crud router
+  // (uses section-parser for consistent #-prefixed heading paths)
 
   // GET /docs/:path(*) - Get single document with section structure
   router.get('/docs/:path(*)', async (req: Request, res: Response<DocumentDetail>) => {

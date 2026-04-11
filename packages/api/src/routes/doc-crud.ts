@@ -1,6 +1,7 @@
 /**
  * Express CRUD routes for Foundry documents.
  *
+ * GET    /api/docs/:path(*)/sections/:heading(*) — Get section by heading path
  * POST   /api/docs                              — Create new document
  * PUT    /api/docs/:path(*)/sections/:heading(*) — Update section body
  * POST   /api/docs/:path(*)/sections/move        — Move section to new position
@@ -75,6 +76,53 @@ function writeDocAndUpdateMeta(filePath: string, lines: string[], docPath: strin
 
 export function createDocCrudRouter(): Router {
   const router = Router();
+
+  // ──────────────────────────────────────────────
+  // GET /api/docs/:path/sections/:heading — Get section by heading path
+  //
+  // Uses section-parser (same as write tools) for consistent heading format.
+  // Returns the section's heading, full heading path, and content.
+  // ──────────────────────────────────────────────
+  router.get('/docs/:path(*)/sections/:heading(*)', async (req: Request, res: Response) => {
+    try {
+      const docPath = normalizeDocPath(req.params.path);
+      const headingPath = decodeURIComponent(req.params.heading);
+
+      const contentDir = getDocsPath();
+      const filePath = join(contentDir, `${docPath}.md`);
+      const lines = readDocLines(filePath);
+
+      if (!lines) {
+        return res.status(404).json({ error: `Document not found: "${docPath}"` });
+      }
+
+      const section = findSection(lines, headingPath);
+      if (!section) {
+        return res.status(404).json({
+          error: `Section not found: "${headingPath}"`,
+          available_headings: parseSections(lines).map(s => s.headingPath),
+        });
+      }
+
+      // Extract content: heading line through subtreeEnd (includes children)
+      const content = lines.slice(section.headingLine, section.subtreeEnd).join('\n');
+
+      res.json({
+        path: docPath,
+        heading: section.headingText,
+        headingPath: section.headingPath,
+        level: section.level,
+        content,
+        charCount: content.length,
+      });
+    } catch (error: any) {
+      if (error.message?.includes('Ambiguous')) {
+        return res.status(400).json({ error: error.message });
+      }
+      console.error('[doc-crud] Get section failed:', error);
+      res.status(500).json({ error: 'Failed to get section', message: error.message });
+    }
+  });
 
   // ──────────────────────────────────────────────
   // POST /api/docs — Create new document
@@ -427,6 +475,13 @@ export function createDocCrudRouter(): Router {
         return res.status(404).json({
           error: `Section not found: "${headingPath}"`,
           available_headings: parseSections(lines).map(s => s.headingPath),
+        });
+      }
+
+      // Block H1 deletion — use delete_doc instead
+      if (section.level === 1) {
+        return res.status(400).json({
+          error: 'Cannot delete the H1 heading of a document. Use delete_doc to remove the entire document.',
         });
       }
 
