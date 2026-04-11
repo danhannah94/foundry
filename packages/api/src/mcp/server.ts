@@ -125,7 +125,7 @@ export function createMcpServer(): Server {
       },
       {
         name: 'reopen_annotation',
-        description: 'Reopen a previously resolved annotation.',
+        description: 'Reopen a previously resolved annotation, returning it to draft status for editing before re-submission. Note: the annotation does NOT return to its prior submitted/replied state — it becomes a draft so you can edit it and then resubmit via submit_review.',
         inputSchema: {
           type: 'object',
           properties: {
