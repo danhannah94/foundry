@@ -1,6 +1,26 @@
 # Crucible — Decisions Log
 
-Build-first-document-after. Short entries as real decisions get made. This is the source of truth for what survived contact with the code — the design doc gets updated only after v0.1 is working.
+Build-first-document-after. Short entries as real decisions get made. This is the source of truth for what survived contact with the code — the design doc gets updated only after the code is working.
+
+## 2026-04-13 — Agentic QA reframe + v0.1.1 changes
+
+Major session. Reframed Crucible from "test harness + visual regression" to "agentic QA framework." Key decisions:
+
+- **Three-layer interaction model:** eyes (core) + harness (core) + generic browser (fallback). Apps with MCP tools get the best experience; browser fallback for apps without.
+- **Two-agent QA model:** feature QA agent + regression QA agent run in parallel. Feature agent checks the specific change; regression agent sweeps all baselines.
+- **Regression suite derived from baseline store:** `list_baselines` returns all baselines — that IS the regression suite. No manual curation.
+- **Separate QA agent verifies implementation agent's work.** Independent verification, not self-review.
+- **Screenshot save-to-file:** `screenshot_page` writes PNG to disk, returns `filePath` + metadata. No base64 in MCP response. Agents read the file to visually inspect.
+- **QA report in markdown** with PASS/ISSUES_FOUND/NEEDS_HUMAN verdicts. 3-iteration retry limit before human escalation.
+- **Scripted spec runner removed from architecture.** Agent uses judgment, not a script.
+
+Code changes (uncommitted, on `crucible/v0.1-eyes`):
+- `screenshot_page` now saves to `/tmp/crucible/screenshots/` and returns `filePath`
+- New `list_baselines` tool added (5 tools total now)
+- QA prompt templates created in `templates/`
+- All 26 tests green
+
+Full decision log with rationale: Foundry design doc `projects/crucible/design.md` → Decisions Log section.
 
 ## 2026-04-11 — Initial v0.1 "Eyes Only" scaffold
 

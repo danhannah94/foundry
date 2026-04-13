@@ -81,10 +81,10 @@ describe('crucible MCP server — stdio integration', () => {
     if (tmpRoot) await rm(tmpRoot, { recursive: true, force: true });
   });
 
-  it('lists all four tools', async () => {
+  it('lists all seven tools', async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
-    expect(names).toEqual(['approve_baseline', 'compare_screenshots', 'navigate', 'screenshot_page']);
+    expect(names).toEqual(['approve_baseline', 'click', 'compare_screenshots', 'list_baselines', 'navigate', 'run_script', 'screenshot_page']);
   });
 
   it('drives the full eyes flow: navigate → screenshot → compare (needs_review) → approve → compare (pass)', async () => {
@@ -105,8 +105,8 @@ describe('crucible MCP server — stdio integration', () => {
     );
     expect(shotRes.ok).toBe(true);
     expect(shotRes.bytes).toBeGreaterThan(0);
-    expect(typeof shotRes.pngBase64).toBe('string');
-    expect(shotRes.pngBase64.length).toBeGreaterThan(100);
+    expect(typeof shotRes.filePath).toBe('string');
+    expect(shotRes.filePath).toMatch(/\.png$/);
 
     const preCompare = parseResult(
       await client.callTool({
@@ -136,6 +136,28 @@ describe('crucible MCP server — stdio integration', () => {
     expect(postCompare.verdict).toBe('pass');
     expect(postCompare.matchScore).toBe(1);
     expect(postCompare.diffPixels).toBe(0);
+
+    // list_baselines should discover the baseline we just approved
+    const listRes = parseResult(
+      await client.callTool({
+        name: 'list_baselines',
+        arguments: { project: 'it' },
+      }),
+    );
+    expect(listRes.ok).toBe(true);
+    expect(listRes.count).toBe(1);
+    expect(listRes.baselines[0].spec).toBe('target-page');
+    expect(listRes.baselines[0].meta.note).toBe('initial');
+
+    // list all projects
+    const listAllRes = parseResult(
+      await client.callTool({
+        name: 'list_baselines',
+        arguments: {},
+      }),
+    );
+    expect(listAllRes.ok).toBe(true);
+    expect(listAllRes.projects.some((p) => p.project === 'it')).toBe(true);
   }, 60_000);
 
   it('rejects path-traversal project names at the baseline boundary', async () => {

@@ -1,9 +1,14 @@
 import { z } from 'zod';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
 
 export const name = 'screenshot_page';
 
+const SCREENSHOT_DIR = path.join(os.tmpdir(), 'crucible', 'screenshots');
+
 export const config = {
-  description: 'Capture a PNG screenshot of the current page. Requires a prior navigate call. Returns a base64-encoded PNG plus metadata. The most recent screenshot is also cached in-session so compare_screenshots can reference it without re-sending bytes.',
+  description: 'Capture a PNG screenshot of the current page. Requires a prior navigate call. Saves the screenshot to a temp file and returns the file path plus metadata — read the PNG file to visually inspect. The most recent screenshot is also cached in-session so compare_screenshots can reference it without re-sending bytes.',
   inputSchema: {
     fullPage: z
       .boolean()
@@ -17,7 +22,14 @@ export function createHandler(session) {
     const { png, viewport, url } = await session.driver.screenshotPage({
       fullPage: args.fullPage ?? true,
     });
-    session.lastScreenshot = { png, viewport, url, capturedAt: new Date().toISOString() };
+    const capturedAt = new Date().toISOString();
+    session.lastScreenshot = { png, viewport, url, capturedAt };
+
+    await fs.mkdir(SCREENSHOT_DIR, { recursive: true });
+    const filename = `screenshot-${Date.now()}.png`;
+    const filePath = path.join(SCREENSHOT_DIR, filename);
+    await fs.writeFile(filePath, png);
+
     return {
       content: [
         {
@@ -28,7 +40,8 @@ export function createHandler(session) {
               url,
               viewport,
               bytes: png.length,
-              pngBase64: png.toString('base64'),
+              filePath,
+              capturedAt,
             },
             null,
             2,

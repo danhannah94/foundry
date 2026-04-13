@@ -43,5 +43,15 @@ export function createPlaywrightDriver({ viewport } = {}) {
     browser = null;
   }
 
-  return { navigate, screenshotPage, close, ensurePage };
+  async function evaluate(expression) {
+    const p = await ensurePage();
+    return p.evaluate(expression);
+  }
+
+  async function click(selector, { timeout = 5000 } = {}) {
+    const p = await ensurePage();
+    await p.click(selector, { timeout });
+  }
+
+  return { navigate, screenshotPage, close, ensurePage, evaluate, click };
 }

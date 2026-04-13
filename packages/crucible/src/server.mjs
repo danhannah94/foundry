@@ -6,8 +6,11 @@ import * as navigateTool from './tools/navigate.mjs';
 import * as screenshotTool from './tools/screenshot-page.mjs';
 import * as compareTool from './tools/compare-screenshots.mjs';
 import * as approveTool from './tools/approve-baseline.mjs';
+import * as listBaselinesTool from './tools/list-baselines.mjs';
+import * as runScriptTool from './tools/run-script.mjs';
+import * as clickTool from './tools/click.mjs';
 
-const TOOLS = [navigateTool, screenshotTool, compareTool, approveTool];
+const TOOLS = [navigateTool, screenshotTool, compareTool, approveTool, listBaselinesTool, runScriptTool, clickTool];
 
 export function createCrucibleServer({ session } = {}) {
   const sess = session || createSession();
