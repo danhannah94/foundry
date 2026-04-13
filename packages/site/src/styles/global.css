@@ -1305,6 +1305,7 @@ pre.mermaid {
   gap: 4px;
   padding: 4px 8px;
   margin-top: 4px;
+  margin-left: auto;
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   background: none;
@@ -1324,6 +1325,7 @@ pre.mermaid {
   gap: 4px;
   padding: 4px 8px;
   margin-top: 4px;
+  margin-left: auto;
   background: transparent;
   color: var(--color-text-muted);
   font-size: 0.75rem;
