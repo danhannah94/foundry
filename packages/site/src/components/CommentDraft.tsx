@@ -3,8 +3,7 @@ import {
   type DraftComment,
   getDrafts,
   saveDraft,
-  updateDraft,
-  deleteDraft
+  updateDraft
 } from '../utils/draft-storage.js';
 import { isAuthenticated } from '../utils/api.js';
 import { getCleanHeadingText } from '../utils/heading-text.js';
@@ -338,18 +337,6 @@ export default function CommentDraft({ docPath }: Props) {
     setEditorContent('');
   };
 
-  const handleEditDraft = (draft: DraftComment) => {
-    setEditor({ show: true, draft, isEditing: true });
-    setEditorContent(draft.content);
-  };
-
-  const handleDeleteDraft = (draftId: string) => {
-    if (confirm('Delete this draft comment?')) {
-      deleteDraft(docPath, draftId);
-      setDrafts(prevDrafts => prevDrafts.filter(d => d.id !== draftId));
-    }
-  };
-
   return (
     <>
       {/* Floating comment button */}
@@ -408,54 +395,6 @@ export default function CommentDraft({ docPath }: Props) {
         </div>
       )}
 
-      {/* Draft list */}
-      {drafts.length > 0 && (
-        <div className="draft-list">
-          <div className="draft-count">
-            💬 {drafts.length} draft{drafts.length !== 1 ? 's' : ''}
-          </div>
-          
-          {drafts.map(draft => (
-            <div key={draft.id} className="draft-item">
-              <div className="draft-item__header">
-                <span className="draft-item__path">{draft.heading_path}</span>
-                <span className="draft-item__date">
-                  {new Date(draft.created_at).toLocaleDateString()}
-                </span>
-              </div>
-              
-              <blockquote className="draft-item__quote">
-                "{draft.quoted_text.length > 100 
-                  ? draft.quoted_text.substring(0, 100) + '...' 
-                  : draft.quoted_text}"
-              </blockquote>
-              
-              {draft.content && (
-                <div className="draft-item__content">
-                  {draft.content.length > 150 
-                    ? draft.content.substring(0, 150) + '...'
-                    : draft.content}
-                </div>
-              )}
-              
-              <div className="draft-item__actions">
-                <button 
-                  className="draft-item__edit"
-                  onClick={() => handleEditDraft(draft)}
-                >
-                  Edit
-                </button>
-                <button 
-                  className="draft-item__delete"
-                  onClick={() => handleDeleteDraft(draft.id)}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </>
   );
 }
