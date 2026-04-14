@@ -81,3 +81,65 @@ Return your findings in this format:
 - **Tools used:** [app tools + Crucible tools invoked]
 - **Areas not checked:** [anything you couldn't reach]
 ```
+
+## Posting Evidence to the PR
+
+After producing your report, the next step depends on the verdict:
+
+### On PASS — post evidence to the PR
+
+When the verdict is PASS, post screenshots and the verdict directly to the PR as a comment. This gives the reviewer instant visual confirmation without needing to set up a test-env themselves.
+
+1. **Copy screenshots to the PR branch** under `qa-evidence/pr-{number}/`. Rename them with descriptive prefixes (e.g., `01-control.png`, `02-after-change.png`, `03-edge-case.png`):
+
+   ```bash
+   cd <repo-root>
+   git checkout <feature-branch>
+   mkdir -p qa-evidence/pr-{number}/
+   cp /var/folders/.../crucible/screenshots/screenshot-XXX.png qa-evidence/pr-{number}/01-control.png
+   cp /var/folders/.../crucible/screenshots/screenshot-YYY.png qa-evidence/pr-{number}/02-after-change.png
+   git add qa-evidence/
+   git commit -m "qa: evidence screenshots for PR #{number}"
+   git push
+   ```
+
+2. **Post a PR comment** with the verdict, success criteria checklist, and embedded screenshots (use raw.githubusercontent.com URLs so images render inline):
+
+   ```bash
+   gh pr comment {number} --body "$(cat <<'EOF'
+   ## 🤖 Agentic QA Report — Verdict: PASS
+
+   ### Success criteria — all PASSED ✓
+   - ✅ [criterion 1]
+   - ✅ [criterion 2]
+   - ✅ [criterion 3]
+
+   ### Evidence
+
+   **1. [Caption]:**
+
+   ![alt](https://raw.githubusercontent.com/{owner}/{repo}/{branch}/qa-evidence/pr-{number}/01-control.png)
+
+   **2. [Caption]:**
+
+   ![alt](https://raw.githubusercontent.com/{owner}/{repo}/{branch}/qa-evidence/pr-{number}/02-after-change.png)
+
+   ### Areas not checked
+   - [list]
+
+   ### Baseline recommendations
+   - [list]
+   EOF
+   )"
+   ```
+
+3. **Return the report to the orchestrator** as well — the orchestrator needs the report in conversation context regardless of verdict.
+
+### On ISSUES_FOUND or NEEDS_HUMAN — do NOT post to the PR
+
+When the verdict is not PASS:
+- Do NOT post a comment on the PR
+- Do NOT push qa-evidence to the branch
+- Just return the report to the orchestrator
+
+Failed QA leads to fixes-and-rerun or human escalation. The PR doesn't need a record of intermediate failures — once the issues are resolved and QA passes, that PASS comment becomes the durable stamp of approval.
