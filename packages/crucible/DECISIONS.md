@@ -2,6 +2,21 @@
 
 Build-first-document-after. Short entries as real decisions get made. This is the source of truth for what survived contact with the code — the design doc gets updated only after the code is working.
 
+## 2026-04-13 (session 2) — Agentic QA pipeline validated end-to-end
+
+Crucible grew from 5 tools to 7, and the full feature-agent → QA-agent pipeline was validated twice against real PRs.
+
+- **PR #131 (reply button alignment):** CSS-only. QA agent verified via `run_script` CSS injection against the running test-env. PASS.
+- **PR #132 (inline draft editing):** Component change — required booting a fresh test-env from the PR branch. New scripts `qa-pr.sh` / `qa-pr-cleanup.sh` wrap the existing `up.sh` / `down.sh` so the agent only needs the branch name. Build is ~2:40 cold, faster with layer cache. QA agent booted, verified all 7 success criteria, posted 3 screenshots inline on the PR, tore down, restored branch. Orchestrator merged based on the visual evidence alone. PASS.
+
+New tools: `run_script` (page.evaluate wrapper) and `click` (CSS selector). These make the harness layer real — the QA agent can set localStorage, inject CSS, expand threads, and interact with the UI before screenshotting.
+
+Two policies locked in:
+- **QA agents recommend baseline updates; orchestrator approves.** Prevents a bad change from self-approving its own ground truth.
+- **Evidence to the PR only on PASS.** Failed QA iterations don't belong in durable PR history.
+
+Published a `lean` plugin to `danhannah94/claymore-plugins` with /start, /stop, /reply, /update skills. PROCESS.md in the plugin deliberately excludes the agentic QA pipeline — lean is general-purpose, QA is Foundry-specific infrastructure.
+
 ## 2026-04-13 — Agentic QA reframe + v0.1.1 changes
 
 Major session. Reframed Crucible from "test harness + visual regression" to "agentic QA framework." Key decisions:
