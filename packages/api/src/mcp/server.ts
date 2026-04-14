@@ -483,7 +483,7 @@ export function createMcpServer(): Server {
           args.path as string,
           args.after_heading_path as string,
           args.heading as string,
-          args.level as number,
+          Number(args.level),
           args.content as string,
         );
         return json({ status: 'inserted', section: result });
