@@ -56,6 +56,9 @@ interface Props {
 }
 
 const STORAGE_KEY = 'foundry-thread-panel';
+const PANEL_WIDTH_KEY = 'foundry-thread-panel-width';
+const DEFAULT_WIDTH = 320;
+const MIN_WIDTH = 200;
 
 // Utility function for relative timestamps
 function relativeTime(isoString: string): string {
@@ -1108,12 +1111,7 @@ export default function AnnotationThread({ docPath }: Props) {
   );
 
   // --- Drag-to-resize ---
-  const PANEL_WIDTH_KEY = 'foundry-thread-panel-width';
-  const DEFAULT_WIDTH = 320;
-  const MIN_WIDTH = 200;
   const dragState = useRef<{ startX: number; startWidth: number } | null>(null);
-  const handleRef = useRef<HTMLDivElement>(null);
-
   const onResizePointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
     // Only respond to primary pointer button
     if (e.button !== 0) return;
@@ -1219,7 +1217,6 @@ export default function AnnotationThread({ docPath }: Props) {
     <div className={`thread-panel ${!isVisible ? 'thread-panel--hidden' : ''}`}>
       {/* Drag-to-resize handle — hidden on mobile and when panel is collapsed via CSS */}
       <div
-        ref={handleRef}
         className="thread-panel-resize-handle"
         onPointerDown={onResizePointerDown}
         onDoubleClick={onResizeDoubleClick}
