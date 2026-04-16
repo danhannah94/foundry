@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type PointerEvent as ReactPointerEvent } from 'react';
 import { authFetch, isAuthenticated } from '../utils/api.js';
 import { getCleanHeadingText } from '../utils/heading-text.js';
 import { getDrafts, clearDrafts, deleteDraft, updateDraft, type DraftComment } from '../utils/draft-storage.js';
@@ -56,6 +56,9 @@ interface Props {
 }
 
 const STORAGE_KEY = 'foundry-thread-panel';
+const PANEL_WIDTH_KEY = 'foundry-thread-panel-width';
+const DEFAULT_WIDTH = 320;
+const MIN_WIDTH = 200;
 
 // Utility function for relative timestamps
 function relativeTime(isoString: string): string {
@@ -1107,6 +1110,55 @@ export default function AnnotationThread({ docPath }: Props) {
     </div>
   );
 
+  // --- Drag-to-resize ---
+  const dragState = useRef<{ startX: number; startWidth: number } | null>(null);
+  const onResizePointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    // Only respond to primary pointer button
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const currentWidth = parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue('--thread-panel-width')
+    ) || DEFAULT_WIDTH;
+
+    dragState.current = { startX: e.clientX, startWidth: currentWidth };
+
+    // Capture pointer so we keep receiving events even if cursor leaves the handle
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+
+    document.body.classList.add('is-resizing-thread-panel');
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      if (!dragState.current) return;
+      const delta = dragState.current.startX - moveEvent.clientX; // dragging left → panel grows
+      const maxWidth = window.innerWidth * 0.5;
+      const newWidth = Math.min(maxWidth, Math.max(MIN_WIDTH, dragState.current.startWidth + delta));
+      document.documentElement.style.setProperty('--thread-panel-width', newWidth + 'px');
+    };
+
+    const onPointerUp = () => {
+      if (!dragState.current) return;
+      const finalWidth = parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue('--thread-panel-width')
+      ) || DEFAULT_WIDTH;
+      localStorage.setItem(PANEL_WIDTH_KEY, String(Math.round(finalWidth)));
+      dragState.current = null;
+      document.body.classList.remove('is-resizing-thread-panel');
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  }, []);
+
+  const onResizeDoubleClick = useCallback(() => {
+    document.documentElement.style.setProperty('--thread-panel-width', DEFAULT_WIDTH + 'px');
+    localStorage.removeItem(PANEL_WIDTH_KEY);
+  }, []);
+  // --- End drag-to-resize ---
+
   const { reviewGroups, ungrouped } = groupedAnnotations();
 
   // Build all threads and split into active/archived
@@ -1163,6 +1215,13 @@ export default function AnnotationThread({ docPath }: Props) {
 
   return (
     <div className={`thread-panel ${!isVisible ? 'thread-panel--hidden' : ''}`}>
+      {/* Drag-to-resize handle — hidden on mobile and when panel is collapsed via CSS */}
+      <div
+        className="thread-panel-resize-handle"
+        onPointerDown={onResizePointerDown}
+        onDoubleClick={onResizeDoubleClick}
+        aria-hidden="true"
+      />
       <div className="thread-header">
         <h3>Review</h3>
         {totalDraftCount > 0 && (

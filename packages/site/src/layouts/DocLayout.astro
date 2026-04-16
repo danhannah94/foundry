@@ -55,6 +55,19 @@ const pageTitle = title === 'Foundry' ? title : `${title} — Foundry`;
       }
     })();
   </script>
+  {/* Restore thread panel width before first paint to avoid flash */}
+  <script is:inline>
+    (function() {
+      var stored = localStorage.getItem('foundry-thread-panel-width');
+      if (stored) {
+        var n = parseFloat(stored);
+        var maxPx = window.innerWidth * 0.5;
+        if (!isNaN(n) && n >= 200 && n <= maxPx) {
+          document.documentElement.style.setProperty('--thread-panel-width', n + 'px');
+        }
+      }
+    })();
+  </script>
   <script is:inline>
     (function() {
       if (localStorage.getItem('foundry-tts-enabled') === 'false') {
