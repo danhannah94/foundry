@@ -2,6 +2,23 @@
 
 Build-first-document-after. Short entries as real decisions get made. This is the source of truth for what survived contact with the code — the design doc gets updated only after the code is working.
 
+## 2026-04-16 (session 3) — Regression QA pipeline designed, built, and validated
+
+Regression QA pipeline is operational. Design doc at `projects/crucible/regression-qa` in Foundry.
+
+- **Sequential pipeline:** Feature QA runs first → baselines approved → regression QA runs. Eliminates drift classification — by the time regression runs, all baselines are current. Any drift = real regression.
+- **Clone-in-container Docker build:** New `test-env/Dockerfile` clones the repo from GitHub inside the container. `qa.sh` no longer touches local git state — works with a dirty working tree. Fixtures pre-baked into the image.
+- **Renamed scripts:** `qa-pr.sh` → `qa.sh`, `qa-pr-cleanup.sh` → `qa-cleanup.sh`. Scripts work for any branch, not just PRs.
+- **Timestamp masking:** Review panel relative timestamps ("3 days ago") cause ~3-4% false positive drift. DOM text masking via `run_script` before screenshots eliminates this. Rule: only mask text content, never structural elements.
+- **9 baselines:** Added `settings-modal`, `search-modal`, `sample-doc-dark-mode`. All captured against a fresh main build with timestamp masking.
+- **`/qa-regression` skill:** Encapsulates the full pipeline — boot fresh container, spawn Sonnet sub-agent for the sweep, tear down, report. Self-contained and reproducible.
+- **`review-panel-with-drafts` dimension mismatch:** Full-page height varies by ~14px depending on draft annotation timing. Not blocking — consider switching to viewport-only.
+
+Policies locked in:
+- Always boot a fresh test-env for regression (never reuse long-running containers)
+- Regression agent does NOT approve baselines — any drift is a regression
+- Document all masks applied in the report
+
 ## 2026-04-13 (session 2) — Agentic QA pipeline validated end-to-end
 
 Crucible grew from 5 tools to 7, and the full feature-agent → QA-agent pipeline was validated twice against real PRs.
