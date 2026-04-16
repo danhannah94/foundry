@@ -2,6 +2,22 @@
 
 Build-first-document-after. Short entries as real decisions get made. This is the source of truth for what survived contact with the code — the design doc gets updated only after the code is working.
 
+## 2026-04-16 (session 4) — `/ship` skill built, full agentic pipeline validated end-to-end on PR #133
+
+First real run of the complete feature pipeline from implementation through regression. Validated the agentic QA loop against a genuine UI feature (drag-to-resize review panel). PR #133 ready to merge.
+
+- **`/ship` skill created:** Orchestrates feature agent → orchestrator code review → feature QA agent → orchestrator baseline approval → regression QA agent → final verdict. Project-agnostic (no baseline count, no Foundry-specific assumptions). Lives at `~/Documents/Code/.claude/skills/ship/SKILL.md`.
+- **`/qa-regression` aligned with `/ship`:** Rewrote so the sub-agent owns boot/teardown (was skill-owned). Now just spawns an agent pointing at the Foundry regression template. Both skills consistent.
+- **Orchestrator code review gate:** New step between feature agent and feature QA. Catches structural issues before spending QA compute. Distinction codified: **nits → cleanup sub-agent**, **structural issues → human**. Orchestrator does NOT fix nits directly.
+- **QA judgment > pixel diff:** The regression run caught a real side effect — the new `.thread-panel-resize-handle` element (z-index: 20) changed GPU compositing layers, producing ~1-4% backdrop-filter blur drift in `settings-modal` and `search-modal`. User-invisible. Agent correctly returned NEEDS_HUMAN (not ISSUES_FOUND). Orchestrator surfaced screenshots inline; human confirmed invisible; baselines approved. **This is the core loop working as designed** — subjective judgment resolves drift that pixelmatch can't classify on its own.
+- **Sub-agent budget fragility during Docker cold builds:** First feature QA agent burned its token budget polling BuildKit events during a ~2-3 min cold build. Orchestrator-assist (pre-boot, hand off port) was the practical workaround. Future fix: agents should background the boot and poll `/api/health` instead of tailing Docker logs.
+- **Compositing-layer footgun:** Adding a new stacking-context child inside a `backdrop-filter`-sampled panel can measurably shift the blur sample. Document this for future UI changes — any z-indexed child inside `.thread-panel` or other blur-sampled containers will churn modal baselines.
+
+Policies locked in:
+- Orchestrator surfaces screenshots when regression returns NEEDS_HUMAN
+- Nits never fixed by orchestrator — always a cleanup sub-agent
+- Merge is always human action (even with all green)
+
 ## 2026-04-16 (session 3) — Regression QA pipeline designed, built, and validated
 
 Regression QA pipeline is operational. Design doc at `projects/crucible/regression-qa` in Foundry.
