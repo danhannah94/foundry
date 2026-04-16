@@ -11,6 +11,11 @@ services:
     # sqlite-vss-linux-x64 path that doesn't exist on arm64 builds; until that
     # is fixed upstream, we force amd64 here and pay the QEMU emulation tax.
     platform: linux/amd64
+    build:
+      context: .
+      dockerfile: test-env/Dockerfile
+      args:
+        BRANCH: ${BRANCH:-main}
     environment:
       - PORT=4321
       - FOUNDRY_DB_PATH=/data/foundry.db

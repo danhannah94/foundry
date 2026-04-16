@@ -16,6 +16,7 @@ PORT="${2:-$((40000 + RANDOM % 10000))}"
 
 export COMPOSE_PROJECT_NAME="foundry-test-${INSTANCE_ID}"
 export PORT
+export BRANCH="${BRANCH:-}"
 
 COMPOSE_ARGS=(-f docker-compose.yml -f test-env/compose.test.yml)
 
@@ -40,14 +41,6 @@ for i in $(seq 1 90); do
   fi
   sleep 1
 done
-
-echo "→ Copying fixture markdown into container..."
-CID=$(docker compose "${COMPOSE_ARGS[@]}" ps -q foundry)
-if [[ -z "${CID}" ]]; then
-  echo "FAIL: could not resolve container id"
-  exit 1
-fi
-docker cp "${REPO_ROOT}/test-env/seed/fixtures/content/." "${CID}:/data/docs/"
 
 echo "→ Triggering reindex..."
 if curl -sf -X POST "http://localhost:${PORT}/api/reindex" >/dev/null 2>&1; then
