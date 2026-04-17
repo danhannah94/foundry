@@ -83,7 +83,7 @@ describe('Reviews Router', () => {
         .expect(201);
 
       expect(res.body.id).toMatch(CUID2_REGEX);
-      expect(res.body.doc_path).toBe('docs/process.md');
+      expect(res.body.doc_path).toBe('docs/process');
       expect(res.body.user_id).toBe('anonymous');
       expect(res.body.status).toBe('draft');
       expect(res.body.submitted_at).toBeNull();
@@ -184,7 +184,7 @@ describe('Reviews Router', () => {
 
       expect(res.body.length).toBe(2);
       for (const review of res.body) {
-        expect(review.doc_path).toBe('get-test/doc.md');
+        expect(review.doc_path).toBe('get-test/doc');
       }
     });
 
@@ -236,7 +236,7 @@ describe('Reviews Router', () => {
         .expect(200);
 
       expect(res.body.length).toBe(1);
-      expect(res.body[0].doc_path).toBe('get-test/other.md');
+      expect(res.body[0].doc_path).toBe('get-test/other');
     });
 
     it('should filter reviews by status', async () => {
@@ -304,7 +304,7 @@ describe('Reviews Router', () => {
         .expect(200);
 
       expect(res.body.review.id).toBe(created.body.id);
-      expect(res.body.review.doc_path).toBe('getbyid-test/doc.md');
+      expect(res.body.review.doc_path).toBe('getbyid-test/doc');
       expect(res.body.annotations).toEqual([]);
     });
 

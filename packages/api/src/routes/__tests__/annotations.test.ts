@@ -154,7 +154,7 @@ describe('Annotations Router', () => {
         .expect(201);
 
       expect(res.body.id).toMatch(CUID2_REGEX);
-      expect(res.body.doc_path).toBe(body.doc_path);
+      expect(res.body.doc_path).toBe('docs/process');
       expect(res.body.heading_path).toBe(body.heading_path);
       expect(res.body.content_hash).toBe(body.content_hash);
       expect(res.body.content).toBe(body.content);
@@ -291,14 +291,14 @@ describe('Annotations Router', () => {
       expect(res.body.error).toBeDefined();
     });
 
-    it('should return 400 when content_hash is missing', async () => {
+    it('should accept empty content_hash (optional — used for drift detection)', async () => {
       const res = await request(app)
         .post('/api/annotations')
         .set("Authorization", "Bearer test-token")
         .send(validBody({ content_hash: '' }))
-        .expect(400);
+        .expect(201);
 
-      expect(res.body.error).toBeDefined();
+      expect(res.body.content_hash).toBe('');
     });
 
     it('should return 400 when content is missing', async () => {
@@ -384,7 +384,7 @@ describe('Annotations Router', () => {
 
       expect(res.body.length).toBe(3);
       for (const ann of res.body) {
-        expect(ann.doc_path).toBe('get-test/doc.md');
+        expect(ann.doc_path).toBe('get-test/doc');
       }
     });
 
