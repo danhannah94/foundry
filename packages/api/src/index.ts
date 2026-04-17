@@ -23,6 +23,7 @@ import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { createMcpServer } from './mcp/server.js';
 import { invalidateNavCache } from './utils/nav-generator.js';
+import { createOauthDiscoveryRouter } from './routes/oauth-discovery.js';
 
 // Environment configuration
 const __filename = fileURLToPath(import.meta.url);
@@ -265,6 +266,9 @@ async function startServer(): Promise<void> {
     // Server-side static gating removed — browser navigation doesn't send Bearer headers.
     // TODO: Add cookie-based auth if server-side HTML gating is needed later.
 
+    // Mount OAuth discovery endpoints at app root (/.well-known/*) — spec requires host root
+    app.use('/', createOauthDiscoveryRouter());
+
     // Static file serving — serve the Astro build output
     // Mount at /foundry to match Astro's base path, and at / for API/root access
     app.use('/foundry', express.static(STATIC_PATH));
@@ -281,6 +285,11 @@ async function startServer(): Promise<void> {
 
     // Global error handler (must be last)
     app.use(errorHandler);
+
+    // Fail-loud startup check: OAuth discovery endpoints require FOUNDRY_OAUTH_ISSUER
+    if (!process.env.FOUNDRY_OAUTH_ISSUER) {
+      throw new Error('FOUNDRY_OAUTH_ISSUER env var is required for OAuth discovery endpoints');
+    }
 
     // Start the server
     app.listen(PORT, () => {
