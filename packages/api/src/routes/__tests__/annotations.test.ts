@@ -208,6 +208,39 @@ describe('Annotations Router', () => {
       expect(res.body.status).toBe('submitted');
     });
 
+    it('should default status to submitted for human reply with parent_id', async () => {
+      const parent = await request(app)
+        .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
+        .send(validBody({ author_type: 'human' }))
+        .expect(201);
+
+      const reply = await request(app)
+        .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
+        .send(validBody({ author_type: 'human', parent_id: parent.body.id, content: 'human reply' }))
+        .expect(201);
+
+      expect(reply.body.parent_id).toBe(parent.body.id);
+      expect(reply.body.status).toBe('submitted');
+    });
+
+    it('should default status to submitted for ai reply with parent_id', async () => {
+      const parent = await request(app)
+        .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
+        .send(validBody({ author_type: 'human' }))
+        .expect(201);
+
+      const reply = await request(app)
+        .post('/api/annotations')
+        .set("Authorization", "Bearer test-token")
+        .send(validBody({ author_type: 'ai', parent_id: parent.body.id, content: 'ai reply' }))
+        .expect(201);
+
+      expect(reply.body.status).toBe('submitted');
+    });
+
     it('should use explicit status when provided, regardless of author_type', async () => {
       const res = await request(app)
         .post('/api/annotations')

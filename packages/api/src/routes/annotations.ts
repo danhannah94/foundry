@@ -165,11 +165,13 @@ export function createAnnotationsRouter(): Router {
 
       const normalizedDocPath = normalizeDocPath(doc_path);
 
-      // Determine status: explicit body value wins; otherwise default by author_type
+      // Determine status: explicit body value wins; otherwise replies (parent_id set)
+      // and AI-authored annotations auto-submit. Top-level human annotations start
+      // as drafts awaiting explicit submit.
       const effectiveStatus: AnnotationStatus =
         bodyStatus !== undefined
           ? bodyStatus
-          : author_type === 'ai'
+          : parent_id || author_type === 'ai'
           ? 'submitted'
           : 'draft';
 
