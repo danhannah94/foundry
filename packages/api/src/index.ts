@@ -16,6 +16,7 @@ import { createPagesRouter } from './routes/pages.js';
 import { createImportRouter } from './routes/import.js';
 import { createDocCrudRouter } from './routes/doc-crud.js';
 import { createSyncRouter } from './routes/sync.js';
+import { createOauthRegisterRouter } from './routes/oauth-register.js';
 import { requireAuth, logAuthStatus } from './middleware/auth.js';
 import { loadAccessMap, getAccessLevel } from './access.js';
 import { generateAccessMap } from './access-map-generator.js';
@@ -257,6 +258,9 @@ async function startServer(): Promise<void> {
 
     // Mount sync router (auth-protected internally via requireAuth in route)
     app.use('/api', createSyncRouter());
+
+    // Mount OAuth DCR router at app root (RFC 7591: /oauth/register is host-root)
+    app.use('/', createOauthRegisterRouter());
 
     // Access control for docs:
     // - Static HTML pages: client-side nav filtering hides private docs (no server gate)
