@@ -160,7 +160,7 @@ describe('POST /search', () => {
       results: [],
       query: 'no matches query',
       totalResults: 0,
-      warning: 'No results found. The Anvil index may be empty or the query did not match any content.',
+      warning: 'No results matched your query.',
     });
   });
 
