@@ -1,8 +1,8 @@
 /**
  * Foundry Production Proxy
- * 
+ *
  * Single entry point on PORT (4321) that:
- * - Routes /api/* and /mcp/* to the Express API server (3001)
+ * - Routes /api/*, /mcp/*, /oauth/*, and /.well-known/* to the Express API (3001)
  * - Routes everything else through the Astro SSR handler
  */
 import http from 'node:http';
@@ -36,8 +36,13 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Route API and MCP requests to the Express backend
-  if (url.startsWith('/api/') || url.startsWith('/mcp/')) {
+  // Route API, MCP, OAuth, and well-known discovery requests to the Express backend
+  if (
+    url.startsWith('/api/') ||
+    url.startsWith('/mcp/') ||
+    url.startsWith('/oauth/') ||
+    url.startsWith('/.well-known/')
+  ) {
     const proxyReq = http.request(
       {
         hostname: '127.0.0.1',
