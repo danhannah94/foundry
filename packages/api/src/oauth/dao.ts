@@ -68,6 +68,13 @@ function futureIso(seconds: number): string {
 // ─── usersDao ─────────────────────────────────────────────────────────────────
 
 export const usersDao = {
+  findById(id: string): User | undefined {
+    const db = getDb();
+    return db
+      .prepare('SELECT * FROM users WHERE id = ?')
+      .get(id) as User | undefined;
+  },
+
   findByGithubId(github_id: number): User | undefined {
     const db = getDb();
     return db

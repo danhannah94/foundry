@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Authorize — Foundry</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: #111318;
+      color: #e8e4df;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .card {
+      background: #1a1d24;
+      border: 1px solid #2a2d35;
+      border-radius: 12px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    /* Accent bar at top of card */
+    .card::before {
+      content: "";
+      display: block;
+      height: 3px;
+      background: linear-gradient(90deg, #f97316, #f59e0b);
+      border-radius: 3px 3px 0 0;
+      margin: -2rem -2rem 1.75rem;
+    }
+
+    .wordmark {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #9e9a95;
+      margin-bottom: 1.5rem;
+    }
+
+    h1 {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: #f5f0eb;
+      line-height: 1.4;
+      margin-bottom: 1.5rem;
+    }
+
+    h1 strong {
+      color: #f97316;
+    }
+
+    .scopes {
+      list-style: none;
+      background: #111318;
+      border: 1px solid #2a2d35;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1.75rem;
+    }
+
+    .scopes li {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.9rem;
+      color: #e8e4df;
+      padding: 0.35rem 0;
+    }
+
+    .scopes li + li {
+      border-top: 1px solid #2a2d35;
+    }
+
+    .scope-icon {
+      flex-shrink: 0;
+      width: 16px;
+      height: 16px;
+      color: #f97316;
+    }
+
+    .actions {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    button {
+      flex: 1;
+      padding: 0.625rem 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: background 150ms ease, opacity 150ms ease;
+    }
+
+    .btn-approve {
+      background: #f97316;
+      color: #fff;
+    }
+
+    .btn-approve:hover {
+      background: #fb923c;
+    }
+
+    .btn-deny {
+      background: #1e2028;
+      color: #e8e4df;
+      border: 1px solid #2a2d35;
+    }
+
+    .btn-deny:hover {
+      background: #2a2d35;
+    }
+
+    .note {
+      margin-top: 1.25rem;
+      font-size: 0.78rem;
+      color: #6b6862;
+      text-align: center;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <p class="wordmark">Foundry</p>
+    <h1>
+      <strong>{{CLIENT_NAME}}</strong> wants to access Foundry as
+      <strong>{{GITHUB_LOGIN}}</strong>
+    </h1>
+
+    <ul class="scopes">
+      {{SCOPE_ITEMS}}
+    </ul>
+
+    <form method="POST" action="/oauth/consent">
+      <input type="hidden" name="action" value="" id="action-input" />
+      <div class="actions">
+        <button
+          type="submit"
+          class="btn-approve"
+          onclick="document.getElementById('action-input').value='approve'"
+        >Approve</button>
+        <button
+          type="submit"
+          class="btn-deny"
+          onclick="document.getElementById('action-input').value='deny'"
+        >Deny</button>
+      </div>
+    </form>
+
+    <p class="note">
+      You'll see this screen each time {{CLIENT_NAME}} requests access.
+    </p>
+  </div>
+</body>
+</html>
