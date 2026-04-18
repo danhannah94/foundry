@@ -26,6 +26,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { createMcpServer } from './mcp/server.js';
 import { invalidateNavCache } from './utils/nav-generator.js';
 import { createOauthDiscoveryRouter } from './routes/oauth-discovery.js';
+import { createOauthRouter } from './routes/oauth.js';
 
 // Environment configuration
 const __filename = fileURLToPath(import.meta.url);
@@ -265,6 +266,9 @@ async function startServer(): Promise<void> {
 
     // Mount GitHub OAuth callback router (S2: /oauth/github/callback)
     app.use('/', createOauthGithubRouter());
+
+    // Mount OAuth authorize + consent router (S5: /oauth/authorize, /oauth/consent)
+    app.use('/', createOauthRouter());
 
     // Access control for docs:
     // - Static HTML pages: client-side nav filtering hides private docs (no server gate)
