@@ -32,6 +32,14 @@ services:
       # doesn't need semantic search — health, docs, annotations, and
       # reviews all work without it.
       - FOUNDRY_DISABLE_ANVIL=1
+      # Test-env-only OAuth config. These are bogus-but-valid placeholders so the
+      # API boots on E12 branches (packages/api/src/index.ts:297-300 throws without
+      # FOUNDRY_OAUTH_ISSUER). Replace with real secrets in prod via Fly secrets.
+      - FOUNDRY_OAUTH_ISSUER=http://localhost:4321
+      - FOUNDRY_OAUTH_SESSION_SECRET=test-env-session-secret-must-be-at-least-32-chars
+      - GITHUB_OAUTH_CLIENT_ID=test-gh-client-id
+      - GITHUB_OAUTH_CLIENT_SECRET=test-gh-client-secret
+      - FOUNDRY_DCR_TOKEN=test-dcr-token
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4321/api/health || exit 1"]
       interval: 2s
