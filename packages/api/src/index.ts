@@ -17,6 +17,7 @@ import { createImportRouter } from './routes/import.js';
 import { createDocCrudRouter } from './routes/doc-crud.js';
 import { createSyncRouter } from './routes/sync.js';
 import { createOauthRegisterRouter } from './routes/oauth-register.js';
+import { createOauthGithubRouter } from './routes/oauth-github.js';
 import { requireAuth, logAuthStatus } from './middleware/auth.js';
 import { loadAccessMap, getAccessLevel } from './access.js';
 import { generateAccessMap } from './access-map-generator.js';
@@ -261,6 +262,9 @@ async function startServer(): Promise<void> {
 
     // Mount OAuth DCR router at app root (RFC 7591: /oauth/register is host-root)
     app.use('/', createOauthRegisterRouter());
+
+    // Mount GitHub OAuth callback router (S2: /oauth/github/callback)
+    app.use('/', createOauthGithubRouter());
 
     // Access control for docs:
     // - Static HTML pages: client-side nav filtering hides private docs (no server gate)
