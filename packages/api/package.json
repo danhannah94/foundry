@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "tsc && cp src/oauth/consent.html dist/oauth/consent.html",
     "start": "node dist/index.js",
     "import": "node dist/cli.js import",
     "test": "vitest run"
