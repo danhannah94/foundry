@@ -5,6 +5,9 @@
  *                          request in a signed cookie, redirects to GitHub
  *                          (if no session) or renders consent page.
  *
+ * GET  /oauth/consent    — consent page re-entry after GitHub callback. Reads
+ *                          session + pending cookies and renders consent.html.
+ *
  * POST /oauth/consent    — form submit from consent page; mints auth code on
  *                          approve, returns access_denied on deny.
  *
@@ -268,6 +271,68 @@ export function createOauthRouter(): Router {
     }
 
     res.setHeader('Set-Cookie', pendingCookieHeader);
+    const html = renderConsent({
+      clientName: client.name,
+      githubLogin: user.github_login,
+      scopes: requestedScopes,
+    });
+    return res.status(200).send(html);
+  });
+
+  // ── GET /oauth/consent ──────────────────────────────────────────────────────
+  //
+  // GitHub callback lands here after minting the session cookie. The pending
+  // cookie was set by the initial /oauth/authorize call. Both cookies are
+  // required — this endpoint never redirects out to GitHub; if cookies are
+  // missing/expired the user must restart at /oauth/authorize.
+
+  router.get('/oauth/consent', (req: Request, res: Response) => {
+    const cookies = parseCookies(req.headers.cookie ?? '');
+    const rawSession = cookies[SESSION_COOKIE];
+    const rawPending = cookies[PENDING_COOKIE];
+
+    if (!rawSession || !rawPending) {
+      return res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'Missing session or pending OAuth cookie — restart authorization at /oauth/authorize',
+      });
+    }
+
+    const session = verifyCookie(rawSession);
+    const pending = verifyCookie(rawPending) as PendingOAuthRequest | null;
+
+    if (!session || !pending) {
+      return res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'Session or pending OAuth cookie is invalid or expired',
+      });
+    }
+
+    const userId = typeof session.user_id === 'string' ? session.user_id : null;
+    if (!userId) {
+      return res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'No user_id in session',
+      });
+    }
+
+    const user = usersDao.findById(userId);
+    if (!user) {
+      return res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'Session references an unknown user',
+      });
+    }
+
+    const client = clientsDao.findById(pending.client_id);
+    if (!client) {
+      return res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'Pending request references an unknown client',
+      });
+    }
+
+    const requestedScopes = pending.scope.split(' ').filter(Boolean);
     const html = renderConsent({
       clientName: client.name,
       githubLogin: user.github_login,
