@@ -29,7 +29,7 @@ import { tmpdir } from 'os';
 import { unlinkSync } from 'fs';
 import crypto from 'crypto';
 
-import { requireAuth, requireScope } from '../auth.js';
+import { requireAuth, requireScope, softAuth } from '../auth.js';
 import { getDb, closeDb } from '../../db.js';
 import { clientsDao, tokensDao, usersDao } from '../../oauth/dao.js';
 
@@ -529,6 +529,158 @@ describe('requireAuth — FOUNDRY_OAUTH_ISSUER fail-loud', () => {
       } finally {
         if (prev !== undefined) process.env.FOUNDRY_OAUTH_ISSUER = prev;
       }
+    })
+  );
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// S9 — softAuth: populates req.user on valid token, never 401s on failure
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Build a fresh app that uses softAuth and exposes req.user / req.client on
+ * the response so assertions can verify the middleware populated them.
+ */
+function makeSoftAuthApp(): express.Express {
+  const app = express();
+  app.use(express.json());
+  app.get('/soft', softAuth, (req, res) => {
+    res.json({
+      success: true,
+      authenticated: !!req.user,
+      user: req.user,
+      client: req.client,
+    });
+  });
+  app.use(
+    (
+      err: any,
+      _req: express.Request,
+      res: express.Response,
+      _next: express.NextFunction
+    ) => {
+      res.status(500).json({ error: err.message ?? 'internal error' });
+    }
+  );
+  return app;
+}
+
+describe('softAuth — S9 soft introspection middleware', () => {
+  it(
+    'no Authorization header → next() with req.user undefined (no 401)',
+    withLegacyToken(undefined, async () => {
+      const res = await request(makeSoftAuthApp()).get('/soft').expect(200);
+      expect(res.body.authenticated).toBe(false);
+      expect(res.body.user).toBeUndefined();
+      expect(res.body.client).toBeUndefined();
+    })
+  );
+
+  it(
+    'missing header even when legacy token is configured → 200 (no 401)',
+    withLegacyToken('some-legacy-token', async () => {
+      // Key difference from requireAuth: this scenario 401s under requireAuth
+      // but MUST NOT 401 under softAuth (browser anonymous search).
+      const res = await request(makeSoftAuthApp()).get('/soft').expect(200);
+      expect(res.body.authenticated).toBe(false);
+    })
+  );
+
+  it(
+    'malformed Authorization header → next() with req.user undefined (no 401)',
+    withLegacyToken(undefined, async () => {
+      const res = await request(makeSoftAuthApp())
+        .get('/soft')
+        .set('Authorization', 'Basic something')
+        .expect(200);
+      expect(res.body.authenticated).toBe(false);
+    })
+  );
+
+  it(
+    'unknown/invalid Bearer token → next() with req.user undefined (no 401)',
+    withLegacyToken(undefined, async () => {
+      const res = await request(makeSoftAuthApp())
+        .get('/soft')
+        .set('Authorization', 'Bearer this-is-not-a-real-token')
+        .expect(200);
+      expect(res.body.authenticated).toBe(false);
+    })
+  );
+
+  it(
+    'valid OAuth token → req.user + req.client populated, 200',
+    withLegacyToken(undefined, async () => {
+      const { access_token } = tokensDao.mint({
+        client_id: clientId,
+        user_id: userId,
+        scope: 'docs:read docs:read:private',
+      });
+
+      const res = await request(makeSoftAuthApp())
+        .get('/soft')
+        .set('Authorization', `Bearer ${access_token}`)
+        .expect(200);
+
+      expect(res.body.authenticated).toBe(true);
+      expect(res.body.user.id).toBe(userId);
+      expect(res.body.user.github_login).toBe('alice');
+      expect(res.body.user.scopes).toEqual(['docs:read', 'docs:read:private']);
+      expect(res.body.client.id).toBe(clientId);
+    })
+  );
+
+  it(
+    'valid legacy token → legacy user/client populated, 200',
+    withLegacyToken('legacy-break-glass', async () => {
+      const res = await request(makeSoftAuthApp())
+        .get('/soft')
+        .set('Authorization', 'Bearer legacy-break-glass')
+        .expect(200);
+
+      expect(res.body.authenticated).toBe(true);
+      expect(res.body.user.id).toBe('legacy');
+      expect(res.body.user.scopes).toEqual(
+        expect.arrayContaining(['docs:read', 'docs:write', 'docs:read:private'])
+      );
+    })
+  );
+
+  it(
+    'revoked Bearer token → next() with req.user undefined (no 401)',
+    withLegacyToken(undefined, async () => {
+      const { access_token } = tokensDao.mint({
+        client_id: clientId,
+        user_id: userId,
+        scope: 'docs:read',
+      });
+      tokensDao.revoke(access_token);
+
+      const res = await request(makeSoftAuthApp())
+        .get('/soft')
+        .set('Authorization', `Bearer ${access_token}`)
+        .expect(200);
+
+      expect(res.body.authenticated).toBe(false);
+    })
+  );
+
+  it(
+    'expired Bearer token → next() with req.user undefined (no 401)',
+    withLegacyToken(undefined, async () => {
+      const { access_token } = tokensDao.mint({
+        client_id: clientId,
+        user_id: userId,
+        scope: 'docs:read',
+        access_ttl_seconds: -1,
+      });
+
+      const res = await request(makeSoftAuthApp())
+        .get('/soft')
+        .set('Authorization', `Bearer ${access_token}`)
+        .expect(200);
+
+      expect(res.body.authenticated).toBe(false);
     })
   );
 });

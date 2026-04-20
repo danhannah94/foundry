@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import type { AnvilHolder } from '../anvil-holder.js';
 import { getAccessLevel } from '../access.js';
+import { softAuth } from '../middleware/auth.js';
 
 interface SearchRequest {
   query: string;
@@ -23,21 +24,28 @@ interface SearchResponse {
 }
 
 /**
- * Check if the request is authenticated
- */
-function isRequestAuthenticated(req: Request): boolean {
-  if (!process.env.FOUNDRY_WRITE_TOKEN) return true; // dev mode
-  const token = req.headers.authorization?.replace("Bearer ", "");
-  return token === process.env.FOUNDRY_WRITE_TOKEN;
-}
-
-/**
- * Creates the search router
+ * Creates the search router.
+ *
+ * NOTE: /api/search is the ONE auth-optional route in Foundry. Browsers
+ * hit it anonymously (no Bearer header) for the site-wide search UI —
+ * that's a product requirement. All other routes either require auth
+ * outright (requireAuth) or don't surface access-gated data.
+ *
+ * Because of this, we use `softAuth` instead of `requireAuth`: it
+ * populates req.user when a valid Bearer token is presented, but never
+ * 401s on missing/invalid tokens. Private results are filtered in/out
+ * based on `req.user?.scopes?.includes('docs:read:private')`.
+ *
+ * Matrix:
+ *   no auth           → public results only, 200
+ *   auth, no scope    → public results only, 200
+ *   auth, with scope  → all results, 200
+ *   invalid token     → public results only, 200 (treated as anonymous)
  */
 export function createSearchRouter(holder: AnvilHolder): Router {
   const router = Router();
 
-  router.post('/search', async (req: Request<{}, SearchResponse, SearchRequest>, res: Response<SearchResponse>) => {
+  router.post('/search', softAuth, async (req: Request<{}, SearchResponse, SearchRequest>, res: Response<SearchResponse>) => {
     const anvil = holder.get();
 
     if (!anvil) {
@@ -91,10 +99,15 @@ export function createSearchRouter(holder: AnvilHolder): Router {
         charCount: result.metadata.char_count,
       }));
 
-      // Filter results based on access level and authentication
-      const accessFiltered = isRequestAuthenticated(req)
+      // Scope-aware filter: include private docs only if the caller's token
+      // carries `docs:read:private`. Missing/invalid tokens → req.user is
+      // undefined → public-only. Legacy FOUNDRY_WRITE_TOKEN inherits all
+      // three docs scopes (set in middleware/auth.ts LEGACY_SCOPES) and
+      // passes this check.
+      const canReadPrivate = req.user?.scopes?.includes('docs:read:private') ?? false;
+      const accessFiltered = canReadPrivate
         ? results
-        : results.filter(r => getAccessLevel(r.path) !== "private");
+        : results.filter(r => getAccessLevel(r.path) !== 'private');
 
       // Filter out low-relevance results
       const MIN_RELEVANCE_SCORE = 0.5;
