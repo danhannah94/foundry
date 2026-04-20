@@ -74,8 +74,18 @@ describe('signCookie / verifyCookie', () => {
   it('returns null when HMAC is tampered', () => {
     const payload = { state: 'abc123', exp: Math.floor(Date.now() / 1000) + 300 };
     const raw = signCookie(payload);
-    // Tamper: flip last char of HMAC part
-    const tampered = raw.slice(0, -1) + (raw.endsWith('a') ? 'b' : 'a');
+    const dotIndex = raw.lastIndexOf('.');
+    // Flip the first char of the HMAC part. That char always carries 6 bits of
+    // real data, so any substitution changes the decoded bytes. (The last
+    // base64url char of a 32-byte HMAC only carries 4 bits — the low 2 bits are
+    // padding and get discarded on decode, so flipping only those yields an
+    // identical HMAC ~1/16 of the time.)
+    const hmacStart = dotIndex + 1;
+    const firstHmacChar = raw[hmacStart];
+    const tampered =
+      raw.slice(0, hmacStart) +
+      (firstHmacChar === 'A' ? 'B' : 'A') +
+      raw.slice(hmacStart + 1);
     expect(verifyCookie(tampered)).toBeNull();
   });
 
@@ -189,7 +199,13 @@ describe('GET /oauth/github/callback', () => {
 
   it('returns 400 when state cookie has been tampered (HMAC check)', async () => {
     const rawCookie = makeStateCookie('good-state');
-    const tampered = rawCookie.slice(0, -1) + (rawCookie.endsWith('a') ? 'b' : 'a');
+    const dotIndex = rawCookie.lastIndexOf('.');
+    const hmacStart = dotIndex + 1;
+    const firstHmacChar = rawCookie[hmacStart];
+    const tampered =
+      rawCookie.slice(0, hmacStart) +
+      (firstHmacChar === 'A' ? 'B' : 'A') +
+      rawCookie.slice(hmacStart + 1);
     const res = await request(app)
       .get('/oauth/github/callback?code=abc&state=good-state')
       .set('Cookie', `foundry_oauth_state=${encodeURIComponent(tampered)}`)
