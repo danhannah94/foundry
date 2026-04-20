@@ -1,40 +1,39 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
-  listAnnotations,
-  getAnnotation,
-  createAnnotation,
-  editAnnotation,
-  deleteAnnotation,
-  resolveAnnotation,
-  reopenAnnotation,
-  submitReview,
-  listReviews,
-  getReview,
-  listPages,
-  searchDocs,
-  getPage,
-  getSection,
-  getStatus,
-  reindex,
-  importRepo,
-  createDoc,
-  updateSection,
-  insertSection,
-  deleteSection,
-  moveSection,
-  deleteDoc,
-  syncToGithub,
-} from './http-client.js';
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  ErrorCode,
+  McpError,
+} from '@modelcontextprotocol/sdk/types.js';
+import type { AuthContext } from '../services/context.js';
+import type { AnvilHolder } from '../anvil-holder.js';
+import { ServiceError, ServiceUnavailableError } from '../services/errors.js';
+import * as annotationsService from '../services/annotations.js';
+import * as reviewsService from '../services/reviews.js';
+import * as pagesService from '../services/pages.js';
+import * as searchService from '../services/search.js';
+import * as docsService from '../services/docs.js';
+import * as mgmtService from '../services/mgmt.js';
 
 /**
  * Creates and configures the MCP server for Foundry.
  *
- * All tools communicate via HTTP API (no direct DB or Anvil dependency).
- * Tools and call handlers are registered once (MCP SDK allows only one
- * handler per request schema — multiple setRequestHandler calls overwrite).
+ * Tool handlers call the S10a services directly — no HTTP loopback.
+ * The caller (transport mount in index.ts) passes an AuthContext built
+ * from `req.user` / `req.client`, so identity flows from the HTTP layer
+ * straight through into service calls with the same propagation rules
+ * REST routes already follow.
+ *
+ * Anvil-dependent tools (search_docs, get_status, reindex) receive the
+ * AnvilHolder so they can surface a 503-equivalent when the index is
+ * still initialising. The MCP protocol has no HTTP status — we surface
+ * ServiceUnavailableError as an InternalError with a descriptive message
+ * the client-side can display to the user.
  */
-export function createMcpServer(): Server {
+export function createMcpServer(
+  ctx: AuthContext,
+  anvilHolder: AnvilHolder,
+): Server {
   const server = new Server({
     name: 'foundry',
     version: '0.3.0',
@@ -185,13 +184,12 @@ export function createMcpServer(): Server {
       // Search tools
       {
         name: 'search_docs',
-        description: 'Semantic search across Foundry documentation. Results are filtered to a minimum relevance score of 0.5.',
+        description: 'Semantic search across Foundry documentation. Results are filtered to a minimum relevance score of 0.5. Private results are returned only when the authenticated caller carries the docs:read:private scope.',
         inputSchema: {
           type: 'object',
           properties: {
             query: { type: 'string', description: 'The search query to find relevant documentation' },
             top_k: { type: 'number', description: 'Number of results to return (default: 10)', default: 10 },
-            auth_token: { type: 'string', description: 'Optional auth token to include private doc results' },
           },
           required: ['query'],
         },
@@ -348,175 +346,239 @@ export function createMcpServer(): Server {
   // ── Tool Call Dispatch ──────────────────────────────────────────
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
-    if (!args) throw new Error('Tool arguments are required');
+    if (!args) {
+      throw new McpError(ErrorCode.InvalidParams, 'Tool arguments are required');
+    }
 
     const json = (data: unknown) => ({
       content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }],
     });
 
-    switch (name) {
-      // ── Annotations ─────────────────────────────────────────
-      case 'list_annotations': {
-        const result = await listAnnotations(
-          args.doc_path as string,
-          args.section as string | undefined,
-          args.status as string | undefined,
-          args.review_id as string | undefined,
+    /**
+     * Map ServiceError → McpError so protocol-level errors carry the
+     * right code and message. The REST surface maps ServiceError.status
+     * to HTTP; for MCP we use InvalidParams for 4xx and InternalError
+     * for 5xx — the semantic parity is "caller fault" vs "server fault"
+     * which matches how clients typically react.
+     */
+    const requireAnvil = () => {
+      const anvil = anvilHolder.get();
+      if (!anvil) {
+        throw new McpError(
+          ErrorCode.InternalError,
+          anvilHolder.isInitializing()
+            ? 'Search index is loading, please retry'
+            : 'Service unavailable',
         );
-        return json(result);
       }
-      case 'get_annotation': {
-        const result = await getAnnotation(args.annotation_id as string);
-        return json(result);
+      return anvil;
+    };
+
+    try {
+      switch (name) {
+        // ── Annotations ─────────────────────────────────────────
+        case 'list_annotations': {
+          const result = await annotationsService.list(ctx, {
+            doc_path: args.doc_path as string,
+            section: args.section as string | undefined,
+            status: args.status as any,
+            review_id: args.review_id as string | undefined,
+          });
+          return json(result);
+        }
+        case 'get_annotation': {
+          const result = await annotationsService.get(ctx, {
+            id: args.annotation_id as string,
+          });
+          return json(result);
+        }
+        case 'create_annotation': {
+          // Identity is derived server-side from ctx. Any author_type on
+          // args is ignored — same behavior as the HTTP layer.
+          const { annotation } = await annotationsService.create(ctx, {
+            doc_path: args.doc_path as string,
+            heading_path: args.section as string,
+            content: args.content as string,
+            parent_id: args.parent_id as string | undefined,
+            quoted_text: args.quoted_text as string | undefined,
+            status: args.status as any,
+          });
+          return json({ status: 'created', annotation });
+        }
+        case 'edit_annotation': {
+          const updated = await annotationsService.edit(ctx, {
+            id: args.annotation_id as string,
+            content: args.content as string,
+          });
+          return json({ status: 'updated', annotation: updated });
+        }
+        case 'delete_annotation': {
+          await annotationsService.del(ctx, { id: args.annotation_id as string });
+          return json({ status: 'deleted' });
+        }
+        case 'resolve_annotation': {
+          const updated = await annotationsService.resolve(ctx, {
+            id: args.annotation_id as string,
+          });
+          return json({ status: 'resolved', annotation_id: updated.id });
+        }
+        case 'reopen_annotation': {
+          const updated = await annotationsService.reopen(ctx, {
+            id: args.annotation_id as string,
+          });
+          return json({ status: 'reopened', annotation: updated });
+        }
+        case 'submit_review': {
+          const result = await reviewsService.submit(ctx, {
+            doc_path: args.doc_path as string,
+            annotation_ids: args.annotation_ids as string[] | undefined,
+          });
+          return json(result);
+        }
+        // ── Reviews ─────────────────────────────────────────────
+        case 'list_reviews': {
+          const result = await reviewsService.list(ctx, {
+            doc_path: args.doc_path as string,
+            status: args.status as string | undefined,
+          });
+          return json(result);
+        }
+        case 'get_review': {
+          const result = await reviewsService.get(ctx, {
+            id: args.review_id as string,
+          });
+          return json(result);
+        }
+        // ── Nav ─────────────────────────────────────────────────
+        case 'list_pages': {
+          const result = await pagesService.listPages(ctx, {
+            includePrivate: (args.include_private as boolean) || false,
+          });
+          return json(result);
+        }
+        // ── Search ──────────────────────────────────────────────
+        case 'search_docs': {
+          const anvil = requireAnvil();
+          const result = await searchService.search(ctx, anvil, {
+            query: args.query as string,
+            topK: (args.top_k as number) || 10,
+          });
+          return json(result);
+        }
+        // ── Pages ──────────────────────────────────────────────
+        case 'get_page': {
+          const anvil = requireAnvil();
+          const canReadPrivate = ctx.user?.scopes?.includes('docs:read:private') ?? false;
+          const result = await pagesService.getPage(ctx, anvil, {
+            path: args.path as string,
+            canReadPrivate,
+          });
+          return json(result);
+        }
+        case 'get_section': {
+          const result = await pagesService.getSection(ctx, {
+            path: args.path as string,
+            headingPath: args.heading_path as string,
+          });
+          return json(result);
+        }
+        // ── Status ─────────────────────────────────────────────
+        case 'get_status': {
+          const result = await mgmtService.getStatus(ctx, anvilHolder);
+          return json(result);
+        }
+        case 'reindex': {
+          const anvil = requireAnvil();
+          const result = await mgmtService.reindex(ctx, anvil);
+          return json(result);
+        }
+        // ── Import ─────────────────────────────────────────────
+        case 'import_repo': {
+          const result = await mgmtService.importRepo(ctx, {
+            repo: args.repo as string,
+            branch: args.branch as string | undefined,
+            prefix: args.prefix as string | undefined,
+          });
+          return json(result);
+        }
+        // ── Doc CRUD ────────────────────────────────────────────
+        case 'create_doc': {
+          const result = await docsService.createDoc(ctx, {
+            path: args.path as string,
+            template: args.template as string,
+            title: args.title as string | undefined,
+            content: args.content as string | undefined,
+          });
+          return json({ status: 'created', doc: result });
+        }
+        case 'update_section': {
+          const result = await docsService.updateSection(ctx, {
+            path: args.path as string,
+            headingPath: args.heading_path as string,
+            content: args.content as string,
+          });
+          return json({ status: 'updated', section: result });
+        }
+        case 'insert_section': {
+          const result = await docsService.insertSection(ctx, {
+            path: args.path as string,
+            after_heading: args.after_heading_path as string,
+            heading: args.heading as string,
+            level: args.level as number,
+            content: args.content as string,
+          });
+          return json({ status: 'inserted', section: result });
+        }
+        case 'move_section': {
+          const result = await docsService.moveSection(ctx, {
+            path: args.path as string,
+            heading: args.heading as string,
+            after_heading: args.after_heading as string,
+          });
+          return json({ status: 'moved', result });
+        }
+        case 'delete_section': {
+          const result = await docsService.deleteSection(ctx, {
+            path: args.path as string,
+            headingPath: args.heading_path as string,
+          });
+          return json({ status: 'deleted', result });
+        }
+        case 'delete_doc': {
+          const result = await docsService.deleteDoc(ctx, {
+            path: args.path as string,
+          });
+          return json({ status: 'deleted', result });
+        }
+        // ── Sync ─────────────────────────────────────────────
+        case 'sync_to_github': {
+          const result = await docsService.syncToGithub(ctx, {
+            remote: args.remote as string | undefined,
+            branch: args.branch as string | undefined,
+          });
+          return json(result);
+        }
+        default:
+          throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
       }
-      case 'create_annotation': {
-        const result = await createAnnotation({
-          doc_path: args.doc_path as string,
-          section: args.section as string,
-          content: args.content as string,
-          parent_id: args.parent_id as string | undefined,
-          author_type: args.author_type as string | undefined,
-          quoted_text: args.quoted_text as string | undefined,
-          status: args.status as string | undefined,
-        });
-        return json({ status: 'created', annotation: result });
+    } catch (err) {
+      if (err instanceof McpError) throw err;
+      if (err instanceof ServiceUnavailableError) {
+        throw new McpError(ErrorCode.InternalError, err.message);
       }
-      case 'edit_annotation': {
-        const result = await editAnnotation(args.annotation_id as string, args.content as string);
-        return json({ status: 'updated', annotation: result });
+      if (err instanceof ServiceError) {
+        // 4xx → InvalidParams (client fault), 5xx → InternalError.
+        const code = err.status < 500 ? ErrorCode.InvalidParams : ErrorCode.InternalError;
+        // Preserve extra payload (e.g. available_headings on findSection
+        // 404s) by serialising it into the message — MCP protocol doesn't
+        // have a first-class extras slot on errors.
+        const detail = err.extra
+          ? `${err.message} ${JSON.stringify(err.extra)}`
+          : err.message;
+        throw new McpError(code, detail);
       }
-      case 'delete_annotation': {
-        const result = await deleteAnnotation(args.annotation_id as string);
-        return json(result);
-      }
-      case 'resolve_annotation': {
-        const result = await resolveAnnotation(args.annotation_id as string);
-        return json(result);
-      }
-      case 'reopen_annotation': {
-        const result = await reopenAnnotation(args.annotation_id as string);
-        return json({ status: 'reopened', annotation: result });
-      }
-      case 'submit_review': {
-        const result = await submitReview(
-          args.doc_path as string,
-          args.annotation_ids as string[] | undefined,
-        );
-        return json(result);
-      }
-      // ── Reviews ─────────────────────────────────────────────
-      case 'list_reviews': {
-        const result = await listReviews(
-          args.doc_path as string,
-          args.status as string | undefined,
-        );
-        return json(result);
-      }
-      case 'get_review': {
-        const result = await getReview(args.review_id as string);
-        return json(result);
-      }
-      // ── Nav ─────────────────────────────────────────────────
-      case 'list_pages': {
-        const result = await listPages((args.include_private as boolean) || false);
-        return json(result);
-      }
-      // ── Search ──────────────────────────────────────────────
-      case 'search_docs': {
-        const result = await searchDocs(
-          args.query as string,
-          (args.top_k as number) || 10,
-          args.auth_token as string | undefined,
-        );
-        return json(result);
-      }
-      // ── Pages ──────────────────────────────────────────────
-      case 'get_page': {
-        const result = await getPage(args.path as string);
-        return json(result);
-      }
-      case 'get_section': {
-        const result = await getSection(
-          args.path as string,
-          args.heading_path as string,
-        );
-        return json(result);
-      }
-      // ── Status ─────────────────────────────────────────────
-      case 'get_status': {
-        const result = await getStatus();
-        return json(result);
-      }
-      case 'reindex': {
-        const result = await reindex();
-        return json(result);
-      }
-      // ── Import ─────────────────────────────────────────────
-      case 'import_repo': {
-        const result = await importRepo(
-          args.repo as string,
-          args.branch as string | undefined,
-          args.prefix as string | undefined,
-        );
-        return json(result);
-      }
-      // ── Doc CRUD ────────────────────────────────────────────
-      case 'create_doc': {
-        const result = await createDoc(
-          args.path as string,
-          args.template as string,
-          args.title as string | undefined,
-          args.content as string | undefined,
-        );
-        return json({ status: 'created', doc: result });
-      }
-      case 'update_section': {
-        const result = await updateSection(
-          args.path as string,
-          args.heading_path as string,
-          args.content as string,
-        );
-        return json({ status: 'updated', section: result });
-      }
-      case 'insert_section': {
-        const result = await insertSection(
-          args.path as string,
-          args.after_heading_path as string,
-          args.heading as string,
-          args.level as number,
-          args.content as string,
-        );
-        return json({ status: 'inserted', section: result });
-      }
-      case 'move_section': {
-        const result = await moveSection(
-          args.path as string,
-          args.heading as string,
-          args.after_heading as string,
-        );
-        return json({ status: 'moved', result });
-      }
-      case 'delete_section': {
-        const result = await deleteSection(
-          args.path as string,
-          args.heading_path as string,
-        );
-        return json({ status: 'deleted', result });
-      }
-      case 'delete_doc': {
-        const result = await deleteDoc(args.path as string);
-        return json({ status: 'deleted', result });
-      }
-      // ── Sync ─────────────────────────────────────────────
-      case 'sync_to_github': {
-        const result = await syncToGithub(
-          args.remote as string | undefined,
-          args.branch as string | undefined,
-        );
-        return json(result);
-      }
-      default:
-        throw new Error(`Unknown tool: ${name}`);
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new McpError(ErrorCode.InternalError, msg);
     }
   });
 
