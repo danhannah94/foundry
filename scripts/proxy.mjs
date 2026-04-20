@@ -36,9 +36,14 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Route API, MCP, OAuth, and well-known discovery requests to the Express backend
+  // Route API, MCP, OAuth, and well-known discovery requests to the Express backend.
+  // MCP Streamable HTTP mounts at /mcp (bare, post-S10b), so we match it
+  // exactly as well as legacy /mcp/* subpaths — belt and suspenders for
+  // clients that might still tack a trailing slash onto /mcp.
   if (
     url.startsWith('/api/') ||
+    url === '/mcp' ||
+    url.startsWith('/mcp?') ||
     url.startsWith('/mcp/') ||
     url.startsWith('/oauth/') ||
     url.startsWith('/.well-known/')

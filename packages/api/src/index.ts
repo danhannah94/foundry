@@ -21,8 +21,7 @@ import { createOauthGithubRouter } from './routes/oauth-github.js';
 import { requireAuth, logAuthStatus } from './middleware/auth.js';
 import { loadAccessMap, getAccessLevel } from './access.js';
 import { generateAccessMap } from './access-map-generator.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createMcpServer } from './mcp/server.js';
 import { invalidateNavCache } from './utils/nav-generator.js';
 import { createOauthDiscoveryRouter } from './routes/oauth-discovery.js';
@@ -161,69 +160,60 @@ async function startServer(): Promise<void> {
       loadAccessMap(docsPath); // Try loading existing .access.json as fallback
     }
 
-    // Store active SSE transports and their MCP server instances
-    const transports = new Map<string, SSEServerTransport>();
-    const mcpServers = new Map<string, Server>();
-
-    // MCP SSE endpoints (always available — MCP uses HTTP API, not Anvil)
-    // Each connection gets its own Server instance (MCP SDK requirement)
+    // MCP Streamable HTTP endpoint.
     //
-    // Auth note (issue #105): Both /mcp/sse and /mcp/message are normally gated
-    // by requireAuth (Bearer token against FOUNDRY_WRITE_TOKEN). This works for
-    // MCP clients that control their own headers (stdio bridge, fetch-based
-    // SSEClientTransport). However, Claude.ai's hosted connector only supports
-    // OAuth per the MCP Authorization spec (RFC 7591), so Bearer tokens are a
-    // dead end there. The full OAuth fix is tracked in E12 (#99/#100).
+    // Identity flow: requireAuth validates the Bearer token and populates
+    // req.user / req.client. The handler builds an AuthContext from those
+    // and hands it to createMcpServer(), where tool handlers thread it
+    // directly into service calls. No HTTP loopback — MCP tools run against
+    // the same services REST routes use.
     //
-    // Escape hatch: FOUNDRY_MCP_REQUIRE_AUTH=false disables the middleware on
-    // /mcp/sse and /mcp/message to unblock Claude.ai connector testing. This
-    // should ONLY be set in environments where the MCP endpoints are otherwise
-    // safe to expose publicly. Default is to require auth.
-    const mcpRequireAuth = process.env.FOUNDRY_MCP_REQUIRE_AUTH !== 'false';
-    const mcpAuthMiddleware: express.RequestHandler = mcpRequireAuth
-      ? requireAuth
-      : (_req, _res, next) => next();
-    if (!mcpRequireAuth) {
-      console.warn('⚠️  FOUNDRY_MCP_REQUIRE_AUTH=false — /mcp/sse and /mcp/message are PUBLIC. Temporary unblocker for Claude.ai connector; real fix in E12 (#99).');
-    }
+    // Transport lifecycle: stateless mode (sessionIdGenerator: undefined).
+    // Each POST builds a Server + Transport pair for the request, runs
+    // handleRequest, and tears down on `res.close`. This matches the SDK's
+    // `simpleStatelessStreamableHttp` example and keeps the mount simple
+    // for a single-node deployment. Session resumption isn't needed today
+    // because Claude Code / Claude.ai Connectors don't assume it.
+    app.post('/mcp', requireAuth, async (req, res) => {
+      const ctx = { user: req.user, client: req.client };
+      const mcpServer = createMcpServer(ctx, anvilHolder);
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined,
+      });
 
-    app.get('/mcp/sse', mcpAuthMiddleware, async (req, res) => {
+      res.on('close', () => {
+        transport.close();
+        mcpServer.close();
+      });
+
       try {
-        const mcpServer = createMcpServer();
-        const transport = new SSEServerTransport('/mcp/message', res);
-        transports.set(transport.sessionId, transport);
-        mcpServers.set(transport.sessionId, mcpServer);
-
-        // Clean up transport and server when connection closes
-        res.on('close', () => {
-          transports.delete(transport.sessionId);
-          mcpServers.delete(transport.sessionId);
-          mcpServer.close();
-        });
-
         await mcpServer.connect(transport);
+        await transport.handleRequest(req, res, req.body);
       } catch (error) {
-        console.error('MCP SSE connection error:', error);
-        res.status(500).json({ error: 'Failed to establish MCP connection' });
-      }
-    });
-
-    app.post('/mcp/message', mcpAuthMiddleware, async (req, res) => {
-      try {
-        const sessionId = req.query.sessionId as string;
-        const transport = transports.get(sessionId);
-
-        if (!transport) {
-          return res.status(404).json({ error: 'Session not found' });
+        console.error('MCP request error:', error);
+        if (!res.headersSent) {
+          res.status(500).json({
+            jsonrpc: '2.0',
+            error: { code: -32603, message: 'Internal server error' },
+            id: null,
+          });
         }
-
-        await transport.handleMessage(req.body);
-        res.status(200).end();
-      } catch (error) {
-        console.error('MCP message handling error:', error);
-        res.status(500).json({ error: 'Failed to handle MCP message' });
       }
     });
+
+    // GET/DELETE on /mcp: stateless transport doesn't need them. Respond
+    // 405 so a misconfigured client gets a clear signal instead of a
+    // cryptic hang. (Server-initiated notifications and session
+    // termination require stateful mode.)
+    const methodNotAllowed: express.RequestHandler = (_req, res) => {
+      res.status(405).json({
+        jsonrpc: '2.0',
+        error: { code: -32000, message: 'Method not allowed.' },
+        id: null,
+      });
+    };
+    app.get('/mcp', requireAuth, methodNotAllowed);
+    app.delete('/mcp', requireAuth, methodNotAllowed);
 
     // Mount webhook router (legacy — returns 410 Gone for POST)
     app.use('/api', createWebhookRouter());
@@ -292,8 +282,8 @@ async function startServer(): Promise<void> {
 
     // Catch-all fallback for client-side routing — serve index.html for non-API, non-MCP routes
     app.get('*', (req, res) => {
-      // Don't catch API or MCP routes
-      if (req.path.startsWith('/api/') || req.path.startsWith('/mcp/')) {
+      // Don't catch API or MCP routes (covers both /mcp exact and /mcp/... subpaths).
+      if (req.path.startsWith('/api/') || req.path === '/mcp' || req.path.startsWith('/mcp/')) {
         return res.status(404).json({ error: 'Not found' });
       }
       res.sendFile(join(STATIC_PATH, 'index.html'));
@@ -312,8 +302,7 @@ async function startServer(): Promise<void> {
       console.log(`🚀 Foundry API server running on port ${PORT}`);
       console.log(`📊 Health endpoint: http://localhost:${PORT}/api/health`);
       console.log(`📂 Static files: ${STATIC_PATH}`);
-      console.log(`🔌 MCP SSE endpoint: http://localhost:${PORT}/mcp/sse`);
-      console.log(`📨 MCP message endpoint: http://localhost:${PORT}/mcp/message`);
+      console.log(`🔌 MCP Streamable HTTP endpoint: http://localhost:${PORT}/mcp`);
       console.log(`🌐 CORS enabled for GitHub Pages and localhost`);
       logAuthStatus();
 
