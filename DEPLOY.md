@@ -175,11 +175,16 @@ To add a new source with access control:
    ```bash
    # OAuth AS — required for MCP
    fly secrets set FOUNDRY_OAUTH_ISSUER=https://foundry-claymore.fly.dev
+   fly secrets set FOUNDRY_OAUTH_SESSION_SECRET=$(openssl rand -hex 32)
    fly secrets set FOUNDRY_DCR_TOKEN=$(openssl rand -hex 32)
 
    # GitHub identity provider for OAuth consent
-   fly secrets set FOUNDRY_GITHUB_CLIENT_ID=<your-github-oauth-app-client-id>
-   fly secrets set FOUNDRY_GITHUB_CLIENT_SECRET=<your-github-oauth-app-secret>
+   fly secrets set GITHUB_OAUTH_CLIENT_ID=<your-github-oauth-app-client-id>
+   fly secrets set GITHUB_OAUTH_CLIENT_SECRET=<your-github-oauth-app-secret>
+
+   # Comma-separated GitHub logins granted the docs:read:private scope.
+   # Any user outside this list gets docs:read + docs:write only.
+   fly secrets set FOUNDRY_PRIVATE_DOC_USERS=danhannah94,other-admin
 
    # Legacy break-glass token for REST writes (annotations/reviews)
    fly secrets set FOUNDRY_WRITE_TOKEN=$(openssl rand -hex 32)
@@ -197,6 +202,25 @@ To add a new source with access control:
    ```bash
    curl https://foundry-claymore.fly.dev/api/health
    ```
+
+### Pre-deploy OAuth conformance check
+
+Before any deploy that touches the OAuth surface, run the conformance
+probe against staging (or prod if there is no staging environment):
+
+```bash
+FOUNDRY_BASE_URL=https://foundry-claymore.fly.dev \
+FOUNDRY_DCR_TOKEN=<value> \
+node scripts/oauth-conformance.mjs
+```
+
+All checks must pass (exit code 0) before merging the deploy. The
+probe validates AS metadata shape (RFC 8414), DCR bearer gate (RFC 7591),
+PKCE enforcement (RFC 7636), token endpoint error contract (RFC 6749),
+and `WWW-Authenticate` shape (RFC 6750) against the live instance.
+
+For threat-model coverage and accepted risks, see
+[docs/security-review.md](docs/security-review.md).
 
 ### Continuous Deployment
 
@@ -244,10 +268,12 @@ docker run -p 3001:3001 -v foundry-data:/data foundry
 | `PORT` | `3001` | Server port |
 | `FOUNDRY_DB_PATH` | `/data/foundry.db` | SQLite database path |
 | `FOUNDRY_STATIC_PATH` | `../../site/dist` | Path to Astro build output |
-| `FOUNDRY_OAUTH_ISSUER` | (none) | Required in prod. Public origin advertised as the OAuth issuer (e.g. `https://foundry-claymore.fly.dev`) |
-| `FOUNDRY_DCR_TOKEN` | (none) | Required in prod. Bearer token that gates `POST /oauth/register` so only trusted clients can dynamically register |
-| `FOUNDRY_GITHUB_CLIENT_ID` | (none) | GitHub OAuth app client id — used as the identity provider during consent |
-| `FOUNDRY_GITHUB_CLIENT_SECRET` | (none) | GitHub OAuth app client secret |
+| `FOUNDRY_OAUTH_ISSUER` | (none) | Required in prod. Public origin advertised as the OAuth issuer (e.g. `https://foundry-claymore.fly.dev`). Sourced only from this env — never from the `Host` header |
+| `FOUNDRY_OAUTH_SESSION_SECRET` | (none) | Required in prod. HMAC-SHA256 key used to sign the `foundry_oauth_session` and `foundry_oauth_pending` cookies. Rotating invalidates in-flight auth flows; users just retry |
+| `FOUNDRY_DCR_TOKEN` | (none) | Required in prod. Bearer token that gates `POST /oauth/register` so only trusted clients can dynamically register. See [docs/dcr-rotation.md](docs/dcr-rotation.md) for rotation |
+| `GITHUB_OAUTH_CLIENT_ID` | (none) | GitHub OAuth app client id — used as the identity provider during consent |
+| `GITHUB_OAUTH_CLIENT_SECRET` | (none) | GitHub OAuth app client secret |
+| `FOUNDRY_PRIVATE_DOC_USERS` | (empty) | Comma-separated GitHub logins that receive the `docs:read:private` scope at token mint. Users not in this list get `docs:read` + `docs:write` only |
 | `FOUNDRY_WRITE_TOKEN` | (none) | Legacy break-glass bearer for REST annotation/review writes. MCP no longer consults this. If unset, REST writes fall open in dev mode |
 | `GITHUB_TOKEN` | (none) | GitHub token for private source repos |
 | `NODE_ENV` | `production` | Node environment |
