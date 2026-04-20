@@ -1,7 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { getDocsPath } from '../config.js';
-import { generateNavPages } from '../utils/nav-generator.js';
 import { requireAuth, requireScope } from '../middleware/auth.js';
+import * as pagesService from '../services/pages.js';
 
 /**
  * Conditional auth gate for /api/pages.
@@ -21,7 +20,6 @@ function authIfIncludePrivate(req: Request, res: Response, next: NextFunction): 
   }
   requireAuth(req, res, (err?: unknown) => {
     if (err) return next(err);
-    // If requireAuth already sent a 401 response, bail — no further chain.
     if (res.headersSent) return;
     requireScope('docs:read:private')(req, res, next);
   });
@@ -30,20 +28,14 @@ function authIfIncludePrivate(req: Request, res: Response, next: NextFunction): 
 export function createPagesRouter(): Router {
   const router = Router();
 
-  router.get('/pages', authIfIncludePrivate, (req: Request, res: Response) => {
+  router.get('/pages', authIfIncludePrivate, async (req: Request, res: Response) => {
     try {
-      const docsPath = getDocsPath();
-      const allPages = generateNavPages(docsPath);
-
+      const ctx = { user: req.user, client: req.client };
       const includePrivate = req.query.include_private === 'true';
-
-      const pages = includePrivate
-        ? allPages
-        : allPages.filter(p => p.access === 'public');
-
+      const pages = await pagesService.listPages(ctx, { includePrivate });
       res.json(pages);
-    } catch (error) {
-      console.error('Error listing pages:', error);
+    } catch (err) {
+      console.error('Error listing pages:', err);
       res.status(500).json({ error: 'Failed to list pages' });
     }
   });

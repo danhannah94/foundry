@@ -7,549 +7,129 @@
  * POST   /api/docs/:path(*)/sections/move        — Move section to new position
  * POST   /api/docs/:path(*)/sections             — Insert new section
  * DELETE /api/docs/:path(*)/sections/:heading(*) — Delete section
+ * DELETE /api/docs/:path(*)                      — Hard-delete document
  *
- * All endpoints require auth (requireAuth middleware).
- * All write endpoints invalidate Astro page cache + API nav cache + Anvil index.
+ * Writes require auth (requireAuth middleware); read is intentionally
+ * open. Route bodies are thin — all business logic lives in
+ * `services/docs.ts` so MCP tool handlers (S10b) can share it without
+ * the HTTP loopback.
  */
 
 import { Router, Request, Response } from 'express';
-import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
-import { join, dirname } from 'path';
 import { requireAuth } from '../middleware/auth.js';
-import { getDocsPath } from '../config.js';
-import { getDb } from '../db.js';
-import { invalidateContent } from '../index.js';
-import { getAccessLevel } from '../access.js';
-import { normalizeDocPath } from '../utils/normalize-doc-path.js';
-import { contentHash } from '../utils/hash.js';
-import { parseSections, findSection, findDuplicateHeadings } from '../utils/section-parser.js';
+import * as docsService from '../services/docs.js';
+import * as pagesService from '../services/pages.js';
+import { ServiceError } from '../services/errors.js';
 
-// Valid templates for document creation
-const VALID_TEMPLATES = ['epic', 'subsystem', 'project', 'workflow', 'blank'] as const;
-type TemplateName = typeof VALID_TEMPLATES[number];
-
-// Map template names to file paths (relative to content dir)
-const TEMPLATE_FILES: Record<Exclude<TemplateName, 'blank'>, string> = {
-  epic: 'methodology/templates/epic-design-template.md',
-  subsystem: 'methodology/templates/subsystem-design-template.md',
-  project: 'methodology/templates/project-design-template.md',
-  workflow: 'methodology/templates/workflow-template.md',
-};
-
-/**
- * Derive a human-readable title from a doc path.
- * "methodology/new-doc" -> "New Doc"
- */
-function titleFromPath(docPath: string): string {
-  const slug = docPath.split('/').pop() || docPath;
-  return slug
-    .replace(/[-_]/g, ' ')
-    .replace(/\b\w/g, c => c.toUpperCase());
-}
-
-/**
- * Read a markdown file from disk, returning its lines.
- * Returns null if file doesn't exist.
- */
-function readDocLines(filePath: string): string[] | null {
-  if (!existsSync(filePath)) return null;
-  return readFileSync(filePath, 'utf-8').split('\n');
-}
-
-/**
- * Write lines back to disk and update docs_meta.
- */
-function writeDocAndUpdateMeta(filePath: string, lines: string[], docPath: string): void {
-  const content = lines.join('\n');
-  writeFileSync(filePath, content, 'utf-8');
-
-  const hash = contentHash(content);
-  const now = new Date().toISOString();
-  const db = getDb();
-
-  db.prepare(`
-    UPDATE docs_meta
-    SET content_hash = ?, modified_at = ?
-    WHERE path = ?
-  `).run(hash, now, docPath);
+function sendError(res: Response, err: unknown, fallback: string): void {
+  if (err instanceof ServiceError) {
+    const body: Record<string, unknown> = { error: err.message };
+    if (err.extra) Object.assign(body, err.extra);
+    res.status(err.status).json(body);
+    return;
+  }
+  const msg = err instanceof Error ? err.message : String(err);
+  console.error(`[doc-crud] ${fallback}:`, err);
+  res.status(500).json({ error: fallback, message: msg });
 }
 
 export function createDocCrudRouter(): Router {
   const router = Router();
 
-  // ──────────────────────────────────────────────
-  // GET /api/docs/:path/sections/:heading — Get section by heading path
-  //
-  // Uses section-parser (same as write tools) for consistent heading format.
-  // Returns the section's heading, full heading path, and content.
-  // ──────────────────────────────────────────────
+  // GET /api/docs/:path/sections/:heading — get section
   router.get('/docs/:path(*)/sections/:heading(*)', async (req: Request, res: Response) => {
     try {
-      const docPath = normalizeDocPath(req.params.path);
-      const headingPath = decodeURIComponent(req.params.heading);
-
-      const contentDir = getDocsPath();
-      const filePath = join(contentDir, `${docPath}.md`);
-      const lines = readDocLines(filePath);
-
-      if (!lines) {
-        return res.status(404).json({ error: `Document not found: "${docPath}"` });
-      }
-
-      const section = findSection(lines, headingPath);
-      if (!section) {
-        return res.status(404).json({
-          error: `Section not found: "${headingPath}"`,
-          available_headings: parseSections(lines).map(s => s.headingPath),
-        });
-      }
-
-      // Extract content: heading line through subtreeEnd (includes children)
-      const content = lines.slice(section.headingLine, section.subtreeEnd).join('\n');
-
-      res.json({
-        path: docPath,
-        heading: section.headingText,
-        headingPath: section.headingPath,
-        level: section.level,
-        content,
-        charCount: content.length,
+      const ctx = { user: req.user, client: req.client };
+      const result = await pagesService.getSection(ctx, {
+        path: req.params.path,
+        headingPath: decodeURIComponent(req.params.heading),
       });
-    } catch (error: any) {
-      if (error.message?.includes('Ambiguous')) {
-        return res.status(400).json({ error: error.message });
-      }
-      console.error('[doc-crud] Get section failed:', error);
-      res.status(500).json({ error: 'Failed to get section', message: error.message });
+      res.json(result);
+    } catch (err) {
+      sendError(res, err, 'Failed to get section');
     }
   });
 
-  // ──────────────────────────────────────────────
-  // POST /api/docs — Create new document
-  // ──────────────────────────────────────────────
+  // POST /api/docs — create document
   router.post('/docs', requireAuth, async (req: Request, res: Response) => {
     try {
-      const { path: rawPath, template, title: userTitle, content: userContent } = req.body;
-
-      // Validate required params
-      if (!rawPath || typeof rawPath !== 'string') {
-        return res.status(400).json({ error: 'path is required and must be a string' });
-      }
-      if (!template || typeof template !== 'string') {
-        return res.status(400).json({ error: 'template is required and must be a string' });
-      }
-      if (!VALID_TEMPLATES.includes(template as TemplateName)) {
-        return res.status(400).json({
-          error: `Invalid template "${template}". Must be one of: ${VALID_TEMPLATES.join(', ')}`,
-        });
-      }
-
-      const docPath = normalizeDocPath(rawPath);
-      const contentDir = getDocsPath();
-      const filePath = join(contentDir, `${docPath}.md`);
-
-      // 409 if file already exists
-      if (existsSync(filePath)) {
-        return res.status(409).json({ error: `Document already exists at "${docPath}"` });
-      }
-
-      // Determine title
-      const title = userTitle || titleFromPath(docPath);
-
-      // Build content
-      let content: string;
-      if (userContent && typeof userContent === 'string') {
-        content = userContent;
-      } else if (template === 'blank') {
-        content = `# ${title}\n`;
-      } else {
-        const templatePath = join(contentDir, TEMPLATE_FILES[template as Exclude<TemplateName, 'blank'>]);
-        if (!existsSync(templatePath)) {
-          return res.status(400).json({
-            error: `Template file not found: ${TEMPLATE_FILES[template as Exclude<TemplateName, 'blank'>]}`,
-          });
-        }
-        content = readFileSync(templatePath, 'utf-8');
-      }
-
-      // Create directories and write file
-      mkdirSync(dirname(filePath), { recursive: true });
-      writeFileSync(filePath, content, 'utf-8');
-
-      // Compute hash and insert into docs_meta
-      const hash = contentHash(content);
-      const now = new Date().toISOString();
-      const access = getAccessLevel(docPath);
-      const db = getDb();
-
-      db.prepare(`
-        INSERT INTO docs_meta (path, title, access, content_hash, modified_at, modified_by, created_at)
-        VALUES (?, ?, ?, ?, ?, 'system', ?)
-      `).run(docPath, title, access, hash, now, now);
-
-      // Invalidate caches + trigger reindex
-      await invalidateContent();
-
-      res.status(201).json({ path: docPath, title, template, created: true });
-    } catch (error: any) {
-      console.error('[doc-crud] Create failed:', error);
-      res.status(500).json({ error: 'Failed to create document', message: error.message });
+      const ctx = { user: req.user, client: req.client };
+      const result = await docsService.createDoc(ctx, req.body);
+      res.status(201).json(result);
+    } catch (err) {
+      sendError(res, err, 'Failed to create document');
     }
   });
 
-  // ──────────────────────────────────────────────
-  // PUT /api/docs/:path/sections/:heading — Update section content (prose + descendants)
-  //
-  // On no-match, returns 404 with { error, available_headings }.
-  // NEVER silently appends or mutates — write tools throw on missing address.
-  // ──────────────────────────────────────────────
+  // PUT /api/docs/:path/sections/:heading — update section
   router.put('/docs/:path(*)/sections/:heading(*)', requireAuth, async (req: Request, res: Response) => {
     try {
-      const docPath = normalizeDocPath(req.params.path);
-      const headingPath = req.params.heading;
-      const { content } = req.body;
-
-      if (content === undefined || typeof content !== 'string') {
-        return res.status(400).json({ error: 'content is required and must be a string' });
-      }
-
-      const contentDir = getDocsPath();
-      const filePath = join(contentDir, `${docPath}.md`);
-      const lines = readDocLines(filePath);
-
-      if (!lines) {
-        return res.status(404).json({ error: `Document not found: "${docPath}"` });
-      }
-
-      // Check for duplicate headings first
-      const dupes = findDuplicateHeadings(lines);
-      if (dupes.has(headingPath)) {
-        return res.status(400).json({
-          error: `Ambiguous heading path "${headingPath}" appears ${dupes.get(headingPath)} times in the document. Cannot update.`,
-        });
-      }
-
-      const section = findSection(lines, headingPath);
-      if (!section) {
-        return res.status(404).json({
-          error: `Section not found: "${headingPath}"`,
-          available_headings: parseSections(lines).map(s => s.headingPath),
-        });
-      }
-
-      // Replace entire subtree (keep heading line, replace prose + all descendant sections)
-      const newBodyLines = content.length > 0 ? content.split('\n') : [];
-      const updatedLines = [
-        ...lines.slice(0, section.bodyStart),
-        ...newBodyLines,
-        ...lines.slice(section.subtreeEnd),
-      ];
-
-      writeDocAndUpdateMeta(filePath, updatedLines, docPath);
-
-      // TODO: Optimistic locking — compare content_hash before write (future)
-
-      await invalidateContent([`${docPath}.md`]);
-
-      res.json({ path: docPath, heading: headingPath, updated: true });
-    } catch (error: any) {
-      // findSection throws on ambiguous paths
-      if (error.message?.includes('Ambiguous heading path')) {
-        return res.status(400).json({ error: error.message });
-      }
-      console.error('[doc-crud] Update section failed:', error);
-      res.status(500).json({ error: 'Failed to update section', message: error.message });
+      const ctx = { user: req.user, client: req.client };
+      const result = await docsService.updateSection(ctx, {
+        path: req.params.path,
+        headingPath: req.params.heading,
+        content: req.body.content,
+      });
+      res.json(result);
+    } catch (err) {
+      sendError(res, err, 'Failed to update section');
     }
   });
 
-  // ──────────────────────────────────────────────
-  // POST /api/docs/:path/sections/move — Move section to new position
-  //
-  // Atomically moves a section (heading + prose + descendants) to the
-  // position after another heading. Either the whole move succeeds or
-  // nothing changes.
-  // ──────────────────────────────────────────────
+  // POST /api/docs/:path/sections/move — move section
   router.post('/docs/:path(*)/sections/move', requireAuth, async (req: Request, res: Response) => {
     try {
-      const docPath = normalizeDocPath(req.params.path);
-      const { heading, after_heading } = req.body;
-
-      // Validate params
-      if (!heading || typeof heading !== 'string') {
-        return res.status(400).json({ error: 'heading is required and must be a string' });
-      }
-      if (!after_heading || typeof after_heading !== 'string') {
-        return res.status(400).json({ error: 'after_heading is required and must be a string' });
-      }
-
-      const contentDir = getDocsPath();
-      const filePath = join(contentDir, `${docPath}.md`);
-      const lines = readDocLines(filePath);
-
-      if (!lines) {
-        return res.status(404).json({ error: `Document not found: "${docPath}"` });
-      }
-
-      // Check for duplicate headings
-      const dupes = findDuplicateHeadings(lines);
-      if (dupes.has(heading)) {
-        return res.status(400).json({
-          error: `Ambiguous heading path "${heading}" appears ${dupes.get(heading)} times. Cannot determine which section to move.`,
-        });
-      }
-      if (dupes.has(after_heading)) {
-        return res.status(400).json({
-          error: `Ambiguous heading path "${after_heading}" appears ${dupes.get(after_heading)} times. Cannot determine target position.`,
-        });
-      }
-
-      const sourceSection = findSection(lines, heading);
-      if (!sourceSection) {
-        return res.status(404).json({
-          error: `Source section not found: "${heading}"`,
-          available_headings: parseSections(lines).map(s => s.headingPath),
-        });
-      }
-
-      const targetSection = findSection(lines, after_heading);
-      if (!targetSection) {
-        return res.status(404).json({
-          error: `Target section not found: "${after_heading}"`,
-          available_headings: parseSections(lines).map(s => s.headingPath),
-        });
-      }
-
-      // Don't allow moving a section after itself
-      if (sourceSection.headingLine === targetSection.headingLine) {
-        return res.status(400).json({ error: 'Cannot move a section after itself' });
-      }
-
-      // Extract the source section lines (heading + prose + descendants)
-      const sourceLines = lines.slice(sourceSection.headingLine, sourceSection.subtreeEnd);
-
-      // Remove source from document first, then calculate insert position
-      const withoutSource = [
-        ...lines.slice(0, sourceSection.headingLine),
-        ...lines.slice(sourceSection.subtreeEnd),
-      ];
-
-      // Re-parse to find the target in the modified document
-      const targetInModified = findSection(withoutSource, after_heading);
-      if (!targetInModified) {
-        // Target was inside the source section (moving parent after its own child)
-        return res.status(400).json({
-          error: `Target section "${after_heading}" is a descendant of source section "${heading}". Cannot move a section after its own descendant.`,
-        });
-      }
-
-      // Insert after target's subtreeEnd (after all its children)
-      const insertAt = targetInModified.subtreeEnd;
-      const updatedLines = [
-        ...withoutSource.slice(0, insertAt),
-        ...sourceLines,
-        ...withoutSource.slice(insertAt),
-      ];
-
-      writeDocAndUpdateMeta(filePath, updatedLines, docPath);
-      await invalidateContent([`${docPath}.md`]);
-
-      res.json({ path: docPath, heading, after_heading, moved: true });
-    } catch (error: any) {
-      if (error.message?.includes('Ambiguous')) {
-        return res.status(400).json({ error: error.message });
-      }
-      console.error('[doc-crud] Move section failed:', error);
-      res.status(500).json({ error: 'Failed to move section', message: error.message });
+      const ctx = { user: req.user, client: req.client };
+      const result = await docsService.moveSection(ctx, {
+        path: req.params.path,
+        heading: req.body.heading,
+        after_heading: req.body.after_heading,
+      });
+      res.json(result);
+    } catch (err) {
+      sendError(res, err, 'Failed to move section');
     }
   });
 
-  // ──────────────────────────────────────────────
-  // POST /api/docs/:path/sections — Insert new section
-  //
-  // On no-match for after_heading, returns 404 with { error, available_headings }.
-  // NEVER silently appends — write tools throw on missing address.
-  // ──────────────────────────────────────────────
+  // POST /api/docs/:path/sections — insert section
   router.post('/docs/:path(*)/sections', requireAuth, async (req: Request, res: Response) => {
     try {
-      const docPath = normalizeDocPath(req.params.path);
-      const { after_heading, heading, level, content } = req.body;
-
-      // Validate params
-      if (!after_heading || typeof after_heading !== 'string') {
-        return res.status(400).json({ error: 'after_heading is required and must be a string' });
-      }
-      if (!heading || typeof heading !== 'string') {
-        return res.status(400).json({ error: 'heading is required and must be a string' });
-      }
-      if (!level || typeof level !== 'number' || level < 1 || level > 6) {
-        return res.status(400).json({ error: 'level is required and must be a number between 1 and 6' });
-      }
-      if (content === undefined || typeof content !== 'string') {
-        return res.status(400).json({ error: 'content is required and must be a string' });
-      }
-
-      const contentDir = getDocsPath();
-      const filePath = join(contentDir, `${docPath}.md`);
-      const lines = readDocLines(filePath);
-
-      if (!lines) {
-        return res.status(404).json({ error: `Document not found: "${docPath}"` });
-      }
-
-      // Check for duplicate headings
-      const dupes = findDuplicateHeadings(lines);
-      if (dupes.has(after_heading)) {
-        return res.status(400).json({
-          error: `Ambiguous heading path "${after_heading}" appears ${dupes.get(after_heading)} times. Cannot determine insertion point.`,
-        });
-      }
-
-      const afterSection = findSection(lines, after_heading);
-      if (!afterSection) {
-        return res.status(404).json({
-          error: `Section not found: "${after_heading}"`,
-          available_headings: parseSections(lines).map(s => s.headingPath),
-        });
-      }
-
-      // Insert at the end of the after_heading section
-      const insertAt = afterSection.subtreeEnd;
-      const prefix = '#'.repeat(level);
-      const newHeadingLine = `${prefix} ${heading}`;
-      const newBodyLines = content.length > 0 ? content.split('\n') : [];
-      const insertLines = ['', newHeadingLine, ...newBodyLines];
-
-      const updatedLines = [
-        ...lines.slice(0, insertAt),
-        ...insertLines,
-        ...lines.slice(insertAt),
-      ];
-
-      writeDocAndUpdateMeta(filePath, updatedLines, docPath);
-      await invalidateContent([`${docPath}.md`]);
-
-      res.status(201).json({ path: docPath, heading, inserted: true });
-    } catch (error: any) {
-      if (error.message?.includes('Ambiguous heading path')) {
-        return res.status(400).json({ error: error.message });
-      }
-      console.error('[doc-crud] Insert section failed:', error);
-      res.status(500).json({ error: 'Failed to insert section', message: error.message });
+      const ctx = { user: req.user, client: req.client };
+      const result = await docsService.insertSection(ctx, {
+        path: req.params.path,
+        after_heading: req.body.after_heading,
+        heading: req.body.heading,
+        level: req.body.level,
+        content: req.body.content,
+      });
+      res.status(201).json(result);
+    } catch (err) {
+      sendError(res, err, 'Failed to insert section');
     }
   });
 
-  // ──────────────────────────────────────────────
-  // DELETE /api/docs/:path/sections/:heading — Delete section
-  //
-  // Cascades: removes the heading line, the section's prose, and ALL
-  // descendant sections (everything until the next heading at level <=
-  // the target's level). Use update_section if you only want to clear
-  // prose without removing children.
-  //
-  // On no-match, returns 404 with { error, available_headings }.
-  // NEVER silently mutates — write tools throw on missing address.
-  // ──────────────────────────────────────────────
+  // DELETE /api/docs/:path/sections/:heading — delete section
   router.delete('/docs/:path(*)/sections/:heading(*)', requireAuth, async (req: Request, res: Response) => {
     try {
-      const docPath = normalizeDocPath(req.params.path);
-      const headingPath = req.params.heading;
-
-      const contentDir = getDocsPath();
-      const filePath = join(contentDir, `${docPath}.md`);
-      const lines = readDocLines(filePath);
-
-      if (!lines) {
-        return res.status(404).json({ error: `Document not found: "${docPath}"` });
-      }
-
-      // Check for duplicate headings
-      const dupes = findDuplicateHeadings(lines);
-      if (dupes.has(headingPath)) {
-        return res.status(400).json({
-          error: `Ambiguous heading path "${headingPath}" appears ${dupes.get(headingPath)} times. Cannot determine which section to delete.`,
-        });
-      }
-
-      const section = findSection(lines, headingPath);
-      if (!section) {
-        return res.status(404).json({
-          error: `Section not found: "${headingPath}"`,
-          available_headings: parseSections(lines).map(s => s.headingPath),
-        });
-      }
-
-      // Block H1 deletion — use delete_doc instead
-      if (section.level === 1) {
-        return res.status(400).json({
-          error: 'Cannot delete the H1 heading of a document. Use delete_doc to remove the entire document.',
-        });
-      }
-
-      // Remove heading line + prose + entire descendant subtree.
-      // subtreeEnd walks past all child sections, so deleting "## Parent"
-      // also removes "### Child A", "### Child B", etc.
-      const updatedLines = [
-        ...lines.slice(0, section.headingLine),
-        ...lines.slice(section.subtreeEnd),
-      ];
-
-      writeDocAndUpdateMeta(filePath, updatedLines, docPath);
-      await invalidateContent([`${docPath}.md`]);
-
-      res.json({ path: docPath, heading: headingPath, deleted: true });
-    } catch (error: any) {
-      if (error.message?.includes('Ambiguous heading path')) {
-        return res.status(400).json({ error: error.message });
-      }
-      console.error('[doc-crud] Delete section failed:', error);
-      res.status(500).json({ error: 'Failed to delete section', message: error.message });
+      const ctx = { user: req.user, client: req.client };
+      const result = await docsService.deleteSection(ctx, {
+        path: req.params.path,
+        headingPath: req.params.heading,
+      });
+      res.json(result);
+    } catch (err) {
+      sendError(res, err, 'Failed to delete section');
     }
   });
 
-  // ──────────────────────────────────────────────
-  // DELETE /api/docs/:path — Hard delete an entire document
-  //
-  // Removes the markdown file, docs_meta row, and all annotations for the doc.
-  // Returns 404 if the file does not exist OR docs_meta has no row.
-  // Not recoverable — callers should sync_to_github first if they want a backup.
-  // ──────────────────────────────────────────────
+  // DELETE /api/docs/:path — hard-delete document
   router.delete('/docs/:path(*)', requireAuth, async (req: Request, res: Response) => {
     try {
-      const docPath = normalizeDocPath(req.params.path);
-      const contentDir = getDocsPath();
-      const filePath = join(contentDir, `${docPath}.md`);
-
-      const db = getDb();
-      const metaRow = db.prepare('SELECT path FROM docs_meta WHERE path = ?').get(docPath);
-
-      if (!existsSync(filePath) || !metaRow) {
-        return res.status(404).json({ error: `Document not found: "${docPath}"` });
-      }
-
-      // Delete annotations tied to this doc, then docs_meta, then the file itself.
-      const deleteAnnotationsStmt = db.prepare('DELETE FROM annotations WHERE doc_path = ?');
-      const annotationsResult = deleteAnnotationsStmt.run(docPath);
-      const annotationsDeleted = annotationsResult.changes;
-
-      db.prepare('DELETE FROM docs_meta WHERE path = ?').run(docPath);
-
-      try {
-        unlinkSync(filePath);
-      } catch (err: any) {
-        console.error('[doc-crud] Failed to unlink file during delete_doc:', err);
-        // File may be gone already — we already removed DB rows, so continue.
-      }
-
-      await invalidateContent([`${docPath}.md`]);
-
-      res.json({
-        path: docPath,
-        deleted: true,
-        annotations_deleted: annotationsDeleted,
-      });
-    } catch (error: any) {
-      console.error('[doc-crud] Delete doc failed:', error);
-      res.status(500).json({ error: 'Failed to delete document', message: error.message });
+      const ctx = { user: req.user, client: req.client };
+      const result = await docsService.deleteDoc(ctx, { path: req.params.path });
+      res.json(result);
+    } catch (err) {
+      sendError(res, err, 'Failed to delete document');
     }
   });
 

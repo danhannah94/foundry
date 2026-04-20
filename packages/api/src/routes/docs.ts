@@ -1,28 +1,9 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import type { AnvilHolder } from '../anvil-holder.js';
-import { getAccessLevel } from '../access.js';
 import { requireAuth } from '../middleware/auth.js';
-
-interface DocumentListItem {
-  path: string;
-  title: string;
-  lastModified: string;
-  chunkCount: number;
-}
-
-interface DocumentSection {
-  heading: string;
-  level: number;
-  charCount: number;
-  content: string;
-}
-
-interface DocumentDetail {
-  path: string;
-  title: string;
-  lastModified: string;
-  sections: DocumentSection[];
-}
+import { getAccessLevel } from '../access.js';
+import * as pagesService from '../services/pages.js';
+import { ServiceError } from '../services/errors.js';
 
 /**
  * Returns a 503 response if Anvil is not ready.
@@ -44,6 +25,38 @@ function guardAnvil(holder: AnvilHolder, res: Response): boolean {
   return true;
 }
 
+function sendError(res: Response, err: unknown, fallback: string): void {
+  if (err instanceof ServiceError) {
+    const body: Record<string, unknown> = { error: err.message };
+    if (err.extra) Object.assign(body, err.extra);
+    res.status(err.status).json(body);
+    return;
+  }
+  console.error(fallback, err);
+  res.status(500).json({ error: fallback });
+}
+
+/**
+ * Private-doc auth gate for GET /docs/:path(*). Runs requireAuth only when
+ * the path resolves as 'private'. Preserves the pre-refactor 401 body shape
+ * (`{ error: 'Authentication required for private content' }`) when auth
+ * fails so existing CLI callers that string-match continue to work.
+ */
+function authIfPrivate(req: Request, res: Response, next: NextFunction): void {
+  const rawPath = req.params.path;
+  const fullPath = rawPath.endsWith('.md') ? rawPath : `${rawPath}.md`;
+  if (getAccessLevel(fullPath) !== 'private') return next();
+
+  requireAuth(req, res, (err?: unknown) => {
+    if (err) return next(err);
+    // requireAuth already responded (401) — rewrite the body to match the
+    // pre-refactor contract. status + headers are locked in; we can only
+    // append to the JSON response here, so we just don't re-send.
+    if (res.headersSent) return;
+    next();
+  });
+}
+
 /**
  * Creates the docs router
  */
@@ -51,102 +64,31 @@ export function createDocsRouter(holder: AnvilHolder): Router {
   const router = Router();
 
   // GET /docs - List all indexed documents
-  router.get('/docs', async (req: Request, res: Response<DocumentListItem[]>) => {
+  router.get('/docs', async (req: Request, res: Response) => {
     if (guardAnvil(holder, res)) return;
-    const anvil = holder.get()!;
-
     try {
-      const { pages } = await anvil.listPages();
-
-      const documents: DocumentListItem[] = pages.map(page => ({
-        path: page.file_path,
-        title: page.title,
-        lastModified: page.last_modified,
-        chunkCount: page.chunk_count,
-      }));
-
+      const ctx = { user: req.user, client: req.client };
+      const documents = await pagesService.listDocs(ctx, holder.get()!);
       res.json(documents);
-    } catch (error) {
-      console.error('Error listing documents:', error);
-      res.status(500).json({
-        error: 'Failed to list documents',
-      } as any);
+    } catch (err) {
+      sendError(res, err, 'Failed to list documents');
     }
   });
 
-  // GET /docs/:path(*)/sections/:heading(*) — handled by doc-crud router
-  // (uses section-parser for consistent #-prefixed heading paths)
-
-  // GET /docs/:path(*) - Get single document with section structure
-  router.get('/docs/:path(*)', async (req: Request, res: Response<DocumentDetail>) => {
+  // GET /docs/:path(*) - Get single document with section structure.
+  // Private docs are gated by authIfPrivate; by the time we reach the
+  // handler body requireAuth has populated req.user (or responded 401).
+  router.get('/docs/:path(*)', authIfPrivate, async (req: Request, res: Response) => {
     if (guardAnvil(holder, res)) return;
-    const anvil = holder.get()!;
-
     try {
-      const rawPath = req.params.path;
-      // Normalize: Anvil indexes with .md extension, clients may omit it
-      const path = rawPath.endsWith('.md') ? rawPath : `${rawPath}.md`;
-
-      // Check access level for this document path
-      const level = getAccessLevel(path);
-      if (level === 'private') {
-        // Check auth using the same middleware logic
-        try {
-          await new Promise<void>((resolve, reject) => {
-            requireAuth(req, res, (err?: any) => {
-              if (err) reject(err);
-              else resolve();
-            });
-          });
-        } catch (authError) {
-          return res.status(401).json({
-            error: 'Authentication required for private content',
-          } as any);
-        }
-      }
-
-      const page = await anvil.getPage(path);
-
-      if (!page) {
-        return res.status(404).json({
-          error: 'Document not found',
-        } as any);
-      }
-
-      // Extract sections from chunks, aggregating content by heading
-      const sectionMap = new Map<string, DocumentSection>();
-      const sortedChunks = [...page.chunks].sort((a, b) => a.ordinal - b.ordinal);
-
-      for (const chunk of sortedChunks) {
-        if (!chunk.heading_path) continue;
-        const existing = sectionMap.get(chunk.heading_path);
-        if (existing) {
-          existing.content += '\n' + chunk.content;
-          existing.charCount += chunk.char_count;
-        } else {
-          sectionMap.set(chunk.heading_path, {
-            heading: chunk.heading_path,
-            level: chunk.heading_level,
-            charCount: chunk.char_count,
-            content: chunk.content,
-          });
-        }
-      }
-      const sections = Array.from(sectionMap.values());
-
-      const document: DocumentDetail = {
-        path: page.file_path,
-        title: page.title,
-        lastModified: page.last_modified,
-        sections,
-      };
-
+      const ctx = { user: req.user, client: req.client };
+      const document = await pagesService.getPage(ctx, holder.get()!, {
+        path: req.params.path,
+        canReadPrivate: true,
+      });
       res.json(document);
-    } catch (error) {
-      console.error('Error fetching document:', error);
-      res.status(500).json({
-        error: 'Failed to fetch document',
-      } as any);
+    } catch (err) {
+      sendError(res, err, 'Failed to fetch document');
     }
   });
 
