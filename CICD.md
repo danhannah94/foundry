@@ -115,8 +115,12 @@ Beyond tests, every PR should pass:
 # Type check (no emit)
 cd packages/api && npx tsc --noEmit
 
-# Full build (produces dist/ for the MCP stdio server)
+# Full build (produces dist/ for the Express server + MCP mount)
 npm run build -w @foundry/api
 ```
 
-The MCP stdio server (`dist/mcp/stdio.js`) is what Claude Code and other MCP clients spawn as a local child process. It reads from `dist/`, so **a rebuild is required** for local MCP tool schema changes to take effect in a running session. After rebuilding, reconnect the Foundry MCP client to pick up new tools.
+MCP runs in-process behind the Express mount at `POST /mcp` (Streamable
+HTTP transport). There is no separate child-process bridge to rebuild —
+when the deployed API restarts, clients reconnect and pick up the new tool
+schemas. In local dev, restart `packages/api` after changing tool
+definitions and your MCP client will see the update on its next request.

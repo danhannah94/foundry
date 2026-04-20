@@ -2,21 +2,31 @@
 
 ## Architecture
 
-Foundry runs as a single Docker container serving the static site + API + MCP server on one port.
+Foundry runs as a single Docker container serving the static site + API + OAuth AS + MCP server on one port.
 
 ```
-┌─────────────────────────────┐
-│  Foundry Container (:3001)  │
-│  ├── /*       → static site │
-│  ├── /api/*   → REST API    │
-│  └── /mcp/*   → MCP server  │
-│  SQLite → /data/foundry.db  │
-└─────────────────────────────┘
+┌─────────────────────────────────────┐
+│  Foundry Container (:3001)          │
+│  ├── /*              → static site  │
+│  ├── /api/*          → REST API     │
+│  ├── /oauth/*        → OAuth AS+DCR │
+│  ├── /.well-known/*  → AS metadata  │
+│  └── /mcp            → MCP (HTTP)   │
+│  SQLite → /data/foundry.db          │
+└─────────────────────────────────────┘
 ```
 
 ## Authentication
 
-Foundry uses bearer token authentication to protect write operations (annotations, reviews) and annotation read access. Static docs and search remain public.
+Foundry has two auth paths:
+
+1. **OAuth 2.0** — the primary path. Used by MCP clients (Claude Code,
+   Claude.ai, Cowork) and by first-party site sessions. Clients register via
+   DCR (RFC 7591), authorize against GitHub for identity, then call `/mcp`
+   with the resulting Bearer access token.
+2. **Legacy static token** (`FOUNDRY_WRITE_TOKEN`) — 30-day break-glass path
+   for the REST annotation/review endpoints. Not used by MCP. Will be
+   retired after operators have migrated.
 
 ### Security Model
 
@@ -28,10 +38,19 @@ Foundry uses bearer token authentication to protect write operations (annotation
 | GET /api/health | ❌ | Monitoring |
 | GET/POST/PATCH/DELETE /api/annotations* | ✅ | Review content is sensitive |
 | GET/POST/PATCH /api/reviews* | ✅ | Review metadata is sensitive |
-| MCP doc tools (search_docs, etc.) | 🟨 | Access-controlled — accepts optional auth_token |
-| MCP annotation tools | ✅ | Same as API annotations |
+| POST /mcp | ✅ (OAuth) | MCP Streamable HTTP — always requires a Bearer token |
+| GET /.well-known/oauth-* | ❌ | Discovery — must be public per RFC 8414 / 9728 |
+| GET /oauth/authorize | ❌ | OAuth user-facing entry |
+| POST /oauth/token | Client auth | Standard OAuth token endpoint |
+| POST /oauth/register | DCR token | Dynamic Client Registration, gated by `FOUNDRY_DCR_TOKEN` |
 
-### Token Setup
+### Legacy Token Setup (REST writes only)
+
+`FOUNDRY_WRITE_TOKEN` is the break-glass bearer for the REST annotation and
+review endpoints. MCP does **not** consult it — MCP always requires an
+OAuth access token. This token is kept for 30 days past the HTTP-MCP
+cutover to give operators room to migrate legacy scripts. See
+[docs/mcp-migration.md](mcp-migration.md) for the MCP path.
 
 1. **Generate a token:**
    ```bash
@@ -43,7 +62,8 @@ Foundry uses bearer token authentication to protect write operations (annotation
    cp .env.example .env
    # Edit .env and set FOUNDRY_WRITE_TOKEN=<your-token>
    ```
-   Without the token, auth is disabled (dev mode — all requests allowed).
+   Without the token, REST annotation/review writes fall open (dev mode).
+   MCP still requires OAuth regardless.
 
 3. **Fly.io production:**
    ```bash
@@ -68,9 +88,13 @@ Foundry uses bearer token authentication to protect write operations (annotation
 
 ### MCP Client Auth
 
-MCP annotation tools accept an `auth_token` parameter. Configure in your MCP client:
-- In-process (same container): uses `FOUNDRY_WRITE_TOKEN` env var directly
-- Remote clients: pass token as tool parameter
+MCP clients authenticate with an OAuth 2.0 Bearer token. Supported clients
+(Claude Code 2.1.64+, Claude.ai Connectors, Cowork-Claude) perform DCR +
+PKCE automatically — the operator only needs to paste the `/mcp` URL and
+complete the in-browser GitHub consent step.
+
+Operators configuring a new client: see
+[docs/mcp-migration.md](docs/mcp-migration.md) for the runbook.
 
 ## Public/Private Doc Access Control
 
@@ -112,7 +136,7 @@ The build script generates `.access.json` mapping path prefixes to access levels
 4. **API endpoints:** `/api/docs/*` checks access level before serving
 5. **Search:** Results filtered server-side — private content never reaches unauthenticated clients
 6. **Nav sidebar:** Client-side filtering hides private sections when no token present
-7. **MCP tools:** `search_docs` accepts optional `auth_token` for private results
+7. **MCP tools:** Identity is threaded from the OAuth Bearer token on `POST /mcp` directly into service calls — private results are returned when the caller's scopes include `docs:read:private`
 
 ### Adding New Content
 
@@ -147,8 +171,20 @@ To add a new source with access control:
    fly volumes create foundry_data --region iad --size 1
    ```
 
-5. **Set secrets** (if using private source repos):
+5. **Set secrets:**
    ```bash
+   # OAuth AS — required for MCP
+   fly secrets set FOUNDRY_OAUTH_ISSUER=https://foundry-claymore.fly.dev
+   fly secrets set FOUNDRY_DCR_TOKEN=$(openssl rand -hex 32)
+
+   # GitHub identity provider for OAuth consent
+   fly secrets set FOUNDRY_GITHUB_CLIENT_ID=<your-github-oauth-app-client-id>
+   fly secrets set FOUNDRY_GITHUB_CLIENT_SECRET=<your-github-oauth-app-secret>
+
+   # Legacy break-glass token for REST writes (annotations/reviews)
+   fly secrets set FOUNDRY_WRITE_TOKEN=$(openssl rand -hex 32)
+
+   # Only if pulling private source repos
    fly secrets set GITHUB_TOKEN=ghp_your_token_here
    ```
 
@@ -208,7 +244,11 @@ docker run -p 3001:3001 -v foundry-data:/data foundry
 | `PORT` | `3001` | Server port |
 | `FOUNDRY_DB_PATH` | `/data/foundry.db` | SQLite database path |
 | `FOUNDRY_STATIC_PATH` | `../../site/dist` | Path to Astro build output |
-| `FOUNDRY_WRITE_TOKEN` | (none) | Bearer token for API write protection; if unset, auth disabled (dev mode) |
+| `FOUNDRY_OAUTH_ISSUER` | (none) | Required in prod. Public origin advertised as the OAuth issuer (e.g. `https://foundry-claymore.fly.dev`) |
+| `FOUNDRY_DCR_TOKEN` | (none) | Required in prod. Bearer token that gates `POST /oauth/register` so only trusted clients can dynamically register |
+| `FOUNDRY_GITHUB_CLIENT_ID` | (none) | GitHub OAuth app client id — used as the identity provider during consent |
+| `FOUNDRY_GITHUB_CLIENT_SECRET` | (none) | GitHub OAuth app client secret |
+| `FOUNDRY_WRITE_TOKEN` | (none) | Legacy break-glass bearer for REST annotation/review writes. MCP no longer consults this. If unset, REST writes fall open in dev mode |
 | `GITHUB_TOKEN` | (none) | GitHub token for private source repos |
 | `NODE_ENV` | `production` | Node environment |
 

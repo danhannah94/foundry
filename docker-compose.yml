@@ -18,8 +18,20 @@ services:
       - DEPLOY_KEY_PATH=/root/.ssh/deploy_key
       # GitHub remote URL for sync (git@github.com:user/repo.git or https URL)
       - SYNC_REMOTE_URL=${SYNC_REMOTE_URL:-}
-      # Bearer token for API write protection (annotations/reviews)
-      # If unset, auth is disabled (dev mode)
+      # OAuth AS — required in production. MCP discovery advertises this
+      # origin as the authorization server. In local docker dev you can
+      # leave FOUNDRY_OAUTH_ISSUER set to http://localhost:4321 or unset
+      # (falls back to dev mode).
+      - FOUNDRY_OAUTH_ISSUER=${FOUNDRY_OAUTH_ISSUER:-}
+      # DCR admin token — required in production. Gates POST /oauth/register
+      # so only trusted clients can dynamically register.
+      - FOUNDRY_DCR_TOKEN=${FOUNDRY_DCR_TOKEN:-}
+      # GitHub OAuth app used as the identity provider during consent.
+      - FOUNDRY_GITHUB_CLIENT_ID=${FOUNDRY_GITHUB_CLIENT_ID:-}
+      - FOUNDRY_GITHUB_CLIENT_SECRET=${FOUNDRY_GITHUB_CLIENT_SECRET:-}
+      # Legacy break-glass bearer for REST writes (annotations/reviews).
+      # MCP no longer uses this token. If unset, REST writes fall open
+      # (dev mode). Will be retired after operators have migrated.
       - FOUNDRY_WRITE_TOKEN=${FOUNDRY_WRITE_TOKEN:-}
       - FOUNDRY_READ_TOKEN=${FOUNDRY_READ_TOKEN:-}
     restart: unless-stopped

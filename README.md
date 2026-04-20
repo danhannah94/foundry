@@ -21,9 +21,11 @@ Foundry runs two processes behind a single port:
 
 ```
 Port 4321 (proxy)
-├── /api/*  → Express API (port 3001, internal)
-├── /mcp/*  → Express API (MCP endpoints)
-└── /*      → Astro SSR (dynamic page rendering)
+├── /api/*    → Express API (port 3001, internal)
+├── /oauth/*  → Express API (OAuth AS + DCR)
+├── /.well-known/oauth-* → Express API (RFC 8414 / 9728 discovery)
+├── /mcp      → Express API (MCP Streamable HTTP)
+└── /*        → Astro SSR (dynamic page rendering)
 ```
 
 On startup:
@@ -62,11 +64,20 @@ CONTENT_BRANCH=main
 # GitHub webhook secret (for auto-updates on push)
 WEBHOOK_SECRET=<openssl rand -hex 32>
 
-# API write protection (annotations/reviews) AND the MCP transport (/mcp/sse,
-# /mcp/message). Required in production — without it, the MCP transport is
-# open and anyone on the internet can call tools like create_doc,
-# update_section, delete_section, etc. In dev mode (unset), auth is bypassed.
+# Legacy break-glass bearer token for REST writes (annotations/reviews).
+# Optional — if unset, REST write endpoints fall open in dev mode. MCP no
+# longer uses this token; MCP authenticates exclusively via OAuth 2.0
+# Bearer tokens (see "MCP server" below).
 FOUNDRY_WRITE_TOKEN=<openssl rand -hex 32>
+
+# OAuth issuer URL — required in production. MCP discovery advertises this
+# as the authorization server. Use your public Foundry URL.
+FOUNDRY_OAUTH_ISSUER=https://foundry-claymore.fly.dev
+
+# DCR admin token — required in production. Gates POST /oauth/register so
+# only trusted clients (Claude Code, Claude.ai, Cowork) can dynamically
+# register. Give clients this token via their own secret config.
+FOUNDRY_DCR_TOKEN=<openssl rand -hex 32>
 ```
 
 **Private repo setup** — see [Deploy Key Setup](#deploy-key-setup-private-repos) below.
@@ -119,6 +130,8 @@ fly secrets set CONTENT_BRANCH=main
 fly secrets set DEPLOY_KEY_B64=$(cat ~/.ssh/foundry_deploy_key | base64 -w0)
 fly secrets set WEBHOOK_SECRET=$(openssl rand -hex 32)
 fly secrets set FOUNDRY_WRITE_TOKEN=$(openssl rand -hex 32)
+fly secrets set FOUNDRY_OAUTH_ISSUER=https://foundry-claymore.fly.dev
+fly secrets set FOUNDRY_DCR_TOKEN=$(openssl rand -hex 32)
 fly deploy --remote-only
 ```
 
@@ -203,9 +216,11 @@ foundry/
 │   │   └── content/          # Docs cloned here at runtime
 │   └── api/                  # Express API server
 │       └── src/
-│           ├── routes/       # REST endpoints (docs, search, webhook, etc.)
-│           ├── middleware/    # Auth middleware
-│           ├── mcp/          # MCP server + tools
+│           ├── routes/       # REST + OAuth endpoints (docs, search, webhook, oauth/*)
+│           ├── middleware/   # Auth middleware (OAuth Bearer + legacy token)
+│           ├── mcp/          # MCP server + tools (Streamable HTTP)
+│           ├── oauth/        # OAuth AS + DCR storage + GitHub identity
+│           ├── services/     # Shared business logic (REST + MCP reuse)
 │           └── content-fetcher.ts  # Git clone/pull manager
 ├── scripts/
 │   ├── start.sh              # Container entrypoint (API + proxy)
@@ -230,16 +245,39 @@ foundry/
 | `PATCH /api/annotations/:id` | Yes | Update annotation status/content |
 | `POST /api/reviews` | Yes | Create review |
 | `PATCH /api/reviews/:id` | Yes | Update review status |
-| `GET /mcp/sse` | Yes | MCP SSE transport (connect) |
-| `POST /mcp/message` | Yes | MCP SSE transport (messages) |
+| `POST /mcp` | OAuth | MCP Streamable HTTP transport |
+| `GET /.well-known/oauth-protected-resource` | No | RFC 9728 resource metadata |
+| `GET /.well-known/oauth-authorization-server` | No | RFC 8414 AS metadata |
+| `POST /oauth/register` | DCR token | Dynamic Client Registration (RFC 7591) |
+| `GET /oauth/authorize` | No | OAuth authorize endpoint (PKCE) |
+| `POST /oauth/token` | Client | OAuth token endpoint |
 
-Auth: `Authorization: Bearer <FOUNDRY_WRITE_TOKEN>`
+REST write auth: `Authorization: Bearer <FOUNDRY_WRITE_TOKEN>` (legacy
+break-glass path; still honored for `/api/annotations` and `/api/reviews`).
 
-The `/mcp/*` transport endpoints require the same Bearer token as `/api/*`
-writes. MCP SSE clients that use `fetch`-based transports (including the
-official `@modelcontextprotocol/sdk` `SSEClientTransport`) can set the
-`Authorization` header; browser `EventSource` cannot and is not a supported
-client. In dev mode (`FOUNDRY_WRITE_TOKEN` unset), the transport is open.
+MCP auth: `Authorization: Bearer <oauth-access-token>` — issued by the
+`/oauth/authorize` + `/oauth/token` flow. See **MCP server** below.
+
+## MCP server
+
+Foundry exposes MCP over **Streamable HTTP** at a single endpoint:
+
+- Production: `https://foundry-claymore.fly.dev/mcp`
+- Local dev: `http://localhost:4321/mcp` (or whichever `PORT` you bound)
+
+All requests are gated by OAuth 2.0 Bearer token auth. Supported clients:
+
+- **Claude Code** (v2.1.64 or newer) — `claude mcp add --transport http foundry https://foundry-claymore.fly.dev/mcp`
+- **Claude.ai Connectors** — Settings → Connectors → Add custom connector, paste the URL
+- **Cowork-Claude** — configured on the Cowork side; point at the same URL
+
+All three clients handle **DCR** (Dynamic Client Registration) and **PKCE**
+automatically. The browser-based authorize flow prompts the user to grant
+scopes (`docs:read`, `docs:write`, `docs:read:private`) once, then the client
+caches the resulting access + refresh tokens.
+
+Migrating from the old stdio bridge? See
+[docs/mcp-migration.md](docs/mcp-migration.md).
 
 ## Tech Stack
 
