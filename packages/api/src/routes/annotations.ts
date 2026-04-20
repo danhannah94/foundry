@@ -105,10 +105,25 @@ export function createAnnotationsRouter(): Router {
         content,
         parent_id,
         review_id,
-        author_type = 'human',
-        user_id,
         status: bodyStatus,
       } = req.body;
+
+      // Identity is server-authoritative: we derive user_id and author_type
+      // from req.user / req.client (populated by requireAuth). Any user_id
+      // or author_type sent in the request body is silently ignored.
+      //
+      // Mapping per D-S8-1: author_type is a property of the act, not the
+      // GitHub account. Interactive clients → 'human', autonomous clients → 'ai'.
+      // Legacy Bearer callers (req.client.client_type === 'autonomous', from
+      // S7 middleware) thus inherit author_type='ai', matching pre-E12 behavior.
+      //
+      // Dev-mode passthrough: if requireAuth let the request through with
+      // req.user undefined (no FOUNDRY_WRITE_TOKEN and no Authorization
+      // header), we stamp user_id='anonymous' / author_type='ai' — documents
+      // the dev-mode write without falling back to the removed env-var dance.
+      const effectiveUserId = req.user?.id ?? 'anonymous';
+      const effectiveAuthorType: AuthorType =
+        req.client?.client_type === 'interactive' ? 'human' : 'ai';
 
       // Validate required fields (content_hash is optional — used for drift detection)
       if (!doc_path || !heading_path || !content) {
@@ -171,7 +186,7 @@ export function createAnnotationsRouter(): Router {
       const effectiveStatus: AnnotationStatus =
         bodyStatus !== undefined
           ? bodyStatus
-          : parent_id || author_type === 'ai'
+          : parent_id || effectiveAuthorType === 'ai'
           ? 'submitted'
           : 'draft';
 
@@ -184,8 +199,8 @@ export function createAnnotationsRouter(): Router {
         content,
         parent_id: parent_id || null,
         review_id: effectiveReviewId || null,
-        user_id: user_id || process.env.FOUNDRY_DEFAULT_USER || 'anonymous',
-        author_type,
+        user_id: effectiveUserId,
+        author_type: effectiveAuthorType,
         status: effectiveStatus,
         created_at: now,
         updated_at: now,

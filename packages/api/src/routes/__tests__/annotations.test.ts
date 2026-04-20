@@ -8,6 +8,7 @@ import { createAnnotationsRouter } from '../annotations.js';
 import { createReviewsRouter } from '../reviews.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { getDb, closeDb } from '../../db.js';
+import { clientsDao, tokensDao, usersDao } from '../../oauth/dao.js';
 
 const ISO_8601_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const CUID2_REGEX = /^[a-z0-9]{24,}$/;
@@ -15,6 +16,14 @@ const CUID2_REGEX = /^[a-z0-9]{24,}$/;
 let app: express.Express;
 const testDbPath = join(tmpdir(), `foundry-test-annotations-${Date.now()}.db`);
 const testContentDir = join(tmpdir(), `foundry-test-content-${Date.now()}`);
+
+// OAuth test identities — populated in beforeAll so tests can mint tokens
+// for interactive and autonomous clients to exercise S8 identity propagation.
+let oauthUserId: string;
+let interactiveClientId: string;
+let autonomousClientId: string;
+let interactiveAccessToken: string;
+let autonomousAccessToken: string;
 
 /** Create a stub markdown file in the test content directory */
 function seedDoc(docPath: string): void {
@@ -30,6 +39,10 @@ beforeAll(() => {
   process.env.FOUNDRY_DB_PATH = testDbPath;
   process.env.FOUNDRY_WRITE_TOKEN = 'test-token';
   process.env.CONTENT_DIR = testContentDir;
+  // requireAuth needs FOUNDRY_OAUTH_ISSUER to emit WWW-Authenticate — set
+  // a dummy value so OAuth paths in the test don't fail-loud on missing
+  // config (WWW-Authenticate contents aren't asserted in this suite).
+  process.env.FOUNDRY_OAUTH_ISSUER = process.env.FOUNDRY_OAUTH_ISSUER || 'https://foundry.test';
 
   // Seed all doc paths used by tests
   for (const docPath of [
@@ -42,9 +55,42 @@ beforeAll(() => {
     'delete-test/doc.md',
     'delete-cascade/doc.md',
     'delete-review/doc.md',
+    'identity-test/doc.md',
   ]) {
     seedDoc(docPath);
   }
+
+  // Seed OAuth identities + access tokens. The DB is opened lazily by
+  // getDb() on first use; force it here so usersDao/clientsDao can write.
+  getDb();
+
+  const oauthUser = usersDao.upsert({ github_login: 'fern', github_id: 20202 });
+  oauthUserId = oauthUser.id;
+
+  const interactiveClient = clientsDao.register({
+    name: 'Interactive Test Client',
+    redirect_uris: 'https://example.com/cb',
+    client_type: 'interactive',
+  });
+  interactiveClientId = interactiveClient.id;
+
+  const autonomousClient = clientsDao.register({
+    name: 'Autonomous Test Client',
+    redirect_uris: 'https://example.com/cb',
+    client_type: 'autonomous',
+  });
+  autonomousClientId = autonomousClient.id;
+
+  interactiveAccessToken = tokensDao.mint({
+    client_id: interactiveClientId,
+    user_id: oauthUserId,
+    scope: 'docs:read docs:write',
+  }).access_token;
+  autonomousAccessToken = tokensDao.mint({
+    client_id: autonomousClientId,
+    user_id: oauthUserId,
+    scope: 'docs:read docs:write',
+  }).access_token;
 
   app = express();
   app.use(express.json());
@@ -161,9 +207,12 @@ describe('Annotations Router', () => {
       expect(res.body.quoted_text).toBeNull();
       expect(res.body.parent_id).toBeNull();
       expect(res.body.review_id).toBeNull();
-      expect(res.body.user_id).toBe('anonymous');
-      expect(res.body.author_type).toBe('human');
-      expect(res.body.status).toBe('draft');
+      // Legacy-token callers inherit req.user.id='legacy' and
+      // req.client.client_type='autonomous' from S7, which maps to
+      // author_type='ai'. Draft/submitted status derives from author_type.
+      expect(res.body.user_id).toBe('legacy');
+      expect(res.body.author_type).toBe('ai');
+      expect(res.body.status).toBe('submitted');
       expect(res.body.created_at).toMatch(ISO_8601_REGEX);
       expect(res.body.updated_at).toMatch(ISO_8601_REGEX);
     });
@@ -178,84 +227,92 @@ describe('Annotations Router', () => {
       expect(res.body.quoted_text).toBe('some quoted text');
     });
 
-    it('should accept optional author_type of ai', async () => {
+    it('derives author_type from client_type (legacy → autonomous → ai)', async () => {
+      // Body author_type is ignored post-S8 — server derives from req.client.
+      // Legacy token callers get client_type='autonomous' → author_type='ai'.
       const res = await request(app)
         .post('/api/annotations')
         .set("Authorization", "Bearer test-token")
-        .send(validBody({ author_type: 'ai' }))
+        .send(validBody({ author_type: 'human' }))
         .expect(201);
 
       expect(res.body.author_type).toBe('ai');
     });
 
-    it('should default status to draft when author_type is human', async () => {
+    it('defaults status to submitted for legacy (autonomous/ai) caller', async () => {
+      // Legacy path → author_type='ai' → default status='submitted'.
       const res = await request(app)
         .post('/api/annotations')
         .set("Authorization", "Bearer test-token")
-        .send(validBody({ author_type: 'human' }))
-        .expect(201);
-
-      expect(res.body.status).toBe('draft');
-    });
-
-    it('should default status to submitted when author_type is ai', async () => {
-      const res = await request(app)
-        .post('/api/annotations')
-        .set("Authorization", "Bearer test-token")
-        .send(validBody({ author_type: 'ai' }))
+        .send(validBody())
         .expect(201);
 
       expect(res.body.status).toBe('submitted');
     });
 
-    it('should default status to submitted for human reply with parent_id', async () => {
+    it('defaults status to draft for interactive (human) caller on top-level annotation', async () => {
+      // Interactive OAuth client → author_type='human' → default status='draft'.
+      const res = await request(app)
+        .post('/api/annotations')
+        .set('Authorization', `Bearer ${interactiveAccessToken}`)
+        .send(validBody())
+        .expect(201);
+
+      expect(res.body.author_type).toBe('human');
+      expect(res.body.status).toBe('draft');
+    });
+
+    it('defaults status to submitted for interactive reply (parent_id set)', async () => {
+      // Replies always auto-submit regardless of author_type.
       const parent = await request(app)
         .post('/api/annotations')
-        .set("Authorization", "Bearer test-token")
-        .send(validBody({ author_type: 'human' }))
+        .set('Authorization', `Bearer ${interactiveAccessToken}`)
+        .send(validBody())
         .expect(201);
 
       const reply = await request(app)
         .post('/api/annotations')
-        .set("Authorization", "Bearer test-token")
-        .send(validBody({ author_type: 'human', parent_id: parent.body.id, content: 'human reply' }))
+        .set('Authorization', `Bearer ${interactiveAccessToken}`)
+        .send(validBody({ parent_id: parent.body.id, content: 'human reply' }))
         .expect(201);
 
       expect(reply.body.parent_id).toBe(parent.body.id);
+      expect(reply.body.author_type).toBe('human');
       expect(reply.body.status).toBe('submitted');
     });
 
-    it('should default status to submitted for ai reply with parent_id', async () => {
+    it('defaults status to submitted for autonomous reply (ai + parent_id)', async () => {
       const parent = await request(app)
         .post('/api/annotations')
-        .set("Authorization", "Bearer test-token")
-        .send(validBody({ author_type: 'human' }))
+        .set('Authorization', `Bearer ${interactiveAccessToken}`)
+        .send(validBody())
         .expect(201);
 
       const reply = await request(app)
         .post('/api/annotations')
-        .set("Authorization", "Bearer test-token")
-        .send(validBody({ author_type: 'ai', parent_id: parent.body.id, content: 'ai reply' }))
+        .set('Authorization', `Bearer ${autonomousAccessToken}`)
+        .send(validBody({ parent_id: parent.body.id, content: 'ai reply' }))
         .expect(201);
 
+      expect(reply.body.author_type).toBe('ai');
       expect(reply.body.status).toBe('submitted');
     });
 
-    it('should use explicit status when provided, regardless of author_type', async () => {
+    it('uses explicit status when provided, regardless of derived author_type', async () => {
       const res = await request(app)
         .post('/api/annotations')
         .set("Authorization", "Bearer test-token")
-        .send(validBody({ author_type: 'ai', status: 'draft' }))
+        .send(validBody({ status: 'draft' }))
         .expect(201);
 
       expect(res.body.status).toBe('draft');
     });
 
-    it('should use explicit status of replied when provided', async () => {
+    it('uses explicit status of replied when provided', async () => {
       const res = await request(app)
         .post('/api/annotations')
-        .set("Authorization", "Bearer test-token")
-        .send(validBody({ author_type: 'human', status: 'replied' }))
+        .set('Authorization', `Bearer ${interactiveAccessToken}`)
+        .send(validBody({ status: 'replied' }))
         .expect(201);
 
       expect(res.body.status).toBe('replied');
@@ -339,6 +396,78 @@ describe('Annotations Router', () => {
     });
   });
 
+  // ─── S8: Identity propagation (FND-E12-S8) ─────────────────────────
+
+  describe('POST /annotations — S8 identity propagation', () => {
+    // AC1: interactive client → author_type='human', user_id=req.user.id
+    it('interactive OAuth client stamps author_type=human and user_id=req.user.id', async () => {
+      const res = await request(app)
+        .post('/api/annotations')
+        .set('Authorization', `Bearer ${interactiveAccessToken}`)
+        .send(validBody({ doc_path: 'identity-test/doc.md', content: 'interactive comment' }))
+        .expect(201);
+
+      expect(res.body.author_type).toBe('human');
+      expect(res.body.user_id).toBe(oauthUserId);
+    });
+
+    // AC2: autonomous client → author_type='ai', user_id=req.user.id
+    it('autonomous OAuth client stamps author_type=ai and user_id=req.user.id', async () => {
+      const res = await request(app)
+        .post('/api/annotations')
+        .set('Authorization', `Bearer ${autonomousAccessToken}`)
+        .send(validBody({ doc_path: 'identity-test/doc.md', content: 'autonomous comment' }))
+        .expect(201);
+
+      expect(res.body.author_type).toBe('ai');
+      expect(res.body.user_id).toBe(oauthUserId);
+    });
+
+    // AC3: legacy Bearer → user_id='legacy', author_type='ai' (legacy is autonomous)
+    it('legacy Bearer caller stamps user_id=legacy and author_type=ai', async () => {
+      const res = await request(app)
+        .post('/api/annotations')
+        .set('Authorization', 'Bearer test-token')
+        .send(validBody({ doc_path: 'identity-test/doc.md', content: 'legacy comment' }))
+        .expect(201);
+
+      expect(res.body.user_id).toBe('legacy');
+      expect(res.body.author_type).toBe('ai');
+    });
+
+    // Server-authoritative: body user_id is silently dropped
+    it('ignores user_id sent in the request body (server is authoritative)', async () => {
+      const res = await request(app)
+        .post('/api/annotations')
+        .set('Authorization', `Bearer ${interactiveAccessToken}`)
+        .send(validBody({
+          doc_path: 'identity-test/doc.md',
+          content: 'spoofed body user_id',
+          user_id: 'attacker-id',
+        }))
+        .expect(201);
+
+      expect(res.body.user_id).toBe(oauthUserId);
+      expect(res.body.user_id).not.toBe('attacker-id');
+    });
+
+    // Server-authoritative: body author_type is silently dropped
+    it('ignores author_type sent in the request body (server is authoritative)', async () => {
+      // Autonomous client trying to spoof 'human' → still gets 'ai'.
+      const res = await request(app)
+        .post('/api/annotations')
+        .set('Authorization', `Bearer ${autonomousAccessToken}`)
+        .send(validBody({
+          doc_path: 'identity-test/doc.md',
+          content: 'spoofed body author_type',
+          author_type: 'human',
+        }))
+        .expect(201);
+
+      expect(res.body.author_type).toBe('ai');
+    });
+  });
+
   // ─── GET /annotations ──────────────────────────────────────────────
 
   describe('GET /annotations', () => {
@@ -346,11 +475,15 @@ describe('Annotations Router', () => {
     let seededIds: string[];
 
     beforeAll(async () => {
+      // Post-S8, legacy-token callers default to author_type='ai' and status='submitted'.
+      // We explicitly set status='draft' during seeding so the filter-by-status
+      // test below can verify that exactly one 'submitted' annotation is returned
+      // after we promote one of them via PATCH.
       const bodies = [
-        validBody({ doc_path: 'get-test/doc.md', heading_path: 'Section A', content: 'note 1' }),
-        validBody({ doc_path: 'get-test/doc.md', heading_path: 'Section B', content: 'note 2' }),
-        validBody({ doc_path: 'get-test/doc.md', heading_path: 'Section A', content: 'note 3', quoted_text: 'quote' }),
-        validBody({ doc_path: 'get-test/other.md', heading_path: 'Intro', content: 'note 4' }),
+        validBody({ doc_path: 'get-test/doc.md', heading_path: 'Section A', content: 'note 1', status: 'draft' }),
+        validBody({ doc_path: 'get-test/doc.md', heading_path: 'Section B', content: 'note 2', status: 'draft' }),
+        validBody({ doc_path: 'get-test/doc.md', heading_path: 'Section A', content: 'note 3', quoted_text: 'quote', status: 'draft' }),
+        validBody({ doc_path: 'get-test/other.md', heading_path: 'Intro', content: 'note 4', status: 'draft' }),
       ];
 
       seededIds = [];
@@ -461,24 +594,27 @@ describe('Annotations Router', () => {
         .expect(201);
       reviewId = review.body.id;
 
-      // Create annotations with and without review_id
+      // Create annotations with and without review_id. Post-S8 legacy callers
+      // default to status='submitted', so explicitly set status='draft' here
+      // so the combined review_id+status filter test finds exactly one
+      // submitted annotation.
       await request(app)
         .post('/api/annotations')
         .set('Authorization', 'Bearer test-token')
-        .send(validBody({ doc_path: 'review-filter/doc.md', content: 'with review', review_id: reviewId }))
+        .send(validBody({ doc_path: 'review-filter/doc.md', content: 'with review', review_id: reviewId, status: 'draft' }))
         .expect(201);
 
       const noReview = await request(app)
         .post('/api/annotations')
         .set('Authorization', 'Bearer test-token')
-        .send(validBody({ doc_path: 'review-filter/doc.md', content: 'no review' }))
+        .send(validBody({ doc_path: 'review-filter/doc.md', content: 'no review', status: 'draft' }))
         .expect(201);
 
       // Also create a submitted annotation with review_id for combined filter test
       const submitted = await request(app)
         .post('/api/annotations')
         .set('Authorization', 'Bearer test-token')
-        .send(validBody({ doc_path: 'review-filter/doc.md', content: 'submitted with review', review_id: reviewId }))
+        .send(validBody({ doc_path: 'review-filter/doc.md', content: 'submitted with review', review_id: reviewId, status: 'draft' }))
         .expect(201);
 
       await request(app)
