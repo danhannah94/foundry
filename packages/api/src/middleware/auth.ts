@@ -93,6 +93,92 @@ function send401BrokenReference(res: Response, description: string): void {
   res.status(401).json({ error: 'invalid_token', error_description: description });
 }
 
+// ─── Token resolution (shared internal) ───────────────────────────────────────
+
+/**
+ * Outcome of resolving a Bearer token, shared between requireAuth and softAuth.
+ *
+ *  - 'ok': valid token; req.user / req.client are ready to populate (on the caller).
+ *  - 'invalid_token': well-formed Bearer but the token didn't introspect
+ *                     (unknown/expired/revoked, and also not a legacy match).
+ *  - 'user_gone' / 'client_gone': token introspected but referenced row deleted.
+ */
+type TokenResolution =
+  | {
+      kind: 'ok';
+      user: AuthUser;
+      client: AuthClient;
+    }
+  | { kind: 'invalid_token' }
+  | { kind: 'user_gone' }
+  | { kind: 'client_gone' };
+
+type AuthUser = NonNullable<Request['user']>;
+type AuthClient = NonNullable<Request['client']>;
+
+/**
+ * Resolve a raw Bearer token to an authenticated user + client, or classify
+ * the failure. No side effects — caller decides whether to respond, next(),
+ * or populate req.
+ *
+ * Legacy FOUNDRY_WRITE_TOKEN is tried first (timing-safe compare); on miss
+ * we fall through to OAuth introspection. This matches the original
+ * requireAuth ordering from S7.
+ */
+function resolveBearerToken(token: string): TokenResolution {
+  // ── Path 1: legacy FOUNDRY_WRITE_TOKEN ─────────────────────────────────────
+  const legacyToken = process.env.FOUNDRY_WRITE_TOKEN;
+  if (legacyToken && legacyTokenMatches(token, legacyToken)) {
+    return {
+      kind: 'ok',
+      user: {
+        id: 'legacy',
+        github_login: 'legacy',
+        scopes: [...LEGACY_SCOPES],
+      },
+      client: {
+        id: 'legacy',
+        name: 'legacy-bearer',
+        client_type: 'autonomous',
+      },
+    };
+  }
+
+  // ── Path 2: OAuth Bearer token ─────────────────────────────────────────────
+  // introspect returns null for unknown/revoked/expired tokens, and also
+  // covers the wrong-legacy-token case that fell through above.
+  const info = tokensDao.introspect(token);
+  if (!info) {
+    return { kind: 'invalid_token' };
+  }
+
+  const user = usersDao.findById(info.user_id);
+  if (!user) {
+    return { kind: 'user_gone' };
+  }
+
+  const client = clientsDao.findById(info.client_id);
+  if (!client) {
+    return { kind: 'client_gone' };
+  }
+
+  return {
+    kind: 'ok',
+    user: {
+      id: user.id,
+      github_login: user.github_login,
+      scopes: info.scope.split(' ').filter(Boolean),
+    },
+    client: {
+      id: client.id,
+      name: client.name,
+      // DAO persists client_type as string; downstream code expects the narrowed
+      // union. Cast is safe given /oauth/register validates to these two values.
+      client_type: client.client_type as AuthClientType,
+    },
+  };
+}
+
 // ─── requireAuth ──────────────────────────────────────────────────────────────
 
 /**
@@ -136,52 +222,64 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
   const token = match[1];
 
-  // ── Path 1: legacy FOUNDRY_WRITE_TOKEN ─────────────────────────────────────
-  const legacyToken = process.env.FOUNDRY_WRITE_TOKEN;
-  if (legacyToken && legacyTokenMatches(token, legacyToken)) {
-    req.user = {
-      id: 'legacy',
-      github_login: 'legacy',
-      scopes: [...LEGACY_SCOPES],
-    };
-    req.client = {
-      id: 'legacy',
-      name: 'legacy-bearer',
-      client_type: 'autonomous',
-    };
+  const outcome = resolveBearerToken(token);
+  switch (outcome.kind) {
+    case 'ok':
+      req.user = outcome.user;
+      req.client = outcome.client;
+      return next();
+    case 'invalid_token':
+      return send401TokenRejected(res);
+    case 'user_gone':
+      return send401BrokenReference(res, 'The access token references a user that no longer exists');
+    case 'client_gone':
+      return send401BrokenReference(res, 'The access token references a client that no longer exists');
+  }
+}
+
+// ─── softAuth ─────────────────────────────────────────────────────────────────
+
+/**
+ * Soft introspection middleware — populates req.user / req.client on a valid
+ * Bearer token, but NEVER 401s on failure.
+ *
+ * Used by routes that must serve anonymous traffic but want to upgrade the
+ * response when a valid token is present — specifically /api/search, which
+ * is the only auth-optional route in the system (browser anonymous search
+ * is a product requirement).
+ *
+ * Behavior matrix:
+ *   - Missing Authorization header → next() with req.user undefined
+ *   - Malformed Bearer header       → next() with req.user undefined
+ *   - Unknown/expired/revoked token → next() with req.user undefined
+ *   - Deleted user/client reference → next() with req.user undefined
+ *   - Valid token                    → req.user + req.client populated, next()
+ *
+ * Handlers read req.user?.scopes to decide what to return (public-only vs
+ * full). Do NOT use this for write routes — those must use requireAuth.
+ */
+export function softAuth(req: Request, _res: Response, next: NextFunction): void {
+  // Start clean — same safety as requireAuth for Node's http built-in
+  // req.client alias (points at Socket). Downstream code must not see it.
+  req.client = undefined;
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
     return next();
   }
 
-  // ── Path 2: OAuth Bearer token ─────────────────────────────────────────────
-  // introspect returns null for unknown/revoked/expired tokens, and also
-  // covers the wrong-legacy-token case that fell through above.
-  const info = tokensDao.introspect(token);
-  if (!info) {
-    return send401TokenRejected(res);
+  const match = BEARER_RE.exec(authHeader);
+  if (!match) {
+    return next();
   }
+  const token = match[1];
 
-  const user = usersDao.findById(info.user_id);
-  if (!user) {
-    return send401BrokenReference(res, 'The access token references a user that no longer exists');
+  const outcome = resolveBearerToken(token);
+  if (outcome.kind === 'ok') {
+    req.user = outcome.user;
+    req.client = outcome.client;
   }
-
-  const client = clientsDao.findById(info.client_id);
-  if (!client) {
-    return send401BrokenReference(res, 'The access token references a client that no longer exists');
-  }
-
-  req.user = {
-    id: user.id,
-    github_login: user.github_login,
-    scopes: info.scope.split(' ').filter(Boolean),
-  };
-  req.client = {
-    id: client.id,
-    name: client.name,
-    // DAO persists client_type as string; downstream code expects the narrowed
-    // union. Cast is safe given /oauth/register validates to these two values.
-    client_type: client.client_type as AuthClientType,
-  };
+  // All failure cases fall through with req.user undefined — never 401.
   return next();
 }
 
