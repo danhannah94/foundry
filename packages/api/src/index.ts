@@ -27,6 +27,7 @@ import { createMcpServer } from './mcp/server.js';
 import { invalidateNavCache } from './utils/nav-generator.js';
 import { createOauthDiscoveryRouter } from './routes/oauth-discovery.js';
 import { createOauthRouter } from './routes/oauth.js';
+import { createOauthTokenRouter } from './routes/oauth-token.js';
 
 // Environment configuration
 const __filename = fileURLToPath(import.meta.url);
@@ -269,6 +270,9 @@ async function startServer(): Promise<void> {
 
     // Mount OAuth authorize + consent router (S5: /oauth/authorize, /oauth/consent)
     app.use('/', createOauthRouter());
+
+    // Mount OAuth token router (S6: POST /oauth/token — authorization_code + refresh_token grants)
+    app.use('/', createOauthTokenRouter());
 
     // Access control for docs:
     // - Static HTML pages: client-side nav filtering hides private docs (no server gate)

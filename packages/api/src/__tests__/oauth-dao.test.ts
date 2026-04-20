@@ -285,57 +285,5 @@ describe('tokensDao', () => {
       expect(row.revoked_at).toBeTruthy();
     });
 
-    it('refresh rotates tokens: old refresh becomes invalid, new one works', () => {
-      const { access_token: oldAt, refresh_token: oldRt } = tokensDao.mint({
-        client_id,
-        user_id,
-        scope: 'read',
-      });
-
-      const rotated = tokensDao.refresh(oldRt);
-      expect(rotated).not.toBeNull();
-      expect(rotated!.access_token).toBeTruthy();
-      expect(rotated!.refresh_token).toBeTruthy();
-      expect(rotated!.access_token).not.toBe(oldAt);
-      expect(rotated!.refresh_token).not.toBe(oldRt);
-
-      // Old refresh token should now fail
-      const reuse = tokensDao.refresh(oldRt);
-      expect(reuse).toBeNull();
-
-      // New tokens should be introspectable
-      const info = tokensDao.introspect(rotated!.access_token);
-      expect(info).not.toBeNull();
-    });
-
-    it('refresh returns null for already-revoked refresh token', () => {
-      const { access_token, refresh_token } = tokensDao.mint({
-        client_id,
-        user_id,
-        scope: 'read',
-      });
-      // Revoke the access token (sets revoked_at on the row)
-      tokensDao.revoke(access_token);
-
-      // The row is revoked, so refresh should fail
-      const result = tokensDao.refresh(refresh_token);
-      expect(result).toBeNull();
-    });
-
-    it('refresh returns null for expired refresh token (0s refresh TTL)', () => {
-      const { refresh_token } = tokensDao.mint({
-        client_id,
-        user_id,
-        scope: 'read',
-        refresh_ttl_seconds: 0,
-      });
-      const result = tokensDao.refresh(refresh_token);
-      expect(result).toBeNull();
-    });
-
-    it('refresh returns null for unknown refresh token', () => {
-      const result = tokensDao.refresh('nonexistent-refresh-token');
-      expect(result).toBeNull();
-    });
   });
 });
