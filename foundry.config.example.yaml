@@ -6,7 +6,9 @@
 # Private repos require GITHUB_TOKEN to be set in your environment.
 #
 # access: public  — visible to anyone
-# access: private — requires bearer token (FOUNDRY_WRITE_TOKEN)
+# access: private — requires a Bearer token. MCP clients authenticate via
+#                   OAuth 2.0 (see README → "MCP server"). Legacy REST
+#                   callers can still present FOUNDRY_WRITE_TOKEN.
 
 sources:
   # Public methodology docs — open to the world
