@@ -130,10 +130,14 @@ async function startServer(): Promise<void> {
   try {
     const app = express();
 
-    // CORS configuration - allow GitHub Pages and localhost
+    // CORS configuration — allow GitHub Pages (static site), localhost
+    // (dev), and claude.ai (Claude.ai Connectors performs OAuth discovery
+    // + DCR from the browser and requires an origin echo with
+    // credentials: true).
     const corsOptions = {
       origin: [
         'https://danhannah94.github.io',
+        'https://claude.ai',
         /^http:\/\/localhost:\d+$/,  // Allow any localhost port
       ],
       credentials: true,
