@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import type { AnvilHolder } from '../anvil-holder.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireScope } from '../middleware/auth.js';
 import { getAccessLevel } from '../access.js';
 import * as pagesService from '../services/pages.js';
 import { ServiceError } from '../services/errors.js';
@@ -37,10 +37,12 @@ function sendError(res: Response, err: unknown, fallback: string): void {
 }
 
 /**
- * Private-doc auth gate for GET /docs/:path(*). Runs requireAuth only when
- * the path resolves as 'private'. Preserves the pre-refactor 401 body shape
- * (`{ error: 'Authentication required for private content' }`) when auth
- * fails so existing CLI callers that string-match continue to work.
+ * Private-doc auth+scope gate for GET /docs/:path(*). Runs only when the
+ * path resolves as 'private': first requireAuth (401 on no/invalid token),
+ * then requireScope('docs:read:private') (403 if the authed user lacks
+ * the scope). Public-doc paths fall through unchanged. Closes the same
+ * #99-class gap S9 fixed for /api/search + /api/pages — any Bearer token
+ * used to unlock private doc bodies here regardless of scope.
  */
 function authIfPrivate(req: Request, res: Response, next: NextFunction): void {
   const rawPath = req.params.path;
@@ -49,11 +51,10 @@ function authIfPrivate(req: Request, res: Response, next: NextFunction): void {
 
   requireAuth(req, res, (err?: unknown) => {
     if (err) return next(err);
-    // requireAuth already responded (401) — rewrite the body to match the
-    // pre-refactor contract. status + headers are locked in; we can only
-    // append to the JSON response here, so we just don't re-send.
+    // requireAuth already responded (401) — don't double-send.
     if (res.headersSent) return;
-    next();
+    // Authenticated; now check the user holds docs:read:private.
+    requireScope('docs:read:private')(req, res, next);
   });
 }
 
