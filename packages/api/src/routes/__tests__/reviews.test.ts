@@ -7,6 +7,7 @@ import { unlinkSync } from 'fs';
 import { createReviewsRouter } from '../reviews.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { getDb, closeDb } from '../../db.js';
+import { clientsDao, tokensDao, usersDao } from '../../oauth/dao.js';
 
 const ISO_8601_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const CUID2_REGEX = /^[a-z0-9]{24,}$/;
@@ -14,13 +15,52 @@ const CUID2_REGEX = /^[a-z0-9]{24,}$/;
 let app: express.Express;
 const testDbPath = join(tmpdir(), `foundry-test-reviews-${Date.now()}.db`);
 
+// OAuth test identities for S8 identity-propagation tests.
+let oauthUserId: string;
+let interactiveClientId: string;
+let autonomousClientId: string;
+let interactiveAccessToken: string;
+let autonomousAccessToken: string;
+
 beforeAll(() => {
   process.env.FOUNDRY_DB_PATH = testDbPath;
   process.env.FOUNDRY_WRITE_TOKEN = 'test-token';
+  process.env.FOUNDRY_OAUTH_ISSUER = process.env.FOUNDRY_OAUTH_ISSUER || 'https://foundry.test';
+
+  // Force DB init before DAO usage (schema creation happens inside getDb).
+  getDb();
+
+  const oauthUser = usersDao.upsert({ github_login: 'pip', github_id: 30303 });
+  oauthUserId = oauthUser.id;
+
+  const interactiveClient = clientsDao.register({
+    name: 'Interactive Reviews Client',
+    redirect_uris: 'https://example.com/cb',
+    client_type: 'interactive',
+  });
+  interactiveClientId = interactiveClient.id;
+
+  const autonomousClient = clientsDao.register({
+    name: 'Autonomous Reviews Client',
+    redirect_uris: 'https://example.com/cb',
+    client_type: 'autonomous',
+  });
+  autonomousClientId = autonomousClient.id;
+
+  interactiveAccessToken = tokensDao.mint({
+    client_id: interactiveClientId,
+    user_id: oauthUserId,
+    scope: 'docs:read docs:write',
+  }).access_token;
+  autonomousAccessToken = tokensDao.mint({
+    client_id: autonomousClientId,
+    user_id: oauthUserId,
+    scope: 'docs:read docs:write',
+  }).access_token;
 
   app = express();
   app.use(express.json());
-  
+
   // Create protected reviews router
   const protectedReviewsRouter = express.Router();
   protectedReviewsRouter.use('/reviews', requireAuth);
@@ -84,7 +124,8 @@ describe('Reviews Router', () => {
 
       expect(res.body.id).toMatch(CUID2_REGEX);
       expect(res.body.doc_path).toBe('docs/process');
-      expect(res.body.user_id).toBe('anonymous');
+      // Legacy-token caller → req.user.id='legacy' (populated by S7 requireAuth).
+      expect(res.body.user_id).toBe('legacy');
       expect(res.body.status).toBe('draft');
       expect(res.body.submitted_at).toBeNull();
       expect(res.body.completed_at).toBeNull();
@@ -153,6 +194,56 @@ describe('Reviews Router', () => {
         .expect(201);
 
       expect(res.body.created_at).toBe(res.body.updated_at);
+    });
+  });
+
+  // ─── S8: Identity propagation (FND-E12-S8) ─────────────────────────
+
+  describe('POST /reviews — S8 identity propagation', () => {
+    // AC4 (reviews parity with annotations):
+    // interactive OAuth → user_id=req.user.id (no author_type column on reviews)
+    it('interactive OAuth client stamps user_id=req.user.id', async () => {
+      const res = await request(app)
+        .post('/api/reviews')
+        .set('Authorization', `Bearer ${interactiveAccessToken}`)
+        .send({ doc_path: 'identity-reviews/interactive.md' })
+        .expect(201);
+
+      expect(res.body.user_id).toBe(oauthUserId);
+    });
+
+    // autonomous OAuth → user_id=req.user.id
+    it('autonomous OAuth client stamps user_id=req.user.id', async () => {
+      const res = await request(app)
+        .post('/api/reviews')
+        .set('Authorization', `Bearer ${autonomousAccessToken}`)
+        .send({ doc_path: 'identity-reviews/autonomous.md' })
+        .expect(201);
+
+      expect(res.body.user_id).toBe(oauthUserId);
+    });
+
+    // AC3/AC4: legacy Bearer → user_id='legacy'
+    it('legacy Bearer caller stamps user_id=legacy', async () => {
+      const res = await request(app)
+        .post('/api/reviews')
+        .set('Authorization', 'Bearer test-token')
+        .send({ doc_path: 'identity-reviews/legacy.md' })
+        .expect(201);
+
+      expect(res.body.user_id).toBe('legacy');
+    });
+
+    // Server-authoritative: body user_id is silently dropped
+    it('ignores user_id sent in the request body (server is authoritative)', async () => {
+      const res = await request(app)
+        .post('/api/reviews')
+        .set('Authorization', `Bearer ${interactiveAccessToken}`)
+        .send({ doc_path: 'identity-reviews/spoof.md', user_id: 'attacker-id' })
+        .expect(201);
+
+      expect(res.body.user_id).toBe(oauthUserId);
+      expect(res.body.user_id).not.toBe('attacker-id');
     });
   });
 

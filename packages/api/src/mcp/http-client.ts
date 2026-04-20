@@ -78,12 +78,21 @@ export async function getAnnotation(
 
 /**
  * Create an annotation via HTTP API.
+ *
+ * Identity fields (user_id, author_type) are derived server-side from the
+ * authenticated caller — this client does not send them. The server drops
+ * any user_id / author_type fields in request bodies (see routes/annotations.ts).
+ *
+ * `author_type` remains in the param shape for source-level back-compat
+ * with existing MCP tool call sites; it is intentionally ignored here.
+ * Will be removed once all call sites stop passing it.
  */
 export async function createAnnotation(params: {
   doc_path: string;
   section: string;
   content: string;
   parent_id?: string;
+  /** @deprecated ignored — server derives author_type from req.client.client_type */
   author_type?: string;
   quoted_text?: string;
   status?: string;
@@ -96,8 +105,6 @@ export async function createAnnotation(params: {
       content: params.content,
       parent_id: params.parent_id || undefined,
       quoted_text: params.quoted_text || undefined,
-      author_type: params.author_type || 'ai',
-      user_id: process.env.FOUNDRY_MCP_USER || 'clay',
       ...(params.status !== undefined ? { status: params.status } : {}),
     }),
   });
@@ -134,12 +141,13 @@ export async function submitReview(
   docPath: string,
   annotationIds?: string[],
 ): Promise<object> {
-  // 1. Create review (attribute to configured MCP user instead of "anonymous")
+  // 1. Create review. user_id is derived server-side from req.user (the
+  // authenticated caller's OAuth identity or 'legacy' for the break-glass
+  // token). This client no longer sends user_id — server is authoritative.
   const review = await apiFetch<{ id: string; doc_path: string }>('/api/reviews', {
     method: 'POST',
     body: JSON.stringify({
       doc_path: docPath,
-      user_id: process.env.FOUNDRY_MCP_USER || 'clay',
     }),
   });
 

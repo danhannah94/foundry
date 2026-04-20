@@ -81,7 +81,7 @@ export function createReviewsRouter(): Router {
   // POST /reviews - Create new review
   router.post('/reviews', async (req: Request<{}, Review, CreateReviewBody>, res: Response<Review>) => {
     try {
-      const { doc_path, user_id } = req.body;
+      const { doc_path } = req.body;
 
       // Validate required fields
       if (!doc_path) {
@@ -89,6 +89,14 @@ export function createReviewsRouter(): Router {
           error: 'doc_path is required',
         } as any);
       }
+
+      // Identity is server-authoritative — derive user_id from the
+      // authenticated caller (req.user, populated by requireAuth).
+      // Any user_id sent in the request body is silently ignored.
+      // Dev-mode passthrough (req.user undefined when auth is fully
+      // unconfigured) falls back to 'anonymous' to document the
+      // unauthenticated write.
+      const effectiveUserId = req.user?.id ?? 'anonymous';
 
       const db = getDb();
       const id = createId();
@@ -99,7 +107,7 @@ export function createReviewsRouter(): Router {
       const review: Review = {
         id,
         doc_path: normalizedDocPath,
-        user_id: user_id || process.env.FOUNDRY_DEFAULT_USER || 'anonymous',
+        user_id: effectiveUserId,
         status: 'draft',
         submitted_at: null,
         completed_at: null,

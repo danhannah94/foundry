@@ -596,10 +596,9 @@ describe('move_section', () => {
 });
 
 describe('submit_review user_id attribution', () => {
-  // This test validates that /api/reviews accepts user_id from the body
-  // (the submitReview http-client helper now passes it). We test the route
-  // directly here, since the http-client is exercised end-to-end via MCP.
-  it('POST /api/reviews accepts user_id from body', async () => {
+  // Post-S8 (FND-E12-S8): server derives user_id from req.user, ignoring
+  // any user_id in the body. Legacy Bearer callers get user_id='legacy'.
+  it('POST /api/reviews stamps user_id from req.user and ignores body user_id', async () => {
     // Mount reviews router on its own app so we don't depend on router order
     const reviewsApp = express();
     reviewsApp.use(express.json());
@@ -615,6 +614,7 @@ describe('submit_review user_id attribution', () => {
       .send({ doc_path: 'user-attribution/test', user_id: 'clay' })
       .expect(201);
 
-    expect(res.body.user_id).toBe('clay');
+    // Body user_id='clay' is silently dropped; legacy token → user_id='legacy'.
+    expect(res.body.user_id).toBe('legacy');
   });
 });
