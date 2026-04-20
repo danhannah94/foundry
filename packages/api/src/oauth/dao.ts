@@ -260,61 +260,6 @@ export const tokensDao = {
     return row;
   },
 
-  refresh(
-    refresh_token: string
-  ): { access_token: string; refresh_token: string; expires_at: string } | null {
-    const db = getDb();
-    const old_hash = sha256(refresh_token);
-    const now = nowIso();
-
-    const row = db
-      .prepare('SELECT * FROM oauth_tokens WHERE refresh_token_hash = ?')
-      .get(old_hash) as TokenInfo | undefined;
-
-    if (!row) return null;
-    if (row.revoked_at !== null) return null;
-    if (row.refresh_expires_at !== null && row.refresh_expires_at <= now) return null;
-
-    // Atomic rotation inside a transaction
-    const doRotation = db.transaction(() => {
-      // Mark old token as revoked
-      db.prepare(
-        'UPDATE oauth_tokens SET revoked_at = ? WHERE refresh_token_hash = ?'
-      ).run(now, old_hash);
-
-      // Mint new tokens with same TTLs derived from original durations
-      const new_access_token = randomToken();
-      const new_refresh_token = randomToken();
-      const new_access_hash = sha256(new_access_token);
-      const new_refresh_hash = sha256(new_refresh_token);
-
-      // Preserve the same TTL window by computing seconds remaining from original
-      const ACCESS_TTL = 3600;
-      const REFRESH_TTL = 2592000;
-      const new_expires_at = futureIso(ACCESS_TTL);
-      const new_refresh_expires_at = futureIso(REFRESH_TTL);
-
-      db.prepare(
-        `INSERT INTO oauth_tokens
-          (access_token_hash, refresh_token_hash, client_id, user_id, scope, expires_at, refresh_expires_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(
-        new_access_hash,
-        new_refresh_hash,
-        row.client_id,
-        row.user_id,
-        row.scope,
-        new_expires_at,
-        new_refresh_expires_at,
-        now
-      );
-
-      return { access_token: new_access_token, refresh_token: new_refresh_token, expires_at: new_expires_at };
-    });
-
-    return doRotation();
-  },
-
   revoke(access_token: string): void {
     const db = getDb();
     const hash = sha256(access_token);
