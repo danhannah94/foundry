@@ -93,8 +93,11 @@ MCP clients authenticate with an OAuth 2.0 Bearer token. Supported clients
 PKCE automatically — the operator only needs to paste the `/mcp` URL and
 complete the in-browser GitHub consent step.
 
-Operators configuring a new client: see
-[docs/mcp-migration.md](docs/mcp-migration.md) for the runbook.
+Operators configuring a new client:
+- Claude Code / Cowork-Claude: see [docs/mcp-migration.md](docs/mcp-migration.md).
+- Claude.ai Custom Connectors: see [docs/claude-ai-connector-setup.md](docs/claude-ai-connector-setup.md).
+  Claude.ai needs a pre-registered OAuth client because its UI doesn't
+  carry initial access tokens — that doc walks through the one-time curl.
 
 ## Public/Private Doc Access Control
 
